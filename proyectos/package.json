@@ -1,0 +1,16 @@
+{
+  "name": "proyectos",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently -n WebSite,Api -c cyan,green \"pnpm --dir WebSite run dev\" \"pnpm --dir Api exec node server.js\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
