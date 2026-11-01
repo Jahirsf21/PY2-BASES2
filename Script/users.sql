@@ -18,7 +18,7 @@ if object_id(N'dbo.Users', N'U') is null
         create table dbo.Users (
             UserID int identity(1, 1) not null,
             UserName nvarchar(50) not null,
-            [Password] nvarchar(255) not null,
+            [Password] varbinary(8000) not null,
             FullName nvarchar(150) not null,
             Active bit not null constraint DF_Users_Active default (1),
             Rol nvarchar(50) not null,
@@ -31,6 +31,11 @@ if object_id(N'dbo.Users', N'U') is null
     end
 go
 
+-- Frase de paso para cifrar las contraseñas; debe coincidir con la usada en dbo.LoginUser.
+declare @Passphrase nvarchar(100) = N'hGkxrd6gfl5oECcRkZoTUiB8ITcsuEzqSnA17kqXhDh';
+go
+
+
 /*
     Inserta usuarios de prueba para los roles Administrador y Corporativo.
     No modifica los usuarios existentes si coincide el nombre de usuario o el correo.
@@ -39,7 +44,7 @@ go
 insert into dbo.Users (UserName, [Password], FullName, Rol, Email, HireDate)
 select
     v.UserName,
-    v.Password,
+    EncryptByPassPhrase(@Passphrase, v.Password),
     v.FullName,
     v.Rol,
     v.Email,
@@ -55,7 +60,7 @@ where not exists (
 go
 
 /*
-    Comprueba las credenciales de un usuario activo mediante SHA2_256.
+    Comprueba las credenciales de un usuario activo descifrando la contraseña almacenada.
     No devuelve filas si las credenciales no coinciden o el usuario está inactivo.
     Devuelve: UserID, UserName, FullName, Rol, Active
 */
@@ -66,6 +71,9 @@ as
 begin
     set nocount on;
 
+    -- Debe ser la misma frase de paso usada al cifrar las contraseñas.
+    declare @Passphrase nvarchar(100) = N'hGkxrd6gfl5oECcRkZoTUiB8ITcsuEzqSnA17kqXhDh';
+
     select
         UserID,
         UserName,
@@ -74,7 +82,7 @@ begin
         Active
     from dbo.Users
     where UserName = @UserName
-      and [Password] = @Password
+      and convert(nvarchar(255), DecryptByPassPhrase(@Passphrase, [Password])) = @Password
       and Active = 1;
 end
 go

@@ -3,7 +3,7 @@ import sql from "mssql"
 
 /**
  * Obtiene los datos de un usuario activo mediante dbo.LoginUser.
- * El procedimiento compara la contraseña recibida con el hash SHA2_256 almacenado.
+ * El procedimiento compara la contraseña recibida con la contraseña cifrada almacenada.
  *
  * @param {string} userName Nombre del usuario.
  * @param {string} password Contraseña del usuario.
