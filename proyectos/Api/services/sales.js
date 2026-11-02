@@ -15,10 +15,13 @@ import sql from "mssql"
  * @param {number|null} maxInvoiceAmount Monto máximo o null para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de facturas por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y facturas de la página.
  */
-export async function getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('InvoiceID', sql.Int, invoiceID)
     connection.input('InvoiceDateFrom', sql.Date, invoiceDateFrom)
     connection.input('InvoiceDateTo', sql.Date, invoiceDateTo)
@@ -40,10 +43,13 @@ export async function getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, cus
  * Obtiene el encabezado de una factura.
  *
  * @param {number} invoiceID Identificador de la factura.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Encabezado en una fila o un arreglo vacío.
  */
-export async function getInvoiceHeader(invoiceID) {
-    const connection = (await getPool()).request()
+export async function getInvoiceHeader(invoiceID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('InvoiceID', sql.Int, invoiceID)
     const result = await connection.execute('Sales.GetInvoiceHeader')
     return result.recordset
@@ -53,10 +59,13 @@ export async function getInvoiceHeader(invoiceID) {
  * Obtiene los campos editables del encabezado de una factura.
  *
  * @param {number} invoiceID Identificador de la factura.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos para precargar el formulario.
  */
-export async function getInvoiceForEdit(invoiceID) {
-    const connection = (await getPool()).request()
+export async function getInvoiceForEdit(invoiceID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('InvoiceID', sql.Int, invoiceID)
     const result = await connection.execute('Sales.GetInvoiceForEdit')
     return result.recordset
@@ -66,10 +75,13 @@ export async function getInvoiceForEdit(invoiceID) {
  * Obtiene las líneas de productos de una factura.
  *
  * @param {number} invoiceID Identificador de la factura.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Líneas ordenadas por identificador.
  */
-export async function getInvoiceLines(invoiceID) {
-    const connection = (await getPool()).request()
+export async function getInvoiceLines(invoiceID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('InvoiceID', sql.Int, invoiceID)
     const result = await connection.execute('Sales.GetInvoiceLines')
     return result.recordset
@@ -79,10 +91,13 @@ export async function getInvoiceLines(invoiceID) {
  * Inserta una factura con sus líneas de detalle.
  *
  * @param {object} invoice Encabezado y líneas.
+ * @param {number} userID Identificador del usuario autenticado, distinto de invoice.lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<number>} Identificador de la factura creada.
  */
-export async function insertInvoice(invoice) {
-    const connection = (await getPool()).request()
+export async function insertInvoice(invoice, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, invoice.customerID)
     connection.input('BillToCustomerID', sql.Int, invoice.billToCustomerID ?? null)
     connection.input('DeliveryMethodID', sql.Int, invoice.deliveryMethodID)
@@ -109,10 +124,13 @@ export async function insertInvoice(invoice) {
  *
  * @param {number} invoiceID Identificador de la factura.
  * @param {object} invoice Datos actualizados.
+ * @param {number} userID Identificador del usuario autenticado, distinto de invoice.lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<void>} Finaliza al actualizar la factura.
  */
-export async function updateInvoice(invoiceID, invoice) {
-    const connection = (await getPool()).request()
+export async function updateInvoice(invoiceID, invoice, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('InvoiceID', sql.Int, invoiceID)
     connection.input('CustomerID', sql.Int, invoice.customerID)
     connection.input('BillToCustomerID', sql.Int, invoice.billToCustomerID ?? null)

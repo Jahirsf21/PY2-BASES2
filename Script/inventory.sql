@@ -21,10 +21,13 @@ create or alter procedure Warehouse.GetStockItems
     @StockGroupIDsJson nvarchar(max) = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
         set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         declare @SelectedStockGroups table (StockGroupID int primary key);
         if @StockGroupIDsJson is not null
             begin
@@ -99,9 +102,12 @@ go
     Devuelve: StockGroupID, NombreGrupoProducto
 */
 create or alter procedure Warehouse.GetStockGroups
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador', @AlternativeRole = N'Corporativo';
+
         select
             StockGroupID,
             StockGroupName as NombreGrupoProducto
@@ -117,10 +123,13 @@ go
     marca, talla, impuesto, precioUnitario, precioVenta, peso, palabrasClave, cantidadDisponible, ubicacion
 */
 create or alter procedure Warehouse.GetStockItemDetail
-    @StockItemID int
+    @StockItemID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             si.StockItemID,
             si.StockItemName as NombreProducto,
@@ -153,10 +162,13 @@ go
     Devuelve: StockGroupID, NombreGrupoProducto.
 */
 create or alter procedure Warehouse.GetStockItemStockGroups
-    @StockItemID int
+    @StockItemID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             sg.StockGroupID,
             sg.StockGroupName as NombreGrupoProducto
@@ -168,10 +180,13 @@ go
 
 /* Obtiene los valores editables del producto */
 create or alter procedure Warehouse.GetStockItemForEdit
-    @StockItemID int
+    @StockItemID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             si.StockItemID,
             si.StockItemName,
@@ -214,9 +229,12 @@ go
     Devuelve: ColorID, ColorName.
 */
 create or alter procedure Warehouse.GetColors
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             ColorID,
             ColorName
@@ -229,9 +247,12 @@ go
     Devuelve: PackageTypeID, PackageTypeName.
 */
 create or alter procedure Warehouse.GetPackageTypes
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             PackageTypeID,
             PackageTypeName
@@ -267,10 +288,13 @@ create or alter procedure Warehouse.InsertStockItem
     @StockGroupIDsJson nvarchar(max),
     @QuantityOnHand int = 0,
     @BinLocation nvarchar(20) = null,
-    @NewStockItemID int output
+    @NewStockItemID int output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 declare @InsertedIDs table (StockItemID int)
@@ -334,10 +358,13 @@ create or alter procedure Warehouse.UpdateStockItem
     @TypicalWeightPerUnit decimal(18, 3) = null,
     @StockGroupIDsJson nvarchar(max),
     @QuantityOnHand int,
-    @BinLocation nvarchar(20) = null
+    @BinLocation nvarchar(20) = null,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 update dbo.StockItems
@@ -399,10 +426,13 @@ go
    53002 con un mensaje más claro.
 */
 create or alter procedure Warehouse.DeleteStockItem
-    @StockItemID int
+    @StockItemID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 delete from dbo.StockItemStockGroups

@@ -142,3 +142,40 @@ begin
     from @AuthenticatedUser;
 end
 go
+
+/*
+    Comprueba que el usuario esté activo, tenga el rol requerido o alternativo y pueda acceder a la instancia.
+    Lanza 56003 si el usuario no existe o está inactivo, 56002 si el hostname no está reconocido
+    y 56001 si el rol no está permitido. No devuelve conjuntos de resultados.
+*/
+create or alter procedure dbo.ValidateUserAccess
+    @UserID int,
+    @RequiredRole nvarchar(50),
+    @AlternativeRole nvarchar(50) = null
+as
+begin
+    set nocount on;
+
+    declare @UserRole nvarchar(50);
+
+    select @UserRole = Rol
+    from dbo.Users
+    where UserID = @UserID and Active = 1;
+
+    if @UserRole is null
+        throw 56003, N'El usuario no existe o está inactivo.', 1;
+
+    declare @InstanceName nvarchar(128) = convert(nvarchar(128), serverproperty('MachineName'));
+
+    if @InstanceName is null or @InstanceName not in (N'san-jose', N'limon', N'corporativo')
+        throw 56002, N'Hostname de SQL Server no reconocido. Se esperaba san-jose, limon o corporativo.', 1;
+
+    if @RequiredRole is null
+        or (@UserRole <> @RequiredRole and (@AlternativeRole is null or @UserRole <> @AlternativeRole))
+        or not (
+            (@UserRole = N'Administrador' and @InstanceName in (N'san-jose', N'limon'))
+            or (@UserRole = N'Corporativo' and @InstanceName = N'corporativo')
+        )
+        throw 56001, N'El rol no tiene acceso a la sucursal seleccionada.', 1;
+end
+go

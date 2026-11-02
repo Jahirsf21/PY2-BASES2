@@ -9,10 +9,13 @@ import sql from "mssql"
  * @param {string|null} stockGroupIDsJson Arreglo JSON de IDs de grupos de productos; null o [] para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de productos por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y productos de la página.
  */
-export async function getStockItems(stockItemName, stockGroupIDsJson, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getStockItems(stockItemName, stockGroupIDsJson, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemName', sql.NVarChar, stockItemName)
     connection.input('StockGroupIDsJson', sql.NVarChar(sql.MAX), stockGroupIDsJson)
     connection.input('PageNumber', sql.Int, pageNumber)
@@ -26,12 +29,15 @@ export async function getStockItems(stockItemName, stockGroupIDsJson, pageNumber
 }
 
 /**
- * Obtiene todos los grupos de productos.
+ * Obtiene los grupos de productos para inventario y filtros de reportes; admite ambos roles.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de grupos de productos.
  */
-export async function getStockGroups() {
-    const connection = (await getPool()).request()
+export async function getStockGroups(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Warehouse.GetStockGroups')
     return result.recordset
 }
@@ -39,10 +45,13 @@ export async function getStockGroups() {
 /**
  * Obtiene los colores disponibles para el formulario de productos.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de colores.
  */
-export async function getColors() {
-    const connection = (await getPool()).request()
+export async function getColors(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Warehouse.GetColors')
     return result.recordset
 }
@@ -50,10 +59,13 @@ export async function getColors() {
 /**
  * Obtiene los tipos de empaque disponibles para productos.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de empaques.
  */
-export async function getPackageTypes() {
-    const connection = (await getPool()).request()
+export async function getPackageTypes(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Warehouse.GetPackageTypes')
     return result.recordset
 }
@@ -62,10 +74,13 @@ export async function getPackageTypes() {
  * Obtiene el detalle general de un producto.
  *
  * @param {number} stockItemID Identificador del producto.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos del producto en una fila o un arreglo vacío.
  */
-export async function getStockItemDetail(stockItemID) {
-    const connection = (await getPool()).request()
+export async function getStockItemDetail(stockItemID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemID', sql.Int, stockItemID)
     const result = await connection.execute('Warehouse.GetStockItemDetail')
     return result.recordset
@@ -75,10 +90,13 @@ export async function getStockItemDetail(stockItemID) {
  * Obtiene los campos editables de un producto y los nombres de sus referencias.
  *
  * @param {number} stockItemID Identificador del producto.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos para precargar el formulario.
  */
-export async function getStockItemForEdit(stockItemID) {
-    const connection = (await getPool()).request()
+export async function getStockItemForEdit(stockItemID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemID', sql.Int, stockItemID)
     const result = await connection.execute('Warehouse.GetStockItemForEdit')
     return result.recordset
@@ -88,10 +106,13 @@ export async function getStockItemForEdit(stockItemID) {
  * Obtiene los grupos asociados a un producto.
  *
  * @param {number} stockItemID Identificador del producto.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Grupos del producto o un arreglo vacío.
  */
-export async function getStockItemGroups(stockItemID) {
-    const connection = (await getPool()).request()
+export async function getStockItemGroups(stockItemID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemID', sql.Int, stockItemID)
     const result = await connection.execute('Warehouse.GetStockItemStockGroups')
     return result.recordset
@@ -101,10 +122,13 @@ export async function getStockItemGroups(stockItemID) {
  * Inserta un producto con existencias y grupos iniciales.
  *
  * @param {object} item Datos del producto.
+ * @param {number} userID Identificador del usuario autenticado, distinto de item.lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<number>} Identificador del producto creado.
  */
-export async function insertStockItem(item) {
-    const connection = (await getPool()).request()
+export async function insertStockItem(item, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemName', sql.NVarChar, item.stockItemName)
     connection.input('SupplierID', sql.Int, item.supplierID)
     connection.input('LastEditedBy', sql.Int, item.lastEditedBy)
@@ -137,10 +161,13 @@ export async function insertStockItem(item) {
  *
  * @param {number} stockItemID Identificador del producto.
  * @param {object} item Datos actualizados.
+ * @param {number} userID Identificador del usuario autenticado, distinto de item.lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<void>} Finaliza al actualizar el producto.
  */
-export async function updateStockItem(stockItemID, item) {
-    const connection = (await getPool()).request()
+export async function updateStockItem(stockItemID, item, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemID', sql.Int, stockItemID)
     connection.input('StockItemName', sql.NVarChar, item.stockItemName)
     connection.input('SupplierID', sql.Int, item.supplierID)
@@ -171,10 +198,13 @@ export async function updateStockItem(stockItemID, item) {
  * Elimina un producto si no tiene registros relacionados.
  *
  * @param {number} stockItemID Identificador del producto.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<void>} Finaliza al eliminar el producto.
  */
-export async function deleteStockItem(stockItemID) {
-    const connection = (await getPool()).request()
+export async function deleteStockItem(stockItemID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('StockItemID', sql.Int, stockItemID)
     await connection.execute('Warehouse.DeleteStockItem')
 }

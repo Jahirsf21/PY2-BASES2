@@ -8,12 +8,12 @@ import { getPurchaseYears, getInvoiceYears, getSupplierPurchaseSummary, getCusto
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los años de compras.
  */
-export async function listPurchaseYears(req, res) {
+export async function listPurchaseYears(req, res, next) {
     try {
-        const years = await getPurchaseYears()
+        const years = await getPurchaseYears(req.user.userID, req.user.node)
         return res.json(years)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los años de compras'})
+        return next(error)
     }
 }
 
@@ -24,12 +24,12 @@ export async function listPurchaseYears(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los años de facturación.
  */
-export async function listInvoiceYears(req, res) {
+export async function listInvoiceYears(req, res, next) {
     try {
-        const years = await getInvoiceYears()
+        const years = await getInvoiceYears(req.user.userID, req.user.node)
         return res.json(years)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los años de facturación'})
+        return next(error)
     }
 }
 
@@ -40,14 +40,14 @@ export async function listInvoiceYears(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Resumen de proveedores y fila de resumen general.
  */
-export async function listSupplierPurchaseSummary(req, res) {
+export async function listSupplierPurchaseSummary(req, res, next) {
     try {
         const supplierName = req.query.supplierName
         const supplierCategoryName = req.query.supplierCategoryName
-        const result = await getSupplierPurchaseSummary(supplierName, supplierCategoryName)
+        const result = await getSupplierPurchaseSummary(supplierName, supplierCategoryName, req.user.userID, req.user.node)
         return res.json(result)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener el resumen de compras por proveedor'})
+        return next(error)
     }
 }
 
@@ -58,7 +58,7 @@ export async function listSupplierPurchaseSummary(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Resumen paginado con el total de registros.
  */
-export async function listCustomerSalesSummary(req, res) {
+export async function listCustomerSalesSummary(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -70,10 +70,10 @@ export async function listCustomerSalesSummary(req, res) {
         }
         const customerName = req.query.customerName
         const customerCategoryName = req.query.customerCategoryName
-        const result = await getCustomerSalesSummary(customerName, customerCategoryName, pageNumber, pageSize)
+        const result = await getCustomerSalesSummary(customerName, customerCategoryName, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener el resumen de ventas por cliente'})
+        return next(error)
     }
 }
 
@@ -84,11 +84,11 @@ export async function listCustomerSalesSummary(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Ranking anual de clientes, incluyendo empates.
  */
-export async function listTopCustomersByYear(req, res) {
+export async function listTopCustomersByYear(req, res, next) {
     try {
         const invoiceYearFrom = req.query.invoiceYearFrom
         const invoiceYearTo = req.query.invoiceYearTo
-        const result = await getTopCustomersByYear(invoiceYearFrom, invoiceYearTo)
+        const result = await getTopCustomersByYear(invoiceYearFrom, invoiceYearTo, req.user.userID, req.user.node)
         return res.json(result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -101,7 +101,7 @@ export async function listTopCustomersByYear(req, res) {
         if (sqlErrorCode === 50003) {
             return res.status(400).json({message: 'El año inicial no puede ser mayor que el año final.'})
         }
-        return res.status(500).json({message: 'Error al obtener el ranking anual de clientes'})
+        return next(error)
     }
 }
 
@@ -112,17 +112,17 @@ export async function listTopCustomersByYear(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Ranking anual de productos, incluyendo empates.
  */
-export async function listTopProductsByYear(req, res) {
+export async function listTopProductsByYear(req, res, next) {
     try {
         const year = req.query.year
-        const result = await getTopProductsByYear(year)
+        const result = await getTopProductsByYear(year, req.user.userID, req.user.node)
         return res.json(result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
         if (sqlErrorCode === 50001) {
             return res.status(400).json({message: 'El año indicado no existe en la base de datos.'})
         }
-        return res.status(500).json({message: 'Error al obtener el ranking anual de productos'})
+        return next(error)
     }
 }
 
@@ -133,11 +133,11 @@ export async function listTopProductsByYear(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Ranking anual de proveedores, incluyendo empates.
  */
-export async function listTopSuppliersByYear(req, res) {
+export async function listTopSuppliersByYear(req, res, next) {
     try {
         const orderYearFrom = req.query.orderYearFrom
         const orderYearTo = req.query.orderYearTo
-        const result = await getTopSuppliersByYear(orderYearFrom, orderYearTo)
+        const result = await getTopSuppliersByYear(orderYearFrom, orderYearTo, req.user.userID, req.user.node)
         return res.json(result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -150,7 +150,7 @@ export async function listTopSuppliersByYear(req, res) {
         if (sqlErrorCode === 50003) {
             return res.status(400).json({message: 'El año inicial no puede ser mayor que el año final.'})
         }
-        return res.status(500).json({message: 'Error al obtener el ranking anual de proveedores'})
+        return next(error)
     }
 }
 
@@ -161,12 +161,12 @@ export async function listTopSuppliersByYear(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Montos anuales por grupo de productos.
  */
-export async function listProductCategorySalesByYear(req, res) {
+export async function listProductCategorySalesByYear(req, res, next) {
     try {
-        const result = await getProductCategorySalesByYear()
+        const result = await getProductCategorySalesByYear(req.user.userID, req.user.node)
         return res.json(result)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener las ventas anuales por grupo de productos'})
+        return next(error)
     }
 }
 
@@ -177,7 +177,7 @@ export async function listProductCategorySalesByYear(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Montos de primera y última factura, cantidades total, máxima y mínima y categorías.
  */
-export async function listCustomerSalesTracking(req, res) {
+export async function listCustomerSalesTracking(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -190,7 +190,7 @@ export async function listCustomerSalesTracking(req, res) {
         const year = req.query.year
         const month = req.query.month
         const stockGroupIDsJson = req.query.stockGroupIDsJson
-        const result = await getCustomerSalesTracking(year, month, stockGroupIDsJson, pageNumber, pageSize)
+        const result = await getCustomerSalesTracking(year, month, stockGroupIDsJson, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -209,7 +209,7 @@ export async function listCustomerSalesTracking(req, res) {
         if (sqlErrorCode === 50005) {
             return res.status(400).json({message: 'Una o más categorías indicadas no existen en la base de datos.'})
         }
-        return res.status(500).json({message: 'Error al obtener el seguimiento de ventas por cliente'})
+        return next(error)
     }
 }
 
@@ -221,7 +221,7 @@ export async function listCustomerSalesTracking(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Montos de primera y última compra, cantidades total, máxima y mínima de empaques y categorías.
  */
-export async function listSupplierPurchaseTracking(req, res) {
+export async function listSupplierPurchaseTracking(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -234,7 +234,7 @@ export async function listSupplierPurchaseTracking(req, res) {
         const year = req.query.year
         const month = req.query.month
         const stockGroupIDsJson = req.query.stockGroupIDsJson
-        const result = await getSupplierPurchaseTracking(year, month, stockGroupIDsJson, pageNumber, pageSize)
+        const result = await getSupplierPurchaseTracking(year, month, stockGroupIDsJson, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -253,6 +253,6 @@ export async function listSupplierPurchaseTracking(req, res) {
         if (sqlErrorCode === 50005) {
             return res.status(400).json({message: 'Una o más categorías indicadas no existen en la base de datos.'})
         }
-        return res.status(500).json({message: 'Error al obtener el seguimiento de compras por proveedor'})
+        return next(error)
     }
 }

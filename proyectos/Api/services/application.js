@@ -8,10 +8,13 @@ import sql from "mssql"
  * @param {string|null} fullName Nombre completo (búsqueda parcial) o null para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de personas por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y personas de la página.
  */
-export async function getPeople(fullName, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getPeople(fullName, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('FullName', sql.NVarChar, fullName)
     connection.input('PageNumber', sql.Int, pageNumber)
     connection.input('PageSize', sql.Int, pageSize)
@@ -32,10 +35,13 @@ export async function getPeople(fullName, pageNumber, pageSize) {
  * @param {string|null} countryName Nombre de país (búsqueda parcial) o null para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de ciudades por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y ciudades de la página.
  */
-export async function getCities(cityName, provinceName, countryName, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getCities(cityName, provinceName, countryName, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CityName', sql.NVarChar, cityName)
     connection.input('ProvinceName', sql.NVarChar, provinceName)
     connection.input('CountryName', sql.NVarChar, countryName)
@@ -53,10 +59,13 @@ export async function getCities(cityName, provinceName, countryName, pageNumber,
  * Obtiene todos los métodos de entrega.
  * Se usa para llenar los combos de filtros y formularios de clientes y proveedores.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de métodos de entrega.
  */
-export async function getDeliveryMethods() {
-    const connection = (await getPool()).request()
+export async function getDeliveryMethods(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Application.GetDeliveryMethods')
     return result.recordset
 }
@@ -64,17 +73,25 @@ export async function getDeliveryMethods() {
 /**
  * Obtiene las personas registradas como empleados para los formularios.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Empleados con PersonID y NombreCompleto.
  */
-export async function getEmployees() {
-    const connection = (await getPool()).request()
+export async function getEmployees(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Application.GetEmployee')
     return result.recordset
 }
 
-/** @returns {Promise<object[]>} Personas registradas como vendedores. */
-export async function getSalespeople() {
-    const connection = (await getPool()).request()
+/**
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
+ * @returns {Promise<object[]>} Personas registradas como vendedores.
+ */
+export async function getSalespeople(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Application.GetSalespeople')
     return result.recordset
 }

@@ -10,10 +10,13 @@ import sql from "mssql"
  * @param {number|null} deliveryMethodID ID del método de entrega o null para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de proveedores por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y proveedores de la página.
  */
-export async function getSuppliers(supplierName, supplierCategoryID, deliveryMethodID, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getSuppliers(supplierName, supplierCategoryID, deliveryMethodID, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierName', sql.NVarChar, supplierName)
     connection.input('SupplierCategoryID', sql.Int, supplierCategoryID)
     connection.input('DeliveryMethodID', sql.Int, deliveryMethodID)
@@ -31,10 +34,13 @@ export async function getSuppliers(supplierName, supplierCategoryID, deliveryMet
  * Obtiene todas las categorías de proveedor ordenadas por su identificador.
  * Se usa para llenar el combo de filtros de la lista de proveedores.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de categorías de proveedor.
  */
-export async function getSupplierCategories() {
-    const connection = (await getPool()).request()
+export async function getSupplierCategories(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Purchasing.GetSupplierCategories')
     return result.recordset
 }
@@ -45,10 +51,13 @@ export async function getSupplierCategories() {
  * días de gracia, teléfono, fax, sitio web y datos bancarios.
  *
  * @param {number} supplierID Identificador del proveedor.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos del proveedor en una fila, o un arreglo vacío si no existe.
  */
-export async function getSupplierDetail(supplierID) {
-    const connection = (await getPool()).request()
+export async function getSupplierDetail(supplierID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
     const result = await connection.execute('Purchasing.GetSupplierDetail')
     return result.recordset
@@ -59,10 +68,13 @@ export async function getSupplierDetail(supplierID) {
  * Devuelve nombre, teléfono, fax y correo de ambos contactos en una sola fila.
  *
  * @param {number} supplierID Identificador del proveedor.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos de los contactos en una fila, o un arreglo vacío si no existe.
  */
-export async function getSupplierContacts(supplierID) {
-    const connection = (await getPool()).request()
+export async function getSupplierContacts(supplierID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
     const result = await connection.execute('Purchasing.GetSupplierContacts')
     return result.recordset
@@ -73,10 +85,13 @@ export async function getSupplierContacts(supplierID) {
  * junto con su ubicación geográfica (latitud/longitud).
  *
  * @param {number} supplierID Identificador del proveedor.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Direcciones y coordenadas en una fila, o un arreglo vacío si no existe.
  */
-export async function getSupplierAddress(supplierID) {
-    const connection = (await getPool()).request()
+export async function getSupplierAddress(supplierID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
     const result = await connection.execute('Purchasing.GetSupplierAddress')
     return result.recordset
@@ -114,10 +129,13 @@ export async function getSupplierAddress(supplierID) {
  * @param {string|null} params.internalComments Comentarios internos o null.
  * @param {number|null} params.latitude Latitud de entrega o null.
  * @param {number|null} params.longitude Longitud de entrega o null.
+ * @param {number} userID Identificador del usuario autenticado, distinto de params.lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<number>} Identificador del proveedor creado.
  */
-export async function insertSupplier(params) {
-    const connection = (await getPool()).request()
+export async function insertSupplier(params, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierName', sql.NVarChar, params.supplierName)
     connection.input('SupplierCategoryID', sql.Int, params.supplierCategoryID)
     connection.input('LastEditedBy', sql.Int, params.lastEditedBy)
@@ -153,10 +171,13 @@ export async function insertSupplier(params) {
  * La ciudad y el código postal son compartidos por las direcciones de entrega y postal.
  *
  * @param {number} supplierID Identificador del proveedor.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos para precargar el formulario, o un arreglo vacío si no existe.
  */
-export async function getSupplierForEdit(supplierID) {
-    const connection = (await getPool()).request()
+export async function getSupplierForEdit(supplierID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
     const result = await connection.execute('Purchasing.GetSupplierForEdit')
     return result.recordset
@@ -195,10 +216,13 @@ export async function getSupplierForEdit(supplierID) {
  * @param {string|null} params.internalComments Comentarios internos o null.
  * @param {number|null} params.latitude Latitud o null.
  * @param {number|null} params.longitude Longitud o null.
+ * @param {number} userID Identificador del usuario autenticado, distinto de params.lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<void>} Finaliza cuando el procedimiento actualiza el proveedor.
  */
-export async function updateSupplier(supplierID, params) {
-    const connection = (await getPool()).request()
+export async function updateSupplier(supplierID, params, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
     connection.input('SupplierName', sql.NVarChar, params.supplierName)
     connection.input('SupplierCategoryID', sql.Int, params.supplierCategoryID)
@@ -233,10 +257,13 @@ export async function updateSupplier(supplierID, params) {
  * Lanza 52001 si no existe y 52002 si tiene registros asociados.
  *
  * @param {number} supplierID Identificador del proveedor que se eliminará.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object>} Resultado del procedimiento almacenado.
  */
-export async function deleteSupplier(supplierID) {
-    const connection = (await getPool()).request()
+export async function deleteSupplier(supplierID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
     const result = await connection.execute('Purchasing.DeleteSupplier')
     return result

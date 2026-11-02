@@ -58,6 +58,14 @@ export const verifyToken = (req, res, next) => {
     next()
 }
 
+/** Exige uno de los roles indicados después de verificar el JWT. */
+export const requireRole = (...roles) => (req, res, next) => {
+    if (!roles.includes(req.user?.rol)) {
+        return res.status(403).json({message: 'El rol no tiene permisos para realizar esta operación'})
+    }
+    next()
+}
+
 
 /**
  * Genera un token de autenticación con la identidad, el rol y el nodo del usuario.

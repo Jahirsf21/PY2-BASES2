@@ -23,10 +23,13 @@ create or alter procedure Sales.GetInvoices
     @MaxInvoiceAmount decimal(18, 2) = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
         set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         if @InvoiceDateFrom is not null and @InvoiceDateTo is not null and @InvoiceDateFrom > @InvoiceDateTo
             throw 54004, 'La fecha inicial no puede ser mayor que la fecha final.', 1;
         if @MinInvoiceAmount < 0 or @MaxInvoiceAmount < 0
@@ -82,10 +85,13 @@ go
     Devuelve: numeroFactura, nombreCliente, nombreMetodoEntrega, numeroOrden, nombreContacto, nombreVendedor, fechaFactura, instruccionesEntrega
 */
 create or alter procedure Sales.GetInvoiceHeader
-    @InvoiceID int
+    @InvoiceID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             iv.InvoiceID as NumeroFactura,
             cs.CustomerName as NombreCliente,
@@ -108,10 +114,13 @@ go
     Devuelve los valores editables de la factura.
 */
 create or alter procedure Sales.GetInvoiceForEdit
-    @InvoiceID int
+    @InvoiceID int,
+    @UserID int
 as
 begin
-    set nocount on
+    set nocount on;
+    exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
     select iv.InvoiceID, iv.CustomerID, cs.CustomerName,
            iv.BillToCustomerID, bill.CustomerName as BillToCustomerName,
            iv.DeliveryMethodID, iv.ContactPersonID, cp.FullName as ContactPersonName,
@@ -137,10 +146,13 @@ go
     Devuelve: StockItemID, nombreProducto, cantidad, precioUnitario, impuestoAplicado, montoImpuesto, totalLinea
 */
 create or alter procedure Sales.GetInvoiceLines
-    @InvoiceID int
+    @InvoiceID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             ivl.StockItemID,
             si.StockItemName as NombreProducto,
@@ -161,9 +173,12 @@ go
     Devuelve: Año
 */
 create or alter procedure Sales.GetInvoiceYears
+    @UserID int
 as
 	begin
-		set nocount on
+		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
 		select distinct year(InvoiceDate) as Año
 		from dbo.Invoices
 		order by Año
@@ -189,10 +204,13 @@ create or alter procedure Sales.InsertInvoice
     @InvoiceDate date,
     @DeliveryInstructions nvarchar(100) = null,
     @LinesJson nvarchar(max),
-    @NewInvoiceID int output
+    @NewInvoiceID int output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 declare @InsertedIDs table (InvoiceID int)
@@ -270,10 +288,13 @@ create or alter procedure Sales.UpdateInvoice
     @CustomerPurchaseOrderNumber nvarchar(20) = null,
     @InvoiceDate date,
     @DeliveryInstructions nvarchar(100) = null,
-    @LinesJson nvarchar(max)
+    @LinesJson nvarchar(max),
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 declare @TotalDryItems int, @TotalChillerItems int;

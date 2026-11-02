@@ -10,7 +10,7 @@ import { getInvoices, getInvoiceHeader, getInvoiceForEdit, getInvoiceLines, inse
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con la página de facturas.
  */
-export async function listInvoices(req, res) {
+export async function listInvoices(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -27,7 +27,7 @@ export async function listInvoices(req, res) {
         const deliveryMethodID = req.query.deliveryMethodID
         const minInvoiceAmount = req.query.minInvoiceAmount
         const maxInvoiceAmount = req.query.maxInvoiceAmount
-        const result = await getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount, pageNumber, pageSize)
+        const result = await getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -40,7 +40,7 @@ export async function listInvoices(req, res) {
         if (sqlErrorCode === 54006) {
             return res.status(400).json({message: 'El monto mínimo no puede ser mayor que el monto máximo.'})
         }
-        return res.status(500).json({message: 'Error al obtener facturas'})
+        return next(error)
     }
 }
 
@@ -51,16 +51,16 @@ export async function listInvoices(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Encabezado de la factura o 404.
  */
-export async function getInvoiceById(req, res) {
+export async function getInvoiceById(req, res, next) {
     try {
         const invoiceID = parseInt(req.params.invoiceID, 10)
-        const invoice = await getInvoiceHeader(invoiceID)
+        const invoice = await getInvoiceHeader(invoiceID, req.user.userID, req.user.node)
         if (invoice.length === 0) {
             return res.status(404).json({message: 'Factura no encontrada'})
         }
         return res.json(invoice)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener la factura'})
+        return next(error)
     }
 }
 
@@ -71,16 +71,16 @@ export async function getInvoiceById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Datos del formulario o 404.
  */
-export async function getInvoiceEditById(req, res) {
+export async function getInvoiceEditById(req, res, next) {
     try {
         const invoiceID = parseInt(req.params.invoiceID, 10)
-        const invoice = await getInvoiceForEdit(invoiceID)
+        const invoice = await getInvoiceForEdit(invoiceID, req.user.userID, req.user.node)
         if (invoice.length === 0) {
             return res.status(404).json({message: 'Factura no encontrada'})
         }
         return res.json(invoice[0])
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener la factura para editar'})
+        return next(error)
     }
 }
 
@@ -91,16 +91,16 @@ export async function getInvoiceEditById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Líneas de la factura o 404.
  */
-export async function getInvoiceLinesById(req, res) {
+export async function getInvoiceLinesById(req, res, next) {
     try {
         const invoiceID = parseInt(req.params.invoiceID, 10)
-        const lines = await getInvoiceLines(invoiceID)
+        const lines = await getInvoiceLines(invoiceID, req.user.userID, req.user.node)
         if (lines.length === 0) {
             return res.status(404).json({message: 'Líneas de la factura no encontradas'})
         }
         return res.json(lines)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener las líneas de la factura'})
+        return next(error)
     }
 }
 
@@ -111,7 +111,7 @@ export async function getInvoiceLinesById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Identificador de la factura creada.
  */
-export async function addInvoice(req, res) {
+export async function addInvoice(req, res, next) {
     const invoice = req.body
     if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice)) {
         return res.status(400).json({message: 'Indique los datos de la factura'})
@@ -121,13 +121,13 @@ export async function addInvoice(req, res) {
         return res.status(400).json({message: errors[fields[0]], fields, errors})
     }
     try {
-        const invoiceID = await insertInvoice(invoice)
+        const invoiceID = await insertInvoice(invoice, req.user.userID, req.user.node)
         return res.status(201).json({invoiceID})
     } catch (error) {
         if (Number(error.number) === 54000) {
             return res.status(400).json({message: 'La factura debe tener al menos una línea válida'})
         }
-        return res.status(500).json({message: 'Error al crear la factura'})
+        return next(error)
     }
 }
 
@@ -138,7 +138,7 @@ export async function addInvoice(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Confirmación de la actualización.
  */
-export async function editInvoice(req, res) {
+export async function editInvoice(req, res, next) {
     const invoiceID = Number(req.params.invoiceID)
     const invoice = req.body
     if (!invoice || typeof invoice !== 'object' || Array.isArray(invoice)) {
@@ -149,7 +149,7 @@ export async function editInvoice(req, res) {
         return res.status(400).json({message: errors[fields[0]], fields, errors})
     }
     try {
-        await updateInvoice(invoiceID, invoice)
+        await updateInvoice(invoiceID, invoice, req.user.userID, req.user.node)
         return res.json({invoiceID})
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -159,7 +159,7 @@ export async function editInvoice(req, res) {
         if (sqlErrorCode === 54002) {
             return res.status(400).json({message: 'La factura debe tener al menos una línea válida'})
         }
-        return res.status(500).json({message: 'Error al actualizar la factura'})
+        return next(error)
     }
 }
 

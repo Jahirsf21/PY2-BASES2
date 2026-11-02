@@ -1,3 +1,12 @@
+use WideWorldImporters;
+go
+if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
+go
+
+-- ======================================================================================
+-- REPORTES
+-- ======================================================================================
+
 /*
     Resume los montos de las órdenes de compra por proveedor y categoría,
     aplicando filtros opcionales por nombre del proveedor y nombre de categoría.
@@ -6,10 +15,13 @@
 */
 create or alter procedure Purchasing.GetSupplierPurchaseSummary
     @SupplierName nvarchar(100) = null,
-    @SupplierCategoryName nvarchar(50) = null
+    @SupplierCategoryName nvarchar(50) = null,
+    @UserID int
 as
 	begin
-		set nocount on
+		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
 		select
 			isnull(sp.SupplierName, 'Resumen') as NombreProveedor,
 			isnull(sg.SupplierCategoryName, ' ') as NombreCategoriaProveedor,
@@ -47,10 +59,13 @@ create or alter procedure Sales.GetCustomerSalesSummary
 	@CustomerCategoryName nvarchar(50) = null,
 	@PageNumber int = 1,
 	@PageSize int = 10,
-	@TotalCount int = 0 output
+	@TotalCount int = 0 output,
+	@UserID int
 as
 	begin
-		set nocount on
+		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
 		select @TotalCount = count(*)
 		from (
 			select cs.CustomerName, cg.CustomerCategoryName
@@ -93,9 +108,13 @@ go
     Devuelve: Año, NombreProducto, Ganancia, Ranking
 */
 create or alter procedure Warehouse.GetTopProductsByYear
-    @Year int = null
+    @Year int = null,
+    @UserID int
 as
     begin
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
         if @Year is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
         with Profits as (
@@ -130,9 +149,13 @@ go
 */
 create or alter procedure Sales.GetTopCustomersByYear
     @InvoiceYearFrom int = null,
-    @InvoiceYearTo int = null
+    @InvoiceYearTo int = null,
+    @UserID int
 as
     begin
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
         if @InvoiceYearFrom is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @InvoiceYearFrom)
             throw 50001, 'El año inicial indicado no existe en la base de datos.', 1;
         if @InvoiceYearTo is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @InvoiceYearTo)
@@ -175,9 +198,13 @@ go
 */
 create or alter procedure Purchasing.GetTopSuppliersByYear
     @OrderYearFrom int = null,
-    @OrderYearTo int = null
+    @OrderYearTo int = null,
+    @UserID int
 as
     begin
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
         if @OrderYearFrom is not null and not exists (select 1 from dbo.PurchaseOrders where year(OrderDate) = @OrderYearFrom)
             throw 50001, 'El año inicial indicado no existe en la base de datos.', 1;
         if @OrderYearTo is not null and not exists (select 1 from dbo.PurchaseOrders where year(OrderDate) = @OrderYearTo)
@@ -218,8 +245,12 @@ go
     Devuelve: Año, Novelty Items, Clothing, Mugs, T-Shirts, Airline Novelties, Computing Novelties, USB Novelties, Furry Footwear, Toys, Packaging Materials
 */
 create or alter procedure Sales.GetProductCategorySalesByYear
+    @UserID int
 as 
     begin
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
         select
             Año,
             [Novelty Items], [Clothing], [Mugs], [T-Shirts], [Airline Novelties],
@@ -262,10 +293,13 @@ create or alter procedure Sales.GetCustomerSalesTracking
 	@StockGroupIDsJson nvarchar(max) = null,
 	@PageNumber int = 1,
 	@PageSize int = 10,
-	@TotalCount int = 0 output
+	@TotalCount int = 0 output,
+	@UserID int
 as
 	begin
 		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
         if @Year is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
 		if @Month is not null and @Month not between 1 and 12
@@ -424,10 +458,13 @@ create or alter procedure Purchasing.GetSupplierPurchaseTracking
 	@StockGroupIDsJson nvarchar(max) = null,
 	@PageNumber int = 1,
 	@PageSize int = 10,
-	@TotalCount int = 0 output
+	@TotalCount int = 0 output,
+	@UserID int
 as
 	begin
 		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
         if @Year is not null and not exists (select 1 from dbo.PurchaseOrders where year(OrderDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
 		if @Month is not null and @Month not between 1 and 12

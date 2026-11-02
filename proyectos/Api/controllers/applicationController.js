@@ -8,7 +8,7 @@ import { getPeople, getCities, getDeliveryMethods, getEmployees, getSalespeople 
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con la página de personas.
  */
-export async function listPeople(req, res) {
+export async function listPeople(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -19,10 +19,10 @@ export async function listPeople(req, res) {
             return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
         }
         const fullName = req.query.fullName
-        const result = await getPeople(fullName, pageNumber, pageSize)
+        const result = await getPeople(fullName, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener personas'})
+        return next(error)
     }
 }
 
@@ -33,7 +33,7 @@ export async function listPeople(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con la página de ciudades.
  */
-export async function listCities(req, res) {
+export async function listCities(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -46,10 +46,10 @@ export async function listCities(req, res) {
         const cityName = req.query.cityName
         const provinceName = req.query.provinceName
         const countryName = req.query.countryName
-        const result = await getCities(cityName, provinceName, countryName, pageNumber, pageSize)
+        const result = await getCities(cityName, provinceName, countryName, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener ciudades'})
+        return next(error)
     }
 }
 
@@ -61,12 +61,12 @@ export async function listCities(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los métodos de entrega.
  */
-export async function listDeliveryMethods(req, res) {
+export async function listDeliveryMethods(req, res, next) {
     try {
-        const methods = await getDeliveryMethods()
+        const methods = await getDeliveryMethods(req.user.userID, req.user.node)
         return res.json(methods)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los métodos de entrega'})
+        return next(error)
     }
 }
 
@@ -77,12 +77,12 @@ export async function listDeliveryMethods(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los empleados.
  */
-export async function listEmployees(req, res) {
+export async function listEmployees(req, res, next) {
     try {
-        const employees = await getEmployees()
+        const employees = await getEmployees(req.user.userID, req.user.node)
         return res.json(employees)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener empleados'})
+        return next(error)
     }
 }
 
@@ -93,11 +93,11 @@ export async function listEmployees(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los vendedores.
  */
-export async function listSalespeople(req, res) {
+export async function listSalespeople(req, res, next) {
     try {
-        const salespeople = await getSalespeople()
+        const salespeople = await getSalespeople(req.user.userID, req.user.node)
         return res.json(salespeople)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener vendedores'})
+        return next(error)
     }
 }

@@ -12,9 +12,12 @@ go
     Devuelve: DeliveryMethodID, NombreMetodoEntrega
 */
 create or alter procedure Application.GetDeliveryMethods
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             DeliveryMethodID,
             DeliveryMethodName as NombreMetodoEntrega
@@ -33,10 +36,13 @@ create or alter procedure Application.GetPeople
     @FullName nvarchar(100) = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select @TotalCount = count(*) from dbo.People
         where 
             (@FullName is null or FullName like '%' + @FullName + '%')
@@ -61,9 +67,12 @@ go
     Devuelve: PersonID, NombreCompleto.
 */
 create or alter procedure Application.GetEmployee
+    @UserID int
 as 
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select 
             PersonID,
             FullName as NombreCompleto
@@ -75,9 +84,12 @@ go
 
 /* Obtiene los vendedores disponibles para asignar a las facturas. */
 create or alter procedure Application.GetSalespeople
+    @UserID int
 as
 begin
-    set nocount on
+    set nocount on;
+    exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
     select PersonID, FullName as NombreCompleto
     from dbo.People
     where IsSalesperson = 1
@@ -98,10 +110,13 @@ create or alter procedure Application.GetCities
     @CountryName nvarchar(100) = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select @TotalCount = count(*) from dbo.Cities ci
         inner join dbo.StateProvinces sp on ci.StateProvinceID = sp.StateProvinceID
         inner join dbo.Countries co on sp.CountryID = co.CountryID

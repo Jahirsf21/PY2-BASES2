@@ -6,11 +6,12 @@ import { getBillToCustomers, getBuyingGroups, getCustomerAddress, getCustomerCat
  * Obtiene una página de clientes.
  * Permite filtrar opcionalmente por nombre, categoría y método de entrega.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, customerName, customerCategoryID y deliveryMethodID en req.query.
+ * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, customerName, customerCategoryID y deliveryMethodID en req.query; usa identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de clientes.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de clientes.
  */
-export async function listCustomers(req, res) {
+export async function listCustomers(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -23,7 +24,7 @@ export async function listCustomers(req, res) {
         const customerName = req.query.customerName
         const customerCategoryID = req.query.customerCategoryID
         const deliveryMethodID = req.query.deliveryMethodID
-        const result = await getCustomers(customerName, customerCategoryID, deliveryMethodID, pageNumber, pageSize)
+        const result = await getCustomers(customerName, customerCategoryID, deliveryMethodID, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -33,7 +34,7 @@ export async function listCustomers(req, res) {
         if (sqlErrorCode === 51004) {
             return res.status(400).json({message: 'El método de entrega indicado no existe.'})
         }
-        return res.status(500).json({message: 'Error al obtener clientes'})
+        return next(error)
     }
 }
 
@@ -41,11 +42,12 @@ export async function listCustomers(req, res) {
  * Obtiene una página de clientes (ID y nombre) para usar como "cliente por facturar" (BillToCustomerID).
  * Permite filtrar opcionalmente por nombre de cliente.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize y customerName en req.query.
+ * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize y customerName en req.query; usa identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de clientes.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de clientes.
  */
-export async function listBillToCustomers(req, res) {
+export async function listBillToCustomers(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -56,10 +58,10 @@ export async function listBillToCustomers(req, res) {
             return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
         }
         const customerName = req.query.customerName
-        const result = await getBillToCustomers(customerName, pageNumber, pageSize)
+        const result = await getBillToCustomers(customerName, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener clientes para facturar'})
+        return next(error)
     }
 }
 
@@ -67,16 +69,17 @@ export async function listBillToCustomers(req, res) {
  * Obtiene todas las categorías de cliente.
  * Se usa para llenar el combo de filtros de la lista de clientes.
  *
- * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Request} req Petición HTTP con identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con las categorías.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con las categorías.
  */
-export async function listCustomerCategories(req, res) {
+export async function listCustomerCategories(req, res, next) {
     try {
-        const categories = await getCustomerCategories()
+        const categories = await getCustomerCategories(req.user.userID, req.user.node)
         return res.json(categories)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener categorías de cliente'})
+        return next(error)
     }
 }
 
@@ -84,16 +87,17 @@ export async function listCustomerCategories(req, res) {
  * Obtiene todas las agrupaciones de compra (buying groups).
  * Se usa para llenar el combo de buying group en el formulario de cliente.
  *
- * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Request} req Petición HTTP con identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los buying groups.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los buying groups.
  */
-export async function listBuyingGroups(req, res) {
+export async function listBuyingGroups(req, res, next) {
     try {
-        const groups = await getBuyingGroups()
+        const groups = await getBuyingGroups(req.user.userID, req.user.node)
         return res.json(groups)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los grupos de compra'})
+        return next(error)
     }
 }
 
@@ -106,16 +110,16 @@ export async function listBuyingGroups(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con el detalle del cliente.
  */
-export async function getCustomerById(req, res) {
+export async function getCustomerById(req, res, next) {
     try {
         const customerID = parseInt(req.params.customerID, 10)
-        const customer = await getCustomerDetail(customerID)
+        const customer = await getCustomerDetail(customerID, req.user.userID, req.user.node)
         if (customer.length === 0) {
             return res.status(404).json({message: 'Cliente no encontrado'})
         }
         return res.json(customer)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener al cliente'})
+        return next(error)
     }
 }
 
@@ -126,16 +130,16 @@ export async function getCustomerById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Datos del formulario o 404.
  */
-export async function getCustomerEditById(req, res) {
+export async function getCustomerEditById(req, res, next) {
     try {
         const customerID = parseInt(req.params.customerID, 10)
-        const customer = await getCustomerForEdit(customerID)
+        const customer = await getCustomerForEdit(customerID, req.user.userID, req.user.node)
         if (customer.length === 0) {
             return res.status(404).json({message: 'Cliente no encontrado'})
         }
         return res.json(customer[0])
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los datos editables del cliente'})
+        return next(error)
     }
 }
 
@@ -147,16 +151,16 @@ export async function getCustomerEditById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los contactos del cliente.
  */
-export async function getCustomerContactsById(req, res) {
+export async function getCustomerContactsById(req, res, next) {
     try {
         const customerID = parseInt(req.params.customerID, 10)
-        const contacts = await getCustomerContacts(customerID)
+        const contacts = await getCustomerContacts(customerID, req.user.userID, req.user.node)
         if (contacts.length === 0) {
             return res.status(404).json({message: 'Contactos no encontrados'})
         }
         return res.json(contacts)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los contactos del cliente'})
+        return next(error)
     }
 }
 
@@ -168,16 +172,16 @@ export async function getCustomerContactsById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con las direcciones del cliente.
  */
-export async function getCustomerAddressById(req, res) {
+export async function getCustomerAddressById(req, res, next) {
     try {
         const customerID = parseInt(req.params.customerID, 10)
-        const address = await getCustomerAddress(customerID)
+        const address = await getCustomerAddress(customerID, req.user.userID, req.user.node)
         if (address.length === 0) {
             return res.status(404).json({message: 'Direccion no encontrada'})
         }
         return res.json(address)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener la dirección del cliente'})
+        return next(error)
     }
 }
 
@@ -189,7 +193,7 @@ export async function getCustomerAddressById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta con el CustomerID creado.
  */
-export async function addCustomer(req, res) {
+export async function addCustomer(req, res, next) {
     const customer = req.body
     if (!customer || typeof customer !== 'object' || Array.isArray(customer)) {
         return res.status(400).json({message: 'El cuerpo de la solicitud debe contener los datos del cliente'})
@@ -228,6 +232,8 @@ export async function addCustomer(req, res) {
             customer.postalAddressLine2 ?? null,
             customer.latitude ?? null,
             customer.longitude ?? null,
+            req.user.userID,
+            req.user.node,
         )
         return res.status(201).json(customerID)
     } catch (error) {
@@ -235,7 +241,7 @@ export async function addCustomer(req, res) {
         if (sqlErrorCode === 51002) {
             return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
         }
-        return res.status(500).json({message: 'Error al crear el cliente'})
+        return next(error)
     }
 }
 
@@ -247,10 +253,10 @@ export async function addCustomer(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta sin contenido al eliminarlo.
  */
-export async function removeCustomer(req, res) {
+export async function removeCustomer(req, res, next) {
     const customerID = Number(req.params.customerID)
     try {
-        await deleteCustomer(customerID)
+        await deleteCustomer(customerID, req.user.userID, req.user.node)
         return res.status(204).send()
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -260,7 +266,7 @@ export async function removeCustomer(req, res) {
         if (sqlErrorCode === 51001) {
             return res.status(409).json({message: 'No se puede eliminar el cliente porque tiene facturas u otros registros asociados.'})
         }
-        return res.status(500).json({message: 'Error al eliminar el cliente'})
+        return next(error)
     }
 }
 
@@ -272,7 +278,7 @@ export async function removeCustomer(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Confirmación de la actualización.
  */
-export async function editCustomer(req, res) {
+export async function editCustomer(req, res, next) {
     const customerID = Number(req.params.customerID)
     const customer = req.body
     if (!customer || typeof customer !== 'object' || Array.isArray(customer)) {
@@ -309,6 +315,8 @@ export async function editCustomer(req, res) {
             customer.postalAddressLine2 ?? null,
             customer.latitude ?? null,
             customer.longitude ?? null,
+            req.user.userID,
+            req.user.node,
         )
         return res.status(200).json({customerID})
     } catch (error) {
@@ -319,6 +327,6 @@ export async function editCustomer(req, res) {
         if (sqlErrorCode === 51002) {
             return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
         }
-        return res.status(500).json({message: 'Error al actualizar el cliente'})
+        return next(error)
     }
 }

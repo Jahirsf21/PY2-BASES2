@@ -18,10 +18,13 @@ create or alter procedure Purchasing.GetSuppliers
     @DeliveryMethodID int = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
         set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         if @SupplierCategoryID is not null and not exists (select 1 from dbo.SupplierCategories where SupplierCategoryID = @SupplierCategoryID)
             throw 52004, 'La categoría de proveedor indicada no existe.', 1;
         if @DeliveryMethodID is not null and not exists (select 1 from dbo.DeliveryMethods where DeliveryMethodID = @DeliveryMethodID)
@@ -56,9 +59,12 @@ go
     Devuelve: SupplierCategoryID, NombreCategoriaProveedor
 */
 create or alter procedure Purchasing.GetSupplierCategories
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             SupplierCategoryID,
             SupplierCategoryName as NombreCategoriaProveedor
@@ -73,10 +79,13 @@ go
     NombreBanco, SucursalBanco, NumeroCuentaBancaria, CodigoSwift
 */
 create or alter procedure Purchasing.GetSupplierDetail
-    @SupplierID int
+    @SupplierID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             sp.SupplierID,
             sp.SupplierReference as CodigoProveedor,
@@ -104,10 +113,13 @@ go
     La ciudad y el código postal se comparten entre las dos direcciones.
 */
 create or alter procedure Purchasing.GetSupplierForEdit
-    @SupplierID int
+    @SupplierID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             sp.SupplierID,
             sp.SupplierName as NombreProveedor,
@@ -153,10 +165,13 @@ go
     Devuelve: una fila con el nombre, teléfono, fax y correo de ambos contactos.
 */
 create or alter procedure Purchasing.GetSupplierContacts
-    @SupplierID int
+    @SupplierID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             pp.FullName as NombreContactoPrincipal,
             pp.PhoneNumber as TelefonoPrincipal,
@@ -179,10 +194,13 @@ go
     Devuelve: una fila con ambas direcciones y las coordenadas.
 */
 create or alter procedure Purchasing.GetSupplierAddress
-    @SupplierID int
+    @SupplierID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             sp.DeliveryAddressLine1 as DireccionEntrega1,
             sp.DeliveryAddressLine2 as DireccionEntrega2,
@@ -214,9 +232,12 @@ go
     Devuelve: Año
 */
 create or alter procedure Purchasing.GetPurchaseYears
+    @UserID int
 as
 	begin
-		set nocount on
+		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
 		select distinct year(OrderDate) as Año
 		from dbo.PurchaseOrders
 		order by Año
@@ -256,10 +277,13 @@ create or alter procedure Purchasing.InsertSupplier
     @InternalComments nvarchar(max) = null,
     @Latitude float = null,
     @Longitude float = null,
-    @NewSupplierID int output
+    @NewSupplierID int output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             if not exists (
                 select 1 from dbo.People
@@ -340,10 +364,13 @@ create or alter procedure Purchasing.UpdateSupplier
     @PostalAddressLine2 nvarchar(60) = null,
     @InternalComments nvarchar(max) = null,
     @Latitude float = null,
-    @Longitude float = null
+    @Longitude float = null,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             if not exists (
                 select 1 from dbo.People
@@ -404,10 +431,13 @@ go
    lanza error 52002 con un mensaje más claro.
 */
 create or alter procedure Purchasing.DeleteSupplier
-    @SupplierID int
+    @SupplierID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 delete from dbo.Suppliers

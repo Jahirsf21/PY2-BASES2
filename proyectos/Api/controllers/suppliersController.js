@@ -10,7 +10,7 @@ import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupp
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con la página de proveedores.
  */
-export async function listSuppliers(req, res) {
+export async function listSuppliers(req, res, next) {
     try {
         const pageNumber = Number(req.query.pageNumber)
         const pageSize = Number(req.query.pageSize)
@@ -23,7 +23,7 @@ export async function listSuppliers(req, res) {
         const supplierName = req.query.supplierName
         const supplierCategoryID = req.query.supplierCategoryID
         const deliveryMethodID = req.query.deliveryMethodID
-        const result = await getSuppliers(supplierName, supplierCategoryID, deliveryMethodID, pageNumber, pageSize)
+        const result = await getSuppliers(supplierName, supplierCategoryID, deliveryMethodID, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -33,7 +33,7 @@ export async function listSuppliers(req, res) {
         if (sqlErrorCode === 52005) {
             return res.status(400).json({message: 'El método de entrega indicado no existe.'})
         }
-        return res.status(500).json({message: 'Error al obtener proveedores'})
+        return next(error)
     }
 }
 
@@ -45,12 +45,12 @@ export async function listSuppliers(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con las categorías de proveedor.
  */
-export async function listSupplierCategories(req, res) {
+export async function listSupplierCategories(req, res, next) {
     try {
-        const categories = await getSupplierCategories()
+        const categories = await getSupplierCategories(req.user.userID, req.user.node)
         return res.json(categories)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener categorías de proveedor'})
+        return next(error)
     }
 }
 
@@ -63,16 +63,16 @@ export async function listSupplierCategories(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con el detalle del proveedor.
  */
-export async function getSupplierById(req, res) {
+export async function getSupplierById(req, res, next) {
     try {
         const supplierID = parseInt(req.params.supplierID, 10)
-        const supplier = await getSupplierDetail(supplierID)
+        const supplier = await getSupplierDetail(supplierID, req.user.userID, req.user.node)
         if (supplier.length === 0) {
             return res.status(404).json({message: 'Proveedor no encontrado'})
         }
         return res.json(supplier)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener el proveedor'})
+        return next(error)
     }
 }
 
@@ -83,16 +83,16 @@ export async function getSupplierById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Datos del formulario o 404.
  */
-export async function getSupplierEditById(req, res) {
+export async function getSupplierEditById(req, res, next) {
     try {
         const supplierID = parseInt(req.params.supplierID, 10)
-        const suppliers = await getSupplierForEdit(supplierID)
+        const suppliers = await getSupplierForEdit(supplierID, req.user.userID, req.user.node)
         if (suppliers.length === 0) {
             return res.status(404).json({message: 'Proveedor no encontrado'})
         }
         return res.json(suppliers[0])
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los datos editables del proveedor'})
+        return next(error)
     }
 }
 
@@ -104,16 +104,16 @@ export async function getSupplierEditById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con los contactos del proveedor.
  */
-export async function getSupplierContactsById(req, res) {
+export async function getSupplierContactsById(req, res, next) {
     try {
         const supplierID = parseInt(req.params.supplierID, 10)
-        const contacts = await getSupplierContacts(supplierID)
+        const contacts = await getSupplierContacts(supplierID, req.user.userID, req.user.node)
         if (contacts.length === 0) {
             return res.status(404).json({message: 'Contactos del proveedor no encontrados'})
         }
         return res.json(contacts)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener los contactos del proveedor'})
+        return next(error)
     }
 }
 
@@ -125,16 +125,16 @@ export async function getSupplierContactsById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta JSON con las direcciones del proveedor.
  */
-export async function getSupplierAddressById(req, res) {
+export async function getSupplierAddressById(req, res, next) {
     try {
         const supplierID = parseInt(req.params.supplierID, 10)
-        const address = await getSupplierAddress(supplierID)
+        const address = await getSupplierAddress(supplierID, req.user.userID, req.user.node)
         if (address.length === 0) {
             return res.status(404).json({message: 'Dirección del proveedor no encontrada'})
         }
         return res.json(address)
     } catch (error) {
-        return res.status(500).json({message: 'Error al obtener la dirección del proveedor'})
+        return next(error)
     }
 }
 
@@ -146,10 +146,10 @@ export async function getSupplierAddressById(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Respuesta sin contenido al eliminarlo.
  */
-export async function removeSupplier(req, res) {
+export async function removeSupplier(req, res, next) {
     const supplierID = Number(req.params.supplierID)
     try {
-        await deleteSupplier(supplierID)
+        await deleteSupplier(supplierID, req.user.userID, req.user.node)
         return res.status(204).send()
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -159,7 +159,7 @@ export async function removeSupplier(req, res) {
         if (sqlErrorCode === 52002) {
             return res.status(409).json({message: 'No se puede eliminar el proveedor porque tiene productos, órdenes de compra u otros registros asociados.'})
         }
-        return res.status(500).json({message: 'Error al eliminar el proveedor'})
+        return next(error)
     }
 }
 
@@ -170,7 +170,7 @@ export async function removeSupplier(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Identificador del proveedor creado.
  */
-export async function addSupplier(req, res) {
+export async function addSupplier(req, res, next) {
     const supplier = req.body
     if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) {
         return res.status(400).json({message: 'El cuerpo de la solicitud debe contener los datos del proveedor'})
@@ -180,13 +180,13 @@ export async function addSupplier(req, res) {
         return res.status(400).json({message: `Datos inválidos del proveedor: ${errors[fields[0]]}`, fields, errors})
     }
     try {
-        const supplierID = await insertSupplier(supplier)
+        const supplierID = await insertSupplier(supplier, req.user.userID, req.user.node)
         return res.status(201).json({supplierID})
     } catch (error) {
         if (Number(error.number) === 52003) {
             return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
         }
-        return res.status(500).json({message: 'Error al crear el proveedor'})
+        return next(error)
     }
 }
 
@@ -197,7 +197,7 @@ export async function addSupplier(req, res) {
  * @param {import('express').Response} res Respuesta HTTP.
  * @returns {Promise<import('express').Response>} Confirmación de la actualización.
  */
-export async function editSupplier(req, res) {
+export async function editSupplier(req, res, next) {
     const supplierID = Number(req.params.supplierID)
     const supplier = req.body
     if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) {
@@ -208,7 +208,7 @@ export async function editSupplier(req, res) {
         return res.status(400).json({message: `Datos inválidos del proveedor: ${errors[fields[0]]}`, fields, errors})
     }
     try {
-        await updateSupplier(supplierID, supplier)
+        await updateSupplier(supplierID, supplier, req.user.userID, req.user.node)
         return res.status(200).json({supplierID})
     } catch (error) {
         const sqlErrorCode = Number(error.number)
@@ -218,6 +218,6 @@ export async function editSupplier(req, res) {
         if (sqlErrorCode === 52003) {
             return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
         }
-        return res.status(500).json({message: 'Error al actualizar el proveedor'})
+        return next(error)
     }
 }

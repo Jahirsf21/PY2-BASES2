@@ -10,6 +10,7 @@ go
 /*
     Obtiene los clientes paginados, ordenados por nombre y luego por identificador.
     Incluye el total de registros (TotalCount) para calcular la paginación en el cliente.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: CustomerID, NombreCliente, NombreCategoriaCliente, NombreMetodoEntrega
 */
 create or alter procedure Sales.GetCustomers
@@ -18,10 +19,13 @@ create or alter procedure Sales.GetCustomers
     @DeliveryMethodID int = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
         set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         if @CustomerCategoryID is not null and not exists (select 1 from dbo.CustomerCategories where CustomerCategoryID = @CustomerCategoryID)
             throw 51003, 'La categoría de cliente indicada no existe.', 1;
         if @DeliveryMethodID is not null and not exists (select 1 from dbo.DeliveryMethods where DeliveryMethodID = @DeliveryMethodID)
@@ -56,16 +60,20 @@ go
     Obtiene el listado de clientes (ID y nombre) paginado, ordenado por nombre e identificador.
     Permite filtrar opcionalmente por nombre de cliente.
     Incluye el total de registros (TotalCount) para calcular la paginación en el cliente.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: CustomerID, NombreCliente
 */
 create or alter procedure Sales.GetBillToCustomers
     @CustomerName nvarchar(100) = null,
     @PageNumber int = 1,
     @PageSize int = 10,
-    @TotalCount int = 0 output
+    @TotalCount int = 0 output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select @TotalCount = count(*) from dbo.Customers
         where @CustomerName is null or CustomerName like '%' + @CustomerName + '%'
         select
@@ -82,13 +90,17 @@ go
 /*
     Obtiene el detalle general de un cliente:
     nombre, categoría, buying group, cliente por facturar, método de entrega, días de gracia, sitio web.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: CustomerID, NombreCliente, NombreCategoriaCliente, NombreGrupoCompra, NombreClientePorFacturar, NombreMetodoEntrega, DiasGraciaPago, SitioWeb
 */
 create or alter procedure Sales.GetCustomerDetail
-    @CustomerID int
+    @CustomerID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             cs.CustomerID,
             cs.CustomerName as NombreCliente,
@@ -110,12 +122,16 @@ go
 /*
     Devuelve los valores editables del cliente y los nombres de sus referencias. La ciudad y el código postal
     de ambas direcciones se comparten y solo se devuelven una vez.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
 */
 create or alter procedure Sales.GetCustomerForEdit
-    @CustomerID int
+    @CustomerID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             cs.CustomerID,
             cs.CustomerName as NombreCliente,
@@ -159,13 +175,17 @@ go
 
 /*
     Obtiene los contactos (principal y alternativo) de un cliente específico.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: una fila con el nombre, teléfono, fax y correo de ambos contactos.
 */
 create or alter procedure Sales.GetCustomerContacts
-    @CustomerID int
+    @CustomerID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             pp.FullName as NombreContactoPrincipal,
             pp.PhoneNumber as TelefonoPrincipal,
@@ -185,13 +205,17 @@ go
 /*
     Obtiene las direcciones de entrega y postal de un cliente,
     junto con su ubicación geográfica (latitud/longitud) para el mapa.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: una fila con ambas direcciones y las coordenadas.
 */
 create or alter procedure Sales.GetCustomerAddress
-    @CustomerID int
+    @CustomerID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             cs.DeliveryAddressLine1 as DireccionEntrega1,
             cs.DeliveryAddressLine2 as DireccionEntrega2,
@@ -220,12 +244,16 @@ go
 
 /*
     Obtiene todas las categorías de cliente ordenadas por su ID.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: CustomerCategoryID, NombreCategoria
 */
 create or alter procedure Sales.GetCustomerCategories
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             CustomerCategoryID,
             CustomerCategoryName as NombreCategoria
@@ -237,12 +265,16 @@ go
 /*
     Obtiene todas las agrupaciones de compra (buying groups)
     ordenadas por su identificador.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
     Devuelve: BuyingGroupID, NombreGrupoCompra
 */
 create or alter procedure Sales.GetBuyingGroups
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         select
             BuyingGroupID,
             BuyingGroupName as NombreGrupoCompra
@@ -257,6 +289,7 @@ go
     empleado existente, y devuelve el CustomerID generado a través del parámetro de salida @NewCustomerID.
     Si @BillToCustomerID es null, el cliente nuevo se factura a sí mismo.
     La ciudad y el código postal de entrega también se guardan en la dirección postal.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
 */
 create or alter procedure Sales.InsertCustomer
     @CustomerName nvarchar(100),
@@ -283,10 +316,13 @@ create or alter procedure Sales.InsertCustomer
     @PostalAddressLine2 nvarchar(60) = null,
     @Latitude float = null,
     @Longitude float = null,
-    @NewCustomerID int output
+    @NewCustomerID int output,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             if not exists (
                 select 1 from dbo.People
@@ -337,6 +373,7 @@ go
     si se envían latitud y longitud; de lo contrario, conserva el valor previo. AccountOpenedDate nunca se toca
     aquí, ya que es un dato histórico fijado solo al crear el cliente.
     La ciudad y el código postal de entrega también actualizan los valores postales.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
 */
 create or alter procedure Sales.UpdateCustomer
     @CustomerID int,
@@ -363,10 +400,13 @@ create or alter procedure Sales.UpdateCustomer
     @PostalAddressLine1 nvarchar(60),
     @PostalAddressLine2 nvarchar(60) = null,
     @Latitude float = null,
-    @Longitude float = null
+    @Longitude float = null,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             if not exists (
                 select 1 from dbo.People
@@ -423,12 +463,16 @@ go
     Elimina un cliente por su CustomerID. Solo permite la eliminación si el cliente no tiene facturas ni otros registros
     relacionados (FK). Si no existe, lanza error 51000; si hay violación de integridad referencial (error 547), lanza error
     51001 con un mensaje más claro.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
 */
 create or alter procedure Sales.DeleteCustomer
-    @CustomerID int
+    @CustomerID int,
+    @UserID int
 as
     begin
-        set nocount on
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
         begin try
             begin transaction
                 delete from dbo.Customers

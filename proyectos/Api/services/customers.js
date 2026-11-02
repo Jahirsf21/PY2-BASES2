@@ -10,10 +10,13 @@ import sql from "mssql"
  * @param {number|null} deliveryMethodID ID del método de entrega o null para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de clientes por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y clientes de la página.
  */
-export async function getCustomers(customerName, customerCategoryID, deliveryMethodID, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getCustomers(customerName, customerCategoryID, deliveryMethodID, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerName', sql.NVarChar, customerName)
     connection.input('CustomerCategoryID', sql.Int, customerCategoryID)
     connection.input('DeliveryMethodID', sql.Int, deliveryMethodID)
@@ -34,10 +37,13 @@ export async function getCustomers(customerName, customerCategoryID, deliveryMet
  * @param {string|null} customerName Nombre del cliente (búsqueda parcial) o null para no filtrar.
  * @param {number} pageNumber Número de página solicitado.
  * @param {number} pageSize Cantidad de clientes por página.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y clientes de la página.
  */
-export async function getBillToCustomers(customerName, pageNumber, pageSize) {
-    const connection = (await getPool()).request()
+export async function getBillToCustomers(customerName, pageNumber, pageSize, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerName', sql.NVarChar, customerName)
     connection.input('PageNumber', sql.Int, pageNumber)
     connection.input('PageSize', sql.Int, pageSize)
@@ -55,10 +61,13 @@ export async function getBillToCustomers(customerName, pageNumber, pageSize) {
  * método de entrega, días de gracia y sitio web.
  *
  * @param {number} customerID Identificador del cliente.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos del cliente en una fila, o un arreglo vacío si no existe.
  */
-export async function getCustomerDetail(customerID) {
-    const connection = (await getPool()).request()
+export async function getCustomerDetail(customerID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
     const result = await connection.execute('Sales.GetCustomerDetail')
     return result.recordset
@@ -69,10 +78,13 @@ export async function getCustomerDetail(customerID) {
  * La ciudad y el código postal son compartidos por las direcciones de entrega y postal.
  *
  * @param {number} customerID Identificador del cliente.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos para precargar el formulario, o un arreglo vacío si no existe.
  */
-export async function getCustomerForEdit(customerID) {
-    const connection = (await getPool()).request()
+export async function getCustomerForEdit(customerID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
     const result = await connection.execute('Sales.GetCustomerForEdit')
     return result.recordset
@@ -83,10 +95,13 @@ export async function getCustomerForEdit(customerID) {
  * Devuelve nombre, teléfono, fax y correo de ambos contactos en una sola fila.
  *
  * @param {number} customerID Identificador del cliente.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos de los contactos en una fila, o un arreglo vacío si no existe.
  */
-export async function getCustomerContacts(customerID) {
-    const connection = (await getPool()).request()
+export async function getCustomerContacts(customerID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
     const result = await connection.execute('Sales.GetCustomerContacts')
     return result.recordset
@@ -97,10 +112,13 @@ export async function getCustomerContacts(customerID) {
  * junto con su ubicación geográfica (latitud/longitud).
  *
  * @param {number} customerID Identificador del cliente.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Direcciones y coordenadas en una fila, o un arreglo vacío si no existe.
  */
-export async function getCustomerAddress(customerID) {
-    const connection = (await getPool()).request()
+export async function getCustomerAddress(customerID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
     const result = await connection.execute('Sales.GetCustomerAddress')
     return result.recordset
@@ -110,10 +128,13 @@ export async function getCustomerAddress(customerID) {
  * Obtiene todas las categorías de cliente ordenadas por su identificador.
  * Se usa para llenar el combo de filtros de la lista de clientes.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de categorías de cliente.
  */
-export async function getCustomerCategories() {
-    const connection = (await getPool()).request()
+export async function getCustomerCategories(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Sales.GetCustomerCategories')
     return result.recordset
 }
@@ -122,10 +143,13 @@ export async function getCustomerCategories() {
  * Obtiene todas las agrupaciones de compra (buying groups) ordenadas por su identificador.
  * Se usa para llenar el combo de buying group en el formulario de cliente.
  *
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Listado de buying groups.
  */
-export async function getBuyingGroups() {
-    const connection = (await getPool()).request()
+export async function getBuyingGroups(userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     const result = await connection.execute('Sales.GetBuyingGroups')
     return result.recordset
 }
@@ -161,10 +185,13 @@ export async function getBuyingGroups() {
  * @param {string|null} postalAddressLine2 Segunda línea de la dirección postal o null.
  * @param {number|null} latitude Latitud de entrega o null.
  * @param {number|null} longitude Longitud de entrega o null.
+ * @param {number} userID Identificador del usuario autenticado, distinto de lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<number>} Identificador del nuevo cliente.
  */
-export async function insertCustomer(customerName, customerCategoryID, billToCustomerID, lastEditedBy, standardDiscountPercentage, creditLimit, isStatementSent, isOnCreditHold, buyingGroupID, primaryContactPersonID, alternateContactPersonID, deliveryMethodID, paymentDays, phoneNumber, faxNumber, websiteURL, deliveryAddressLine1, deliveryAddressLine2, deliveryCityID, deliveryPostalCode, postalAddressLine1, postalAddressLine2, latitude, longitude) {
-    const connection = (await getPool()).request()
+export async function insertCustomer(customerName, customerCategoryID, billToCustomerID, lastEditedBy, standardDiscountPercentage, creditLimit, isStatementSent, isOnCreditHold, buyingGroupID, primaryContactPersonID, alternateContactPersonID, deliveryMethodID, paymentDays, phoneNumber, faxNumber, websiteURL, deliveryAddressLine1, deliveryAddressLine2, deliveryCityID, deliveryPostalCode, postalAddressLine1, postalAddressLine2, latitude, longitude, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerName', sql.NVarChar, customerName)
     connection.input('CustomerCategoryID', sql.Int, customerCategoryID)
     connection.input('BillToCustomerID', sql.Int, billToCustomerID)
@@ -200,10 +227,13 @@ export async function insertCustomer(customerName, customerCategoryID, billToCus
  * si tiene registros asociados que impiden eliminarlo.
  *
  * @param {number} customerID Identificador del cliente que se eliminará.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object>} Resultado de ejecutar el procedimiento almacenado.
  */
-export async function deleteCustomer(customerID) {
-    const connection = (await getPool()).request()
+export async function deleteCustomer(customerID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
     const result = await connection.execute('Sales.DeleteCustomer')
     return result
@@ -240,10 +270,13 @@ export async function deleteCustomer(customerID) {
  * @param {string|null} postalAddressLine2 Segunda línea de dirección postal o null.
  * @param {number|null} latitude Latitud o null.
  * @param {number|null} longitude Longitud o null.
+ * @param {number} userID Identificador del usuario autenticado, distinto de lastEditedBy.
+ * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<void>} Finaliza cuando el procedimiento actualiza el cliente.
  */
-export async function updateCustomer(customerID, customerName, customerCategoryID, billToCustomerID, lastEditedBy, standardDiscountPercentage, creditLimit, isStatementSent, isOnCreditHold, buyingGroupID, primaryContactPersonID, alternateContactPersonID, deliveryMethodID, paymentDays, phoneNumber, faxNumber, websiteURL, deliveryAddressLine1, deliveryAddressLine2, deliveryCityID, deliveryPostalCode, postalAddressLine1, postalAddressLine2, latitude, longitude) {
-    const connection = (await getPool()).request()
+export async function updateCustomer(customerID, customerName, customerCategoryID, billToCustomerID, lastEditedBy, standardDiscountPercentage, creditLimit, isStatementSent, isOnCreditHold, buyingGroupID, primaryContactPersonID, alternateContactPersonID, deliveryMethodID, paymentDays, phoneNumber, faxNumber, websiteURL, deliveryAddressLine1, deliveryAddressLine2, deliveryCityID, deliveryPostalCode, postalAddressLine1, postalAddressLine2, latitude, longitude, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
     connection.input('CustomerName', sql.NVarChar, customerName)
     connection.input('CustomerCategoryID', sql.Int, customerCategoryID)

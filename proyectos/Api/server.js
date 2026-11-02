@@ -4,12 +4,12 @@ import {env} from './config/env.js'
 
 import { verifyToken } from './middleware/auth.js'
 import authRoutes from './routes/authRoutes.js'
-// import customersRoutes from './routes/customersRoutes.js'
-// import supplierRoutes from './routes/suppliersRoutes.js'
-// import stockItemsRoutes from './routes/stockItemsRoutes.js'
-// import salesRoutes from './routes/salesRoutes.js'
-// import applicationRoutes from './routes/applicationRoutes.js'
-// import statsRoutes from './routes/statsRoutes.js'
+import customersRoutes from './routes/customersRoutes.js'
+import supplierRoutes from './routes/suppliersRoutes.js'
+import stockItemsRoutes from './routes/stockItemsRoutes.js'
+import salesRoutes from './routes/salesRoutes.js'
+import applicationRoutes from './routes/applicationRoutes.js'
+import statsRoutes from './routes/statsRoutes.js'
 
 const app = express()
 
@@ -23,13 +23,13 @@ app.use(express.json())
 app.use('/api', authRoutes)
 app.use('/api', verifyToken)
 
-// Rutas de negocio pendientes actualizar.
-// app.use('/api', customersRoutes)
-// app.use('/api', supplierRoutes)
-// app.use('/api', stockItemsRoutes)
-// app.use('/api', salesRoutes)
-// app.use('/api', applicationRoutes)
-// app.use('/api', statsRoutes)
+// Rutas de negocio protegidas por el JWT y los permisos de cada router.
+app.use('/api', customersRoutes)
+app.use('/api', supplierRoutes)
+app.use('/api', stockItemsRoutes)
+app.use('/api', salesRoutes)
+app.use('/api', applicationRoutes)
+app.use('/api', statsRoutes)
 
 // Middleware para rutas no encontradas
 app.use((req, res)=> {
@@ -40,6 +40,16 @@ app.use((req, res)=> {
 app.use((error, req, res, next) => {
     if (error.type === 'entity.parse.failed') {
         return res.status(400).json({message: 'El cuerpo de la solicitud debe ser JSON válido'})
+    }
+    const sqlErrorCode = Number(error.number)
+    if (sqlErrorCode === 56003) {
+        return res.status(401).json({message: 'El usuario no existe o está inactivo. Inicie sesión nuevamente'})
+    }
+    if (sqlErrorCode === 56001) {
+        return res.status(403).json({message: 'El rol no tiene permisos para realizar esta operación'})
+    }
+    if (['ESOCKET', 'ETIMEOUT', 'ECONNCLOSED', 'ENOTOPEN', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(error.code)) {
+        return res.status(503).json({message: 'La sucursal seleccionada no está disponible. Intente nuevamente'})
     }
     res.status(500).json({message: 'Error interno del servidor.'})
 })
