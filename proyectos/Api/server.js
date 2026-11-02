@@ -4,12 +4,12 @@ import {env} from './config/env.js'
 
 import { verifyToken } from './middleware/auth.js'
 import authRoutes from './routes/authRoutes.js'
-import customersRoutes from './routes/customersRoutes.js'
-import supplierRoutes from './routes/suppliersRoutes.js'
-import stockItemsRoutes from './routes/stockItemsRoutes.js'
-import salesRoutes from './routes/salesRoutes.js'
-import applicationRoutes from './routes/applicationRoutes.js'
-import statsRoutes from './routes/statsRoutes.js'
+// import customersRoutes from './routes/customersRoutes.js'
+// import supplierRoutes from './routes/suppliersRoutes.js'
+// import stockItemsRoutes from './routes/stockItemsRoutes.js'
+// import salesRoutes from './routes/salesRoutes.js'
+// import applicationRoutes from './routes/applicationRoutes.js'
+// import statsRoutes from './routes/statsRoutes.js'
 
 const app = express()
 
@@ -22,12 +22,14 @@ app.use(express.json())
 // Rutas de la API
 app.use('/api', authRoutes)
 app.use('/api', verifyToken)
-app.use('/api', customersRoutes)
-app.use('/api', supplierRoutes)
-app.use('/api', stockItemsRoutes)
-app.use('/api', salesRoutes)
-app.use('/api', applicationRoutes)
-app.use('/api', statsRoutes)
+
+// Rutas de negocio pendientes actualizar.
+// app.use('/api', customersRoutes)
+// app.use('/api', supplierRoutes)
+// app.use('/api', stockItemsRoutes)
+// app.use('/api', salesRoutes)
+// app.use('/api', applicationRoutes)
+// app.use('/api', statsRoutes)
 
 // Middleware para rutas no encontradas
 app.use((req, res)=> {
@@ -36,7 +38,9 @@ app.use((req, res)=> {
 
 // Middleware para el manejo de errores
 app.use((error, req, res, next) => {
-    console.error(error)
+    if (error.type === 'entity.parse.failed') {
+        return res.status(400).json({message: 'El cuerpo de la solicitud debe ser JSON válido'})
+    }
     res.status(500).json({message: 'Error interno del servidor.'})
 })
 

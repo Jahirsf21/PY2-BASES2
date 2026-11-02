@@ -6,9 +6,9 @@ const router = Router()
 
 /**
  * POST /auth/login
- * Inicia sesión y devuelve un token JWT de 24 horas y los datos del usuario.
+ * Inicia sesión en el nodo elegido y devuelve token, datos del usuario y nodo.
  * Ruta pública, sin token de autenticación.
- * Body: userName, password
+ * Body: userName, password, node (san-jose, limon o corporativo).
  */
 router.post('/auth/login', login)
 

@@ -1,4 +1,25 @@
 /**
+ * Comprueba si el identificador corresponde a un nodo configurado.
+ *
+ * @param {unknown} node Identificador recibido.
+ * @returns {boolean} Verdadero para uno de los tres nodos permitidos.
+ */
+export function isValidNode(node) {
+    return node === 'san-jose' || node === 'limon' || node === 'corporativo'
+}
+
+/**
+ * Comprueba si el rol puede utilizar el nodo seleccionado.
+ *
+ * @param {unknown} rol Rol del usuario.
+ * @param {unknown} node Identificador del nodo.
+ * @returns {boolean} Verdadero si la combinación está permitida.
+ */
+export function isRoleAllowedInNode(rol, node) {
+    return (rol === 'Administrador' && (node === 'san-jose' || node === 'limon')) || (rol === 'Corporativo' && node === 'corporativo')
+}
+
+/**
  * Indica si un campo no contiene un valor utilizable.
  *
  * @param {unknown} value Valor a comprobar.
@@ -139,7 +160,7 @@ function result(errors) {
 }
 
 /**
- * Valida las credenciales de inicio de sesión antes de ejecutar el procedimiento.
+ * Valida las credenciales y el nodo antes de ejecutar el procedimiento.
  *
  * @param {object} data Credenciales recibidas en la solicitud.
  * @returns {{fields: string[], errors: Record<string, string>}} Campos inválidos y sus mensajes.
@@ -148,6 +169,10 @@ export function validateLogin(data) {
     const errors = {}
     checkText(errors, 'userName', 'Nombre de usuario', data.userName, 50, true)
     checkText(errors, 'password', 'Contraseña', data.password, 255, true)
+    checkText(errors, 'node', 'Identificador de sucursal', data.node, 50, true)
+    if (!errors.node && !isValidNode(data.node)) {
+        errors.node = 'Seleccione san-jose, limon o corporativo.'
+    }
     return result(errors)
 }
 

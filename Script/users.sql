@@ -31,33 +31,60 @@ if object_id(N'dbo.Users', N'U') is null
     end
 go
 
+/*
+    Inserta los usuarios de prueba correspondientes al hostname de esta instancia.
+    En los contenedores, SERVERPROPERTY('MachineName') debe coincidir con el valor definido mediante --hostname: san-jose, limon o corporativo.
+    No modifica usuarios existentes si coincide el nombre de usuario o el correo.
+*/
+declare @InstanceName nvarchar(128) = convert(nvarchar(128), serverproperty('MachineName'));
+
 -- Frase de paso para cifrar las contraseñas; debe coincidir con la usada en dbo.LoginUser.
 declare @Passphrase nvarchar(100) = N'hGkxrd6gfl5oECcRkZoTUiB8ITcsuEzqSnA17kqXhDh';
-go
 
+if @InstanceName is null or @InstanceName not in (N'san-jose', N'limon', N'corporativo')
+begin
+    ;throw 50001, N'Hostname de SQL Server no reconocido. Se esperaba san-jose, limon o corporativo.', 1;
+end;
 
-/*
-    Inserta usuarios de prueba para los roles Administrador y Corporativo.
-    No modifica los usuarios existentes si coincide el nombre de usuario o el correo.
-    Credenciales solo para pruebas: admin / Admin123! y corporativo / Corporativo123!
-*/
-insert into dbo.Users (UserName, [Password], FullName, Rol, Email, HireDate)
-select
-    v.UserName,
-    EncryptByPassPhrase(@Passphrase, v.Password),
-    v.FullName,
-    v.Rol,
-    v.Email,
-    cast(getdate() as date)
-from (values
-    (N'admin', N'Admin123!', N'Administrador de prueba', N'Administrador', N'admin@example.com'),
-    (N'corporativo', N'Corporativo123!', N'Corporativo de prueba', N'Corporativo', N'corporativo@example.com')
-) as v(UserName, [Password], FullName, Rol, Email)
-where not exists (
-    select 1 from dbo.Users u
-    where u.UserName = v.UserName or u.Email = v.Email
-)
-go
+if @InstanceName = N'san-jose'
+begin
+    insert into dbo.Users (UserName, [Password], FullName, Rol, Email, HireDate)
+    select v.UserName, EncryptByPassPhrase(@Passphrase, v.Password), v.FullName, v.Rol, v.Email, cast(getdate() as date)
+    from (values
+        (N'admin_sj', N'Admin123!', N'Administrador de San José', N'Administrador', N'admin.sj@example.com')
+    ) as v(UserName, [Password], FullName, Rol, Email)
+    where not exists (
+        select 1 from dbo.Users u
+        where u.UserName = v.UserName or u.Email = v.Email
+    );
+end;
+
+if @InstanceName = N'limon'
+begin
+    insert into dbo.Users (UserName, [Password], FullName, Rol, Email, HireDate)
+    select v.UserName, EncryptByPassPhrase(@Passphrase, v.Password), v.FullName, v.Rol, v.Email, cast(getdate() as date)
+    from (values
+        (N'admin_limon', N'Admin123!', N'Administrador de Limón', N'Administrador', N'admin.limon@example.com')
+    ) as v(UserName, [Password], FullName, Rol, Email)
+    where not exists (
+        select 1 from dbo.Users u
+        where u.UserName = v.UserName or u.Email = v.Email
+    );
+end;
+
+if @InstanceName = N'corporativo'
+begin
+    insert into dbo.Users (UserName, [Password], FullName, Rol, Email, HireDate)
+    select v.UserName, EncryptByPassPhrase(@Passphrase, v.Password), v.FullName, v.Rol, v.Email, cast(getdate() as date)
+    from (values
+        (N'corporativo', N'Corporativo123!', N'Usuario Corporativo de prueba', N'Corporativo', N'corporativo@example.com')
+    ) as v(UserName, [Password], FullName, Rol, Email)
+    where not exists (
+        select 1 from dbo.Users u
+        where u.UserName = v.UserName or u.Email = v.Email
+    );
+end;
+GO
 
 /*
     Comprueba las credenciales de un usuario activo descifrando la contraseña almacenada.

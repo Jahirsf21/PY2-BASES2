@@ -1,15 +1,20 @@
 import jwt from 'jsonwebtoken'
 import {env} from '../config/env.js'
-
-if (!env.JWT_SECRET) {
-    throw new Error('JWT_SECRET no definido: configure la variable de entorno')
-}
+import { isRoleAllowedInNode } from '../helpers/entityValidation.js'
 
 const JWT_SECRET = env.JWT_SECRET
 
+/** Comprueba los campos de una sesión y la correspondencia entre rol y nodo. */
+function isValidSession(data) {
+    return data !== null && typeof data === 'object' && !Array.isArray(data) &&
+        Number.isInteger(data.userID) && data.userID > 0 && data.userID <= 2147483647 &&
+        typeof data.userName === 'string' && data.userName.trim().length > 0 && data.userName.length <= 50 &&
+        isRoleAllowedInNode(data.rol, data.node)
+}
+
 /**
  * Verifica la firma y el vencimiento del token de autenticación.
- * Guarda el identificador y nombre del usuario en req.user.
+ * Guarda la identidad, el rol y el nodo del usuario en req.user.
  *
  * @param {import('express').Request} req Petición HTTP. Espera un token Bearer en req.headers.authorization.
  * @param {import('express').Response} res Respuesta HTTP.
@@ -26,11 +31,15 @@ export const verifyToken = (req, res, next) => {
         }
         const token = authHeader.substring(7)
         const decoded = jwt.verify(token, JWT_SECRET)
+        if (!isValidSession(decoded)) {
+            return res.status(401).json({message: 'Token inválido. Inicie sesión nuevamente'})
+        }
         req.user = {
             userID: decoded.userID,
-            userName: decoded.userName
+            userName: decoded.userName,
+            rol: decoded.rol,
+            node: decoded.node
         }
-        next()
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({
@@ -46,24 +55,32 @@ export const verifyToken = (req, res, next) => {
             message: 'Error al verificar el token'
         })
     }
+    next()
 }
 
 
 /**
- * Genera un token de autenticación con el identificador y nombre del usuario.
+ * Genera un token de autenticación con la identidad, el rol y el nodo del usuario.
  * Permite indicar su vigencia; por defecto, vence a las 24 horas.
  *
  * @param {object} userData Datos del usuario autenticado.
  * @param {number} userData.userID Identificador del usuario.
  * @param {string} userData.userName Nombre del usuario.
+ * @param {string} userData.rol Rol registrado en el nodo.
+ * @param {string} userData.node Nodo de la sesión.
  * @param {string|number} [expiresIn] Vigencia del token como texto de duración o número de segundos.
  * @returns {string} Token JWT firmado.
  */
 export const generate_token = (userData, expiresIn = '24h') => {
+    if (!isValidSession(userData)) {
+        throw new Error('Datos de sesión inválidos')
+    }
     return jwt.sign(
         {
             userID: userData.userID,
-            userName: userData.userName
+            userName: userData.userName,
+            rol: userData.rol,
+            node: userData.node
         },
         JWT_SECRET,
         {expiresIn}
