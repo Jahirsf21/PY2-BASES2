@@ -89,6 +89,8 @@ GO
 /*
     Comprueba las credenciales de un usuario activo descifrando la contraseña almacenada.
     No devuelve filas si las credenciales no coinciden o el usuario está inactivo.
+    Valida el rol contra el hostname de la instancia: Administrador en las sucursales y Corporativo en corporativo.
+    Lanza 56001 si el rol no está permitido y 56002 si el hostname no está reconocido.
     Devuelve: UserID, UserName, FullName, Rol, Active
 */
 create or alter procedure dbo.LoginUser
@@ -101,6 +103,15 @@ begin
     -- Debe ser la misma frase de paso usada al cifrar las contraseñas.
     declare @Passphrase nvarchar(100) = N'hGkxrd6gfl5oECcRkZoTUiB8ITcsuEzqSnA17kqXhDh';
 
+    declare @AuthenticatedUser table (
+        UserID int not null,
+        UserName nvarchar(50) not null,
+        FullName nvarchar(150) not null,
+        Rol nvarchar(50) not null,
+        Active bit not null
+    );
+
+    insert into @AuthenticatedUser (UserID, UserName, FullName, Rol, Active)
     select
         UserID,
         UserName,
@@ -111,5 +122,23 @@ begin
     where UserName = @UserName
       and convert(nvarchar(255), DecryptByPassPhrase(@Passphrase, [Password])) = @Password
       and Active = 1;
+
+    if exists (select 1 from @AuthenticatedUser)
+    begin
+        declare @InstanceName nvarchar(128) = convert(nvarchar(128), serverproperty('MachineName'));
+
+        if @InstanceName is null or @InstanceName not in (N'san-jose', N'limon', N'corporativo')
+            throw 56002, N'Hostname de SQL Server no reconocido. Se esperaba san-jose, limon o corporativo.', 1;
+
+        if not exists (
+            select 1 from @AuthenticatedUser
+            where (Rol = N'Administrador' and @InstanceName in (N'san-jose', N'limon'))
+               or (Rol = N'Corporativo' and @InstanceName = N'corporativo')
+        )
+            throw 56001, N'El rol no tiene acceso a la sucursal seleccionada.', 1;
+    end;
+
+    select UserID, UserName, FullName, Rol, Active
+    from @AuthenticatedUser;
 end
 go
