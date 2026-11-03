@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeftIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useSession } from '@/components/auth-session'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getInvoiceByID, getInvoiceLinesByID } from '@/app/api/sales'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
@@ -20,23 +21,43 @@ function DetailField({ label, value }: { label: string; value: ReactNode }) {
 
 export default function InvoiceDetailPage() {
   const { invoiceID } = useParams<{ invoiceID: string }>()
+  return <InvoiceDetailContent key={invoiceID} invoiceID={invoiceID} />
+}
+
+/** Carga encabezado y líneas sin exponer respuestas de otra sesión o factura. */
+function InvoiceDetailContent({ invoiceID }: { invoiceID: string }) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const id = parseEntityId(invoiceID)
-    if (id === null) {
-      Promise.resolve().then(() => { if (!cancelled) setError('Factura no encontrada') })
-    } else {
-      Promise.all([getInvoiceByID(id), getInvoiceLinesByID(id)]).then(([headers, lines]) => {
-        if (!headers[0]) throw new Error('Factura no encontrada')
-        if (!cancelled) setInvoice({header: headers[0], lines})
-      })
-        .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'No fue posible obtener la factura') })
+    const requestRevision = revision
+    /** Cada lectura maneja su 401 aunque Promise.all ya haya rechazado otra. */
+    function failed(reason: unknown, resource: string): never {
+      if (reason instanceof Error && reason.cause === 401) invalidateSession(requestRevision)
+      else if (!cancelled && isSessionCurrent(requestRevision)) {
+        const status = reason instanceof Error ? reason.cause : null
+        setError(`${resource}: ${status === 403 ? 'Sin permisos.' : reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503) ? 'No fue posible cargar el recurso. Intente nuevamente.' : reason instanceof Error ? reason.message : 'No disponible.'}`)
+      }
+      throw reason
     }
+    queueMicrotask(() => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setInvoice(null)
+      setError(null)
+      const id = parseEntityId(invoiceID)
+      if (id === null) { setError('Factura no encontrada'); return }
+      Promise.all([getInvoiceByID(id).catch(reason => failed(reason, 'Factura')), getInvoiceLinesByID(id).catch(reason => failed(reason, 'Líneas'))]).then(([headers, lines]) => {
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        if (!headers[0] || headers[0].NumeroFactura !== id) { setError('Factura no encontrada'); return }
+        setInvoice({header: headers[0], lines})
+      })
+        .catch(() => { if (!cancelled && isSessionCurrent(requestRevision)) setError(previous => previous ?? 'No fue posible obtener la factura. Intente nuevamente.') })
+    })
     return () => { cancelled = true }
-  }, [invoiceID])
+  }, [invoiceID, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   const header = invoice?.header
   const total = invoice?.lines.reduce((sum, line) => sum + line.TotalLinea, 0) ?? 0
@@ -50,7 +71,7 @@ export default function InvoiceDetailPage() {
         </Link>
 
         {!error && !invoice && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando factura...</p>}
-        {error && <p role="alert" className="rounded-lg border bg-card p-6 text-sm text-destructive">{error}</p>}
+        {error && <div className="space-y-3 rounded-lg border bg-card p-6"><p role="alert" className="text-sm text-destructive">{error}</p>{parseEntityId(invoiceID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}</div>}
 
         {invoice && header && !error && (
           <>

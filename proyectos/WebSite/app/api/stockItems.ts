@@ -1,6 +1,6 @@
 import type { Color, NewStockItem, PackageType, StockGroup, StockItemDetail, StockItemEdit, StockItemsResponse } from '@/lib/types/stockItems'
 
-// URL base configurada para el servidor del API.
+import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -18,6 +18,8 @@ export async function getStockItems(
   pageNumber: number,
   pageSize: number,
 ): Promise<StockItemsResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({
     stockItemName,
     stockGroupIDsJson: JSON.stringify(stockGroupIDs),
@@ -25,10 +27,10 @@ export async function getStockItems(
     pageSize: String(pageSize),
   })
 
-  const res = await fetch(`${API_URL}/api/stock-items?${query}`)
+  const res = await fetch(`${API_URL}/api/stock-items?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los productos')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los productos', { cause: res.status })
   }
   return res.json()
 }
@@ -39,10 +41,12 @@ export async function getStockItems(
  * @returns Listado de grupos de productos.
  */
 export async function getStockGroups(): Promise<StockGroup[]> {
-  const res = await fetch(`${API_URL}/api/stock-items/groups`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/groups`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de productos')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de productos', { cause: res.status })
   }
   return res.json()
 }
@@ -53,10 +57,12 @@ export async function getStockGroups(): Promise<StockGroup[]> {
  * @returns Listado de colores.
  */
 export async function getColors(): Promise<Color[]> {
-  const res = await fetch(`${API_URL}/api/stock-items/colors`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/colors`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los colores')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los colores', { cause: res.status })
   }
   return res.json()
 }
@@ -67,10 +73,12 @@ export async function getColors(): Promise<Color[]> {
  * @returns Listado de tipos de empaque.
  */
 export async function getPackageTypes(): Promise<PackageType[]> {
-  const res = await fetch(`${API_URL}/api/stock-items/package-types`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/package-types`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los empaques')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los empaques', { cause: res.status })
   }
   return res.json()
 }
@@ -82,11 +90,13 @@ export async function getPackageTypes(): Promise<PackageType[]> {
  * @returns Arreglo con el detalle solicitado.
  */
 export async function getStockItemByID(stockItemID: number): Promise<StockItemDetail[]> {
-  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Producto no encontrado' : 'No fue posible obtener el producto'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -98,13 +108,15 @@ export async function getStockItemByID(stockItemID: number): Promise<StockItemDe
  * @returns Arreglo de grupos; vacío si el API no encuentra grupos.
  */
 export async function getStockItemGroupsByID(stockItemID: number): Promise<StockGroup[]> {
-  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}/groups`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}/groups`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     if (res.status === 404 && body?.message === 'Grupos del producto no encontrados') {
       return []
     }
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos del producto')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos del producto', { cause: res.status })
   }
   return res.json()
 }
@@ -116,11 +128,13 @@ export async function getStockItemGroupsByID(stockItemID: number): Promise<Stock
  * @returns Datos para precargar su edición.
  */
 export async function getStockItemForEdit(stockItemID: number): Promise<StockItemEdit> {
-  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}/edit`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}/edit`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Producto no encontrado' : 'No fue posible cargar el producto para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -132,14 +146,22 @@ export async function getStockItemForEdit(stockItemID: number): Promise<StockIte
  * @returns Identificador del producto creado.
  */
 export async function createStockItem(item: NewStockItem): Promise<number> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/stock-items`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(item),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el producto')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el producto', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
   const body: { stockItemID: number } = await res.json()
   return body.stockItemID
@@ -153,14 +175,22 @@ export async function createStockItem(item: NewStockItem): Promise<number> {
  * @returns Promesa que se resuelve al actualizarlo.
  */
 export async function updateStockItemByID(stockItemID: number, item: NewStockItem): Promise<void> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(item),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el producto')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el producto', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
 }
 
@@ -171,9 +201,11 @@ export async function updateStockItemByID(stockItemID: number, item: NewStockIte
  * @returns Promesa que se resuelve al eliminarlo.
  */
 export async function deleteStockItemByID(stockItemID: number): Promise<void> {
-  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`, { method: 'DELETE' })
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el producto')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el producto', { cause: res.status })
   }
 }

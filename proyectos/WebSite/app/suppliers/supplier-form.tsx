@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftIcon, ChevronDownIcon } from 'lucide-react'
@@ -14,7 +14,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/toast'
-import { validateSupplier } from '@/lib/helpers/entityValidation'
+import { checkId, validateSupplier } from '@/lib/helpers/entityValidation'
+import { useSession } from '@/components/auth-session'
 import type { Employee } from '@/lib/types/application'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
 import type { NewSupplier, SupplierCategory, SupplierEdit } from '@/lib/types/suppliers'
@@ -36,8 +37,17 @@ function TextField({ label, name, required, ...props }: { label: string; name: s
   return <div className="grid min-w-0 gap-2"><Label htmlFor={name}>{label}{required ? ' *' : ''}</Label><Input id={name} name={name} required={required} {...props} /></div>
 }
 
+/** Conserva errores de negocio sin exponer detalles internos del transporte. */
+function supplierFormError(reason: unknown): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return 'Sin permisos para realizar esta operación de proveedores.'
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return 'No fue posible completar la operación. Compruebe el resultado antes de repetirla.'
+  return reason instanceof Error ? reason.message : 'No fue posible completar la operación.'
+}
+
 export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
   const router = useRouter()
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [categories, setCategories] = useState<SupplierCategory[]>([])
   const [methods, setMethods] = useState<DeliveryMethod[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -49,35 +59,65 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
   const [deliveryCity, setDeliveryCity] = useState<LookupOption | null>(initial ? { id: initial.DeliveryCityID, label: initial.CiudadEntrega } : null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogRefresh, setCatalogRefresh] = useState(0)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const submitLock = useRef(false)
+  const lifetime = useRef({ active: false })
   const back = initial ? `/suppliers/${initial.SupplierID}` : '/suppliers'
 
   useEffect(() => {
+    const screen = { active: true }
+    lifetime.current = screen
+    return () => { screen.active = false }
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
-    Promise.all([getSupplierCategories(), getDeliveryMethods(), getEmployees()])
+    const requestRevision = revision
+    /** Identifica el catálogo fallido y no pierde un 401 paralelo o tardío. */
+    function catalog<T>(request: Promise<T[]>, label: string): Promise<T[]> {
+      return request.then(items => {
+        if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+        if (!items.length) throw new Error(`No hay ${label} disponibles.`)
+        return items
+      }).catch(reason => {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); throw reason }
+        throw new Error(`${label}: ${supplierFormError(reason)}`)
+      })
+    }
+    queueMicrotask(() => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setCatalogLoading(true)
+      setCatalogError(null)
+      Promise.all([catalog(getSupplierCategories(), 'categorías'), catalog(getDeliveryMethods(), 'métodos de entrega'), catalog(getEmployees(), 'empleados')])
       .then(([supplierCategories, deliveryMethods, employeeList]) => {
-        if (!cancelled) {
+        if (!cancelled && isSessionCurrent(requestRevision)) {
           setCategories(supplierCategories)
           setMethods(deliveryMethods)
           setEmployees(employeeList)
           setLastEditedBy((selected) => employeeList.some((employee) => employee.PersonID === selected) ? selected : null)
         }
       })
-      .catch(() => {
-        if (cancelled) return
-        const message = 'No fue posible cargar las opciones del formulario. Recargue la página.'
-        setCatalogError(message)
-        toast.add({ type: 'error', title: 'No se pudieron cargar las opciones del proveedor', description: message, priority: 'high', timeout: 8000 })
+      .catch(reason => {
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        setCatalogError(supplierFormError(reason))
       })
+      .finally(() => { if (!cancelled && isSessionCurrent(requestRevision)) setCatalogLoading(false) })
+    })
     return () => { cancelled = true }
-  }, [])
+  }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
   function showValidationError(message: string) {
     toast.add({ type: 'error', title: 'Revise los datos del proveedor', description: message, priority: 'high', timeout: 8000 })
   }
 
+  /** Mantiene el envío único y sus efectos dentro de la pantalla y sesión iniciadoras. */
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (submitting) return
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (submitting || submitLock.current || catalogLoading || catalogError || !screen.active || !isSessionCurrent(requestRevision)) return
     if (categoryID === null || methodID === null || lastEditedBy === null || !employees.some((employee) => employee.PersonID === lastEditedBy)) {
       showValidationError('Seleccione la categoría, el método de entrega y un empleado válido que registre el proveedor.')
       return
@@ -111,21 +151,35 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
       showValidationError(errors[fields[0]])
       return
     }
+    if (!isSessionCurrent(requestRevision)) return
+    submitLock.current = true
     setSubmitting(true)
+    setSubmitError(null)
     try {
       if (initial) {
         await updateSupplierByID(initial.SupplierID, supplier)
+        if (!screen.active || !isSessionCurrent(requestRevision)) return
         toast.add({ type: 'success', title: 'Proveedor actualizado', description: `${supplier.supplierName} se actualizó correctamente.` })
         router.push(back)
       } else {
         const id = await createSupplier(supplier)
+        if (!screen.active || !isSessionCurrent(requestRevision)) return
+        const errors: Record<string, string> = {}
+        checkId(errors, 'id', 'Proveedor', id, true)
+        if (errors.id) throw new SyntaxError('Identificador inesperado')
         toast.add({ type: 'success', title: 'Proveedor creado', description: `${supplier.supplierName} se creó correctamente.` })
         router.push(`/suppliers/${id}`)
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No fue posible guardar el proveedor'
+    } catch (reason) {
+      if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
+      let message = reason instanceof TypeError || reason instanceof SyntaxError ? 'No fue posible confirmar el guardado. Compruebe el resultado antes de volver a enviarlo.' : supplierFormError(reason)
+      if (reason instanceof Error && reason.cause === 400 && 'errors' in reason && reason.errors && typeof reason.errors === 'object') message += ` ${Object.values(reason.errors).filter(value => typeof value === 'string').join(' ')}`
+      setSubmitError(message)
       toast.add({ type: 'error', title: 'No se pudo guardar el proveedor', description: message, priority: 'high', timeout: 8000 })
       setSubmitting(false)
+    } finally {
+      submitLock.current = false
     }
   }
 
@@ -134,6 +188,9 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
       <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
         <Link href={back} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline"><ArrowLeftIcon className="size-4" aria-hidden="true" />{initial ? 'Volver al detalle' : 'Volver a proveedores'}</Link>
         <div><h1 className="text-2xl font-semibold tracking-tight">{initial ? 'Editar proveedor' : 'Crear proveedor'}</h1><p className="text-sm text-muted-foreground">Complete los datos obligatorios marcados con *.</p></div>
+        {catalogLoading && <p role="status" className="text-sm text-muted-foreground">Cargando opciones...</p>}
+        {catalogError && <div className="space-y-3 rounded-lg border bg-card p-4"><p role="alert" className="text-sm text-destructive">{catalogError}</p><Button type="button" variant="outline" disabled={catalogLoading || submitting} onClick={() => setCatalogRefresh(key => key + 1)}>Reintentar opciones</Button></div>}
+        {submitError && <p role="alert" className="rounded-lg border bg-card p-4 text-sm text-destructive">{submitError}</p>}
         <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
           <fieldset disabled={submitting} className="space-y-6">
             <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
@@ -161,8 +218,8 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
             </section>
             <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
               <h2 className="text-lg font-semibold">Contactos</h2><div className="grid gap-4 md:grid-cols-2">
-                <LookupPicker id="primaryContact" label="Contacto principal" value={primaryContact} onChange={setPrimaryContact} search={findPeople} disabled={submitting} required />
-                 <LookupPicker id="alternateContact" label="Contacto alternativo" value={alternateContact} onChange={setAlternateContact} search={findPeople} disabled={submitting} required />
+                <LookupPicker id="primaryContact" label="Contacto principal" value={primaryContact} onChange={setPrimaryContact} search={findPeople} disabled={submitting} required sessionAware />
+                 <LookupPicker id="alternateContact" label="Contacto alternativo" value={alternateContact} onChange={setAlternateContact} search={findPeople} disabled={submitting} required sessionAware />
               </div>
             </section>
             <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
@@ -179,7 +236,7 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
                 <div className="space-y-4"><h3 className="font-medium">Entrega</h3>
                   <TextField label="Dirección, línea 1" name="deliveryAddressLine1" maxLength={60} defaultValue={initial?.DireccionEntrega1} required />
                   <TextField label="Dirección, línea 2" name="deliveryAddressLine2" maxLength={60} defaultValue={initial?.DireccionEntrega2 ?? ''} />
-                  <LookupPicker id="deliveryCity" label="Ciudad de entrega" value={deliveryCity} onChange={setDeliveryCity} search={findCities} disabled={submitting} required />
+                  <LookupPicker id="deliveryCity" label="Ciudad de entrega" value={deliveryCity} onChange={setDeliveryCity} search={findCities} disabled={submitting} required sessionAware />
                   <TextField label="Código postal" name="deliveryPostalCode" maxLength={10} defaultValue={initial?.CodigoPostalEntrega} required />
                 </div>
                 <div className="space-y-4"><h3 className="font-medium">Postal</h3>
@@ -195,7 +252,7 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
               </div>
             </section>
             <section className="space-y-2 rounded-lg border bg-card p-4 shadow-sm sm:p-6"><Label htmlFor="internalComments">Comentarios internos</Label><textarea id="internalComments" name="internalComments" defaultValue={initial?.ComentariosInternos ?? ''} className="min-h-24 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-ring" /></section>
-            <div className="flex flex-wrap justify-end gap-2"><Button nativeButton={false} render={<Link href={back} />} variant="outline">Cancelar</Button><Button type="submit" disabled={submitting || Boolean(catalogError)}>{submitting ? 'Guardando...' : initial ? 'Guardar cambios' : 'Crear proveedor'}</Button></div>
+            <div className="flex flex-wrap justify-end gap-2"><Button nativeButton={false} render={<Link href={back} />} variant="outline">Cancelar</Button><Button type="submit" disabled={submitting || catalogLoading || Boolean(catalogError)}>{submitting ? 'Guardando...' : initial ? 'Guardar cambios' : 'Crear proveedor'}</Button></div>
           </fieldset>
         </form>
       </div>

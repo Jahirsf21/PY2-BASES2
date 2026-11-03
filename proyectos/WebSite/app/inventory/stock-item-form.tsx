@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftIcon, ChevronDownIcon } from 'lucide-react'
@@ -16,7 +16,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/toast'
-import { validateStockItem } from '@/lib/helpers/entityValidation'
+import { checkId, validateStockItem } from '@/lib/helpers/entityValidation'
+import { useSession } from '@/components/auth-session'
 import type { Employee } from '@/lib/types/application'
 import type { Color, NewStockItem, PackageType, StockGroup, StockItemEdit } from '@/lib/types/stockItems'
 
@@ -56,8 +57,17 @@ function SelectField({ label, name, value, onChange, options, required = false, 
   )
 }
 
+/** Conserva el mensaje de negocio sin mostrar errores internos o cerrar sesión por un 403. */
+function stockFormError(reason: unknown): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return 'Sin permisos para realizar esta operación de inventario.'
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return 'No fue posible completar la operación. Compruebe el resultado antes de repetirla.'
+  return reason instanceof Error ? reason.message : 'No fue posible completar la operación.'
+}
+
 export function StockItemForm({ initial, initialGroups = [] }: { initial?: StockItemEdit; initialGroups?: StockGroup[] }) {
   const router = useRouter()
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [supplier, setSupplier] = useState<LookupOption | null>(initial ? { id: initial.SupplierID, label: initial.SupplierName } : null)
   const [employees, setEmployees] = useState<Employee[]>([])
   const [colors, setColors] = useState<Color[]>([])
@@ -69,35 +79,67 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
   const [outerPackageID, setOuterPackageID] = useState<number | null>(initial?.OuterPackageID ?? null)
   const [stockGroupIDs, setStockGroupIDs] = useState<number[]>(initialGroups.map((group) => group.StockGroupID))
   const [isChillerStock, setIsChillerStock] = useState(Boolean(initial?.IsChillerStock))
-  const [catalogError, setCatalogError] = useState(false)
+  const [catalogMessage, setCatalogMessage] = useState<string | null>(null)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogRefresh, setCatalogRefresh] = useState(0)
+  const catalogError = Boolean(catalogMessage) || catalogLoading
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const submitLock = useRef(false)
+  const lifetime = useRef({ active: false })
   const back = initial ? `/inventory/${initial.StockItemID}` : '/inventory'
 
   useEffect(() => {
+    const screen = { active: true }
+    lifetime.current = screen
+    return () => { screen.active = false }
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
-    Promise.all([getEmployees(), getColors(), getPackageTypes(), getStockGroups()])
+    const requestRevision = revision
+    /** Mantiene cada catálogo identificado y procesa sus 401 de forma independiente. */
+    function catalog<T>(request: Promise<T[]>, label: string, required = true): Promise<T[]> {
+      return request.then(items => {
+        if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+        if (required && !items.length) throw new Error(`No hay ${label} disponibles.`)
+        return items
+      }).catch(reason => {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); throw reason }
+        throw new Error(`${label}: ${stockFormError(reason)}`)
+      })
+    }
+    queueMicrotask(() => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setCatalogLoading(true)
+      setCatalogMessage(null)
+      Promise.all([catalog(getEmployees(), 'empleados'), catalog(getColors(), 'colores', false), catalog(getPackageTypes(), 'empaques'), catalog(getStockGroups(), 'grupos')])
       .then(([people, availableColors, availablePackages, availableGroups]) => {
-        if (cancelled) return
+        if (cancelled || !isSessionCurrent(requestRevision)) return
         setEmployees(people)
         setColors(availableColors)
         setPackages(availablePackages)
         setGroups(availableGroups)
         setLastEditedBy((id) => people.some((person) => person.PersonID === id) ? id : null)
-      }).catch(() => {
-        if (cancelled) return
-        setCatalogError(true)
-        toast.add({ type: 'error', title: 'No se pudieron cargar las opciones del producto', description: 'No fue posible cargar las opciones del formulario. Recargue la página.', priority: 'high', timeout: 8000 })
+      }).catch(reason => {
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        setCatalogMessage(stockFormError(reason))
       })
+      .finally(() => { if (!cancelled && isSessionCurrent(requestRevision)) setCatalogLoading(false) })
+    })
     return () => { cancelled = true }
-  }, [])
+  }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
   function showError(message: string) {
     toast.add({ type: 'error', title: 'Revise el producto', description: message, priority: 'high', timeout: 8000 })
   }
 
+  /** Bloquea doble envío y evita publicar mutaciones de otra pantalla o sesión. */
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (submitting) return
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (submitting || submitLock.current || catalogError || !screen.active || !isSessionCurrent(requestRevision)) return
     if (!supplier || !unitPackageID || !outerPackageID || !lastEditedBy || !employees.some((person) => person.PersonID === lastEditedBy) ||
       stockGroupIDs.length === 0 || stockGroupIDs.some((id) => !groups.some((group) => group.StockGroupID === id))) {
       showError('Seleccione proveedor, empaques, al menos un grupo de productos y un empleado válido.')
@@ -119,14 +161,28 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
     }
     const {fields, errors} = validateStockItem(item)
     if (fields.length) { showError(errors[fields[0]]); return }
+    if (!isSessionCurrent(requestRevision)) return
+    submitLock.current = true
     setSubmitting(true)
+    setSubmitError(null)
     try {
       const id = initial ? (await updateStockItemByID(initial.StockItemID, item), initial.StockItemID) : await createStockItem(item)
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
+      const idErrors: Record<string, string> = {}
+      checkId(idErrors, 'id', 'Producto', id, true)
+      if (idErrors.id) throw new SyntaxError('Identificador inesperado')
       toast.add({ type: 'success', title: initial ? 'Producto actualizado' : 'Producto creado', description: item.stockItemName })
       router.push(`/inventory/${id}`)
     } catch (reason) {
-      showError(reason instanceof Error ? reason.message : 'No fue posible guardar el producto')
+      if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
+      let message = reason instanceof TypeError || reason instanceof SyntaxError ? 'No fue posible confirmar el guardado. Compruebe el resultado antes de volver a enviarlo.' : stockFormError(reason)
+      if (reason instanceof Error && reason.cause === 400 && 'errors' in reason && reason.errors && typeof reason.errors === 'object') message += ` ${Object.values(reason.errors).filter(value => typeof value === 'string').join(' ')}`
+      setSubmitError(message)
+      showError(message)
       setSubmitting(false)
+    } finally {
+      submitLock.current = false
     }
   }
 
@@ -140,6 +196,9 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
           <h1 className="text-2xl font-semibold tracking-tight">{initial ? 'Editar producto' : 'Crear producto'}</h1>
           <p className="text-sm text-muted-foreground">Complete los datos obligatorios marcados con *.</p>
         </div>
+        {catalogLoading && <p role="status" className="text-sm text-muted-foreground">Cargando opciones...</p>}
+        {catalogMessage && <div className="space-y-3 rounded-lg border bg-card p-4"><p role="alert" className="text-sm text-destructive">{catalogMessage}</p><Button type="button" variant="outline" disabled={catalogLoading || submitting} onClick={() => setCatalogRefresh(key => key + 1)}>Reintentar opciones</Button></div>}
+        {submitError && <p role="alert" className="rounded-lg border bg-card p-4 text-sm text-destructive">{submitError}</p>}
         <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
           <fieldset disabled={submitting} className="space-y-6">
             <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
@@ -178,7 +237,7 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
                 </div>
                 <p className="text-xs text-muted-foreground">Seleccione uno o varios grupos para este producto.</p>
               </div>
-              <LookupPicker id="supplier" label="Proveedor" value={supplier} onChange={setSupplier} search={findSuppliers} disabled={submitting || catalogError} required />
+              <LookupPicker id="supplier" label="Proveedor" value={supplier} onChange={setSupplier} search={findSuppliers} disabled={submitting || catalogError} required sessionAware />
               <label className="flex items-center gap-2 text-sm"><Checkbox checked={isChillerStock} disabled={submitting} onCheckedChange={setIsChillerStock} /> Requiere refrigeración</label>
             </section>
             <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">

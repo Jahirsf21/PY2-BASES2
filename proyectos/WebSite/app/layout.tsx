@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppNavigation } from "@/components/app-navigation";
+import { SessionGuard, SessionProvider } from "@/components/auth-session";
 import { Toaster } from "@/components/ui/toast";
 import "./globals.css";
 
@@ -26,10 +27,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
-        <Toaster>
-          <AppNavigation />
-          {children}
-        </Toaster>
+        <SessionProvider>
+          <Toaster>
+            <AppNavigation />
+            <SessionGuard>{children}</SessionGuard>
+          </Toaster>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getDeliveryMethods } from '@/app/api/application'
 import { getInvoices } from '@/app/api/sales'
+import { useSession } from '@/components/auth-session'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
 import type { InvoiceFilters, InvoicesResponse } from '@/lib/types/sales'
 
@@ -29,7 +30,16 @@ const initialFilters: InvoiceFilters = {
 const dateFormatter = new Intl.DateTimeFormat('es-CR', { timeZone: 'UTC', dateStyle: 'medium' })
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+/** Oculta detalles internos de transporte y conserva los mensajes de negocio. */
+function salesError(reason: unknown): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return 'Sin permisos para consultar ventas.'
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return 'No fue posible cargar las facturas. Intente nuevamente.'
+  return reason instanceof Error ? reason.message : 'No fue posible obtener las facturas.'
+}
+
 export default function SalesPage() {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [invoiceID, setInvoiceID] = useState<InvoiceFilters['invoiceID']>(null)
   const [invoiceDateFrom, setInvoiceDateFrom] = useState('')
   const [invoiceDateTo, setInvoiceDateTo] = useState('')
@@ -43,30 +53,53 @@ export default function SalesPage() {
   const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [methodsError, setMethodsError] = useState<string | null>(null)
+  const [methodsLoading, setMethodsLoading] = useState(true)
+  const [methodsRefresh, setMethodsRefresh] = useState(0)
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadData() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
       try {
         const invoicesData = await getInvoices(filters, pageNumber, PAGE_SIZE)
-        if (!cancelled) setInvoicesResponse(invoicesData)
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener las facturas')
+        if (!cancelled && isSessionCurrent(requestRevision)) setInvoicesResponse(invoicesData)
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) { setInvoicesResponse(null); setError(salesError(reason)) }
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadData()
+    queueMicrotask(() => { void loadData() })
     return () => { cancelled = true }
-  }, [filters, pageNumber])
+  }, [filters, pageNumber, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   useEffect(() => {
-    getDeliveryMethods().then(setDeliveryMethods).catch(() => {})
-  }, [])
+    let cancelled = false
+    const requestRevision = revision
+    queueMicrotask(async () => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setMethodsLoading(true)
+      setMethodsError(null)
+      try {
+        const result = await getDeliveryMethods()
+        if (!cancelled && isSessionCurrent(requestRevision)) setDeliveryMethods(result)
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) { setDeliveryMethods([]); setMethodsError(salesError(reason)) }
+      } finally {
+        if (!cancelled && isSessionCurrent(requestRevision)) setMethodsLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [methodsRefresh, revision, isSessionCurrent, invalidateSession])
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -115,6 +148,10 @@ export default function SalesPage() {
           </Button>
         </div>
 
+        {(error || methodsError) && <div className="space-y-2 rounded-lg border bg-card p-4">
+          {methodsError && <p role="alert" className="text-sm text-destructive">Métodos de entrega: {methodsError}</p>}
+          <Button type="button" variant="outline" disabled={isLoading || methodsLoading} onClick={() => { setRefreshKey(key => key + 1); setMethodsRefresh(key => key + 1) }}>Reintentar lecturas</Button>
+        </div>}
         <div className="rounded-lg border bg-card p-4 shadow-sm">
           <form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end" onSubmit={handleSubmit}>
             <div className="grid gap-2">
@@ -168,6 +205,7 @@ export default function SalesPage() {
                 <DropdownMenuTrigger
                   id="deliveryMethod"
                   type="button"
+                  disabled={Boolean(methodsError)}
                   className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
                   <span className="min-w-0 truncate">

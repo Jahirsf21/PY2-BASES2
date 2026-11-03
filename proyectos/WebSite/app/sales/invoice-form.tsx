@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeftIcon, ChevronDownIcon } from 'lucide-react'
@@ -16,7 +16,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/toast'
-import { validateInvoice } from '@/lib/helpers/entityValidation'
+import { checkId, validateInvoice } from '@/lib/helpers/entityValidation'
+import { useSession } from '@/components/auth-session'
 import type { Employee } from '@/lib/types/application'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
 import type { InvoiceEdit, InvoiceLine, NewInvoice } from '@/lib/types/sales'
@@ -65,8 +66,17 @@ async function findProducts(query: string, page: number) {
 interface EditableLine { key: number; product: LookupOption | null; quantity: string; unitPrice: string }
 let nextLineKey = 1
 
+/** Evita exponer detalles internos del transporte y distingue los permisos. */
+function invoiceFormError(reason: unknown): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return 'Sin permisos para realizar esta operación de ventas.'
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return 'No fue posible completar la operación. Compruebe el resultado antes de repetirla.'
+  return reason instanceof Error ? reason.message : 'No fue posible completar la operación.'
+}
+
 export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit; initialLines?: InvoiceLine[]}) {
   const router = useRouter()
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const header = initial
   const [customer, setCustomer] = useState<LookupOption | null>(header ? {id: header.CustomerID, label: header.CustomerName} : null)
   const [billTo, setBillTo] = useState<LookupOption | null>(header && header.BillToCustomerID !== header.CustomerID ? {id: header.BillToCustomerID, label: header.BillToCustomerName} : null)
@@ -83,24 +93,56 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
     key: nextLineKey++, product: {id: line.StockItemID, label: line.NombreProducto},
     quantity: String(line.Cantidad), unitPrice: String(line.PrecioUnitario),
   })) : [{key: nextLineKey++, product: null, quantity: '1', unitPrice: ''}])
-  const [catalogError, setCatalogError] = useState(false)
+  const [catalogMessage, setCatalogMessage] = useState<string | null>(null)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogRefresh, setCatalogRefresh] = useState(0)
+  const catalogError = Boolean(catalogMessage) || catalogLoading
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const submitLock = useRef(false)
+  const lifetime = useRef({ active: false })
+  const priceRequests = useRef(new Map<number, object>())
+  const [priceLoading, setPriceLoading] = useState<number[]>([])
   const back = header ? `/sales/${header.InvoiceID}` : '/sales'
 
   useEffect(() => {
+    const screen = { active: true }
+    const requests = priceRequests.current
+    lifetime.current = screen
+    return () => { screen.active = false; requests.clear() }
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
-    Promise.all([getDeliveryMethods(), getEmployees(), getSalespeople()]).then(([deliveryMethods, people, sellers]) => {
-      if (cancelled) return
+    const requestRevision = revision
+    /** Cada referencia controla sus 401 aunque ya haya fallado otra petición del lote. */
+    function catalog<T>(request: Promise<T[]>, label: string): Promise<T[]> {
+      return request.then(items => {
+        if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+        if (!items.length) throw new Error(`No hay ${label} disponibles.`)
+        return items
+      }).catch(reason => {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); throw reason }
+        throw new Error(`${label}: ${invoiceFormError(reason)}`)
+      })
+    }
+    queueMicrotask(() => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setCatalogLoading(true)
+      setCatalogMessage(null)
+      Promise.all([catalog(getDeliveryMethods(), 'métodos de entrega'), catalog(getEmployees(), 'empleados'), catalog(getSalespeople(), 'vendedores')]).then(([deliveryMethods, people, sellers]) => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setMethods(deliveryMethods)
       setEmployees(people)
       setSalespeople(sellers)
-    }).catch(() => {
-      if (cancelled) return
-      setCatalogError(true)
-      toast.add({ type: 'error', title: 'No se pudieron cargar las opciones de la factura', description: 'No fue posible cargar las opciones del formulario. Recargue la página.', priority: 'high', timeout: 8000 })
+    }).catch(reason => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setCatalogMessage(invoiceFormError(reason))
+    })
+    .finally(() => { if (!cancelled && isSessionCurrent(requestRevision)) setCatalogLoading(false) })
     })
     return () => { cancelled = true }
-  }, [])
+  }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
   function showError(message: string) {
     toast.add({type: 'error', title: 'Revise la factura', description: message, priority: 'high', timeout: 8000})
@@ -110,19 +152,36 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
     setLines((previous) => previous.map((line) => line.key === key ? {...line, ...changes} : line))
   }
 
+  /** No aplica un precio de otra selección, línea eliminada, pantalla o sesión. */
   async function selectProduct(key: number, product: LookupOption | null) {
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (!screen.active || submitting || !isSessionCurrent(requestRevision)) return
+    const request = {}
+    priceRequests.current.set(key, request)
     updateLine(key, {product, unitPrice: ''})
+    setPriceLoading(previous => previous.filter(value => value !== key))
     if (!product) return
+    setPriceLoading(previous => [...previous, key])
     try {
       const detail = await getStockItemByID(product.id)
-      if (!detail[0]) throw new Error('Producto no encontrado')
+      if (!screen.active || !isSessionCurrent(requestRevision) || priceRequests.current.get(key) !== request) return
+      if (!detail[0] || detail[0].StockItemID !== product.id || typeof detail[0].PrecioUnitario !== 'number' || !Number.isFinite(detail[0].PrecioUnitario)) throw new SyntaxError('Precio inesperado')
       setLines((previous) => previous.map((line) => line.key === key && line.product?.id === product.id ? {...line, unitPrice: String(detail[0].PrecioUnitario)} : line))
-    } catch { showError('No fue posible consultar el precio del producto. Ingréselo manualmente.') }
+    } catch (reason) {
+      if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+      if (screen.active && isSessionCurrent(requestRevision) && priceRequests.current.get(key) === request) showError(`${invoiceFormError(reason)} No fue posible consultar el precio del producto; ingréselo manualmente.`)
+    } finally {
+      if (screen.active && isSessionCurrent(requestRevision) && priceRequests.current.get(key) === request) setPriceLoading(previous => previous.filter(value => value !== key))
+    }
   }
 
+  /** Guarda una sola vez y publica resultados únicamente en su contexto original. */
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (submitting) return
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (submitting || submitLock.current || catalogError || priceLoading.length > 0 || !screen.active || !isSessionCurrent(requestRevision)) return
     if (!customer || !contact || !deliveryMethodID || !accountsPersonID || !packedByPersonID || !lastEditedBy || !salespersonPersonID ||
       ![accountsPersonID, packedByPersonID, lastEditedBy].every((id) => employees.some((person) => person.PersonID === id)) ||
       !salespeople.some((person) => person.PersonID === salespersonPersonID)) {
@@ -139,18 +198,31 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
       invoiceDate: text('invoiceDate'), deliveryInstructions: text('deliveryInstructions') || null,
       lines: lines.map((line) => ({stockItemID: line.product!.id, quantity: Number(line.quantity), unitPrice: Number(line.unitPrice)})),
     }
-    // Los campos numéricos vacíos no deben convertirse silenciosamente a cero.
     if (lines.some((line) => !line.quantity.trim() || !line.unitPrice.trim())) { showError('Indique cantidad y precio en cada línea.'); return }
     const {fields, errors} = validateInvoice(invoice)
     if (fields.length) { showError(errors[fields[0]]); return }
+    if (!isSessionCurrent(requestRevision)) return
+    submitLock.current = true
     setSubmitting(true)
+    setSubmitError(null)
     try {
       const id = header ? (await updateInvoiceByID(header.InvoiceID, invoice), header.InvoiceID) : await createInvoice(invoice)
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
+      const idErrors: Record<string, string> = {}
+      checkId(idErrors, 'id', 'Factura', id, true)
+      if (idErrors.id) throw new SyntaxError('Identificador inesperado')
       toast.add({type: 'success', title: header ? 'Factura actualizada' : 'Factura creada', description: `Factura #${id}`})
       router.push(`/sales/${id}`)
     } catch (reason) {
-      showError(reason instanceof Error ? reason.message : 'No fue posible guardar la factura')
+      if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
+      let message = reason instanceof TypeError || reason instanceof SyntaxError ? 'No fue posible confirmar el guardado. Compruebe el resultado antes de volver a enviarlo.' : invoiceFormError(reason)
+      if (reason instanceof Error && reason.cause === 400 && 'errors' in reason && reason.errors && typeof reason.errors === 'object') message += ` ${Object.values(reason.errors).filter(value => typeof value === 'string').join(' ')}`
+      setSubmitError(message)
+      showError(message)
       setSubmitting(false)
+    } finally {
+      submitLock.current = false
     }
   }
 
@@ -166,14 +238,17 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
           <h1 className="text-2xl font-semibold tracking-tight">{header ? 'Editar factura' : 'Crear factura'}</h1>
           <p className="text-sm text-muted-foreground">Complete los datos obligatorios marcados con *.</p>
         </div>
+        {catalogLoading && <p role="status" className="text-sm text-muted-foreground">Cargando opciones...</p>}
+        {catalogMessage && <div className="space-y-3 rounded-lg border bg-card p-4"><p role="alert" className="text-sm text-destructive">{catalogMessage}</p><Button type="button" variant="outline" disabled={catalogLoading || submitting} onClick={() => setCatalogRefresh(key => key + 1)}>Reintentar opciones</Button></div>}
+        {submitError && <p role="alert" className="rounded-lg border bg-card p-4 text-sm text-destructive">{submitError}</p>}
         <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
           <fieldset disabled={submitting} className="space-y-6">
             <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
               <h2 className="text-lg font-semibold">Datos generales</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <LookupPicker id="customer" label="Cliente" value={customer} onChange={setCustomer} search={findCustomers} disabled={submitting || catalogError} required />
-                <div className="min-w-0"><LookupPicker id="billTo" label="Cliente por facturar" value={billTo} onChange={setBillTo} search={findCustomers} disabled={submitting || catalogError} /><p className="mt-1 text-xs text-muted-foreground">Si no se selecciona, se factura al cliente principal.</p></div>
-                <LookupPicker id="contact" label="Contacto" value={contact} onChange={setContact} search={findPeople} disabled={submitting || catalogError} required />
+                <LookupPicker id="customer" label="Cliente" value={customer} onChange={setCustomer} search={findCustomers} disabled={submitting || catalogError} required sessionAware />
+                <div className="min-w-0"><LookupPicker id="billTo" label="Cliente por facturar" value={billTo} onChange={setBillTo} search={findCustomers} disabled={submitting || catalogError} sessionAware /><p className="mt-1 text-xs text-muted-foreground">Si no se selecciona, se factura al cliente principal.</p></div>
+                <LookupPicker id="contact" label="Contacto" value={contact} onChange={setContact} search={findPeople} disabled={submitting || catalogError} required sessionAware />
                 <SelectField id="deliveryMethodID" label="Método de entrega" value={deliveryMethodID} onChange={setDeliveryMethodID} options={methods.map((method) => ({ id: method.DeliveryMethodID, label: method.NombreMetodoEntrega }))} disabled={catalogError} />
                 <SelectField id="accountsPersonID" label="Responsable de cuentas" value={accountsPersonID} onChange={setAccountsPersonID} options={employeeOptions} disabled={catalogError} />
                 <SelectField id="packedByPersonID" label="Empaquetado por" value={packedByPersonID} onChange={setPackedByPersonID} options={employeeOptions} disabled={catalogError} />
@@ -196,19 +271,20 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
                 <div key={line.key} className="min-w-0 rounded-lg border p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 className="font-medium">Línea {index + 1}</h3>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setLines((previous) => previous.filter((entry) => entry.key !== line.key))}>Quitar</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => { priceRequests.current.delete(line.key); setPriceLoading(previous => previous.filter(key => key !== line.key)); setLines((previous) => previous.filter((entry) => entry.key !== line.key)) }}>Quitar</Button>
                   </div>
-                  <LookupPicker id={`product-${line.key}`} label="Producto" value={line.product} onChange={(option) => void selectProduct(line.key, option)} search={findProducts} disabled={submitting || catalogError} required />
+                  <LookupPicker id={`product-${line.key}`} label="Producto" value={line.product} onChange={(option) => void selectProduct(line.key, option)} search={findProducts} disabled={submitting || catalogError} required sessionAware />
+                  {priceLoading.includes(line.key) && <p role="status" className="text-sm text-muted-foreground">Consultando precio...</p>}
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div className="grid min-w-0 gap-2"><Label htmlFor={`quantity-${line.key}`}>Cantidad *</Label><Input id={`quantity-${line.key}`} type="number" min={1} step={1} required value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} /></div>
-                    <div className="grid min-w-0 gap-2"><Label htmlFor={`price-${line.key}`}>Precio unitario *</Label><Input id={`price-${line.key}`} type="number" min={0} step="0.01" required value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: event.target.value })} /></div>
+                    <div className="grid min-w-0 gap-2"><Label htmlFor={`price-${line.key}`}>Precio unitario *</Label><Input id={`price-${line.key}`} type="number" min={0} step="0.01" required disabled={priceLoading.includes(line.key)} value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: event.target.value })} /></div>
                   </div>
                 </div>
               ))}
             </section>
             <div className="flex flex-wrap justify-end gap-2">
               <Button nativeButton={false} render={<Link href={back} />} variant="outline">Cancelar</Button>
-              <Button type="submit" disabled={submitting || catalogError}>{submitting ? 'Guardando...' : header ? 'Guardar cambios' : 'Crear factura'}</Button>
+              <Button type="submit" disabled={submitting || catalogError || priceLoading.length > 0}>{submitting ? 'Guardando...' : header ? 'Guardar cambios' : 'Crear factura'}</Button>
             </div>
           </fieldset>
         </form>

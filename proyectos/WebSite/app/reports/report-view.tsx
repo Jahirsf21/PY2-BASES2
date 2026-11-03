@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useSession } from '@/components/auth-session'
 import type { PaginatedResponse } from '@/lib/types/paginatedResponse'
 
 const PAGE_SIZE = 10
@@ -54,6 +55,7 @@ function getColumnWidth<Row>(column: ReportColumn<Row>): number {
 
 /** Presentación compartida de los reportes siguiendo el formato de los listados actuales. */
 export function ReportView<Row, Filters>({ title, description, columns, initialFilters, loadData, renderFilters, paginated = false, isSummary }: ReportViewProps<Row, Filters>) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [draftFilters, setDraftFilters] = useState(initialFilters)
   const [filters, setFilters] = useState(initialFilters)
   const [pageNumber, setPageNumber] = useState(1)
@@ -64,13 +66,16 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadReport() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
       try {
         const result = await loadData(filters, pageNumber, PAGE_SIZE)
-        if (!cancelled) {
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          if (!Array.isArray(result) && (!result || !Array.isArray(result.data))) throw new SyntaxError('Reporte inesperado')
           setReportResponse(Array.isArray(result) ? {
             page: 1,
             size: result.length,
@@ -79,16 +84,21 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
             data: result,
           } : result)
         }
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener el reporte')
+      } catch (reason) {
+        const status = reason instanceof Error ? reason.cause : null
+        if (status === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setReportResponse(null)
+          setError(status === 403 ? 'Sin permisos para consultar este reporte.' : reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503) ? 'No fue posible obtener el reporte. Intente nuevamente.' : reason instanceof Error ? reason.message : 'No fue posible obtener el reporte.')
+        }
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadReport()
+    queueMicrotask(() => { void loadReport() })
     return () => { cancelled = true }
-  }, [filters, pageNumber, loadData, refreshKey])
+  }, [filters, pageNumber, loadData, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeftIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useSession } from '@/components/auth-session'
 import { getStockItemByID, getStockItemGroupsByID } from '@/app/api/stockItems'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
 import type { StockGroup, StockItemDetail } from '@/lib/types/stockItems'
@@ -19,27 +20,46 @@ function DetailField({ label, value }: { label: string; value: ReactNode }) {
 
 export default function StockItemDetailPage() {
   const { stockItemID } = useParams<{ stockItemID: string }>()
+  return <StockItemDetailContent key={stockItemID} stockItemID={stockItemID} />
+}
+
+/** Impide reutilizar datos de otro producto o sucursal mientras llegan las lecturas. */
+function StockItemDetailContent({ stockItemID }: { stockItemID: string }) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [item, setItem] = useState<StockItemDetail | null>(null)
   const [groups, setGroups] = useState<StockGroup[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const id = parseEntityId(stockItemID)
-    if (id === null) {
-      Promise.resolve().then(() => { if (!cancelled) setError('Producto no encontrado') })
-    } else {
-      Promise.all([getStockItemByID(id), getStockItemGroupsByID(id)]).then(([items, stockGroups]) => {
-        if (!items[0]) throw new Error('Producto no encontrado')
-        if (!cancelled) {
+    const requestRevision = revision
+    /** El 401 de cualquiera de las dos lecturas siempre llega al proveedor de sesión. */
+    function failed(reason: unknown, resource: string): never {
+      if (reason instanceof Error && reason.cause === 401) invalidateSession(requestRevision)
+      else if (!cancelled && isSessionCurrent(requestRevision)) {
+        const status = reason instanceof Error ? reason.cause : null
+        setError(`${resource}: ${status === 403 ? 'Sin permisos.' : reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503) ? 'No fue posible cargar el recurso. Intente nuevamente.' : reason instanceof Error ? reason.message : 'No disponible.'}`)
+      }
+      throw reason
+    }
+    queueMicrotask(() => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setItem(null)
+      setGroups([])
+      setError(null)
+      const id = parseEntityId(stockItemID)
+      if (id === null) { setError('Producto no encontrado'); return }
+      Promise.all([getStockItemByID(id).catch(reason => failed(reason, 'Producto')), getStockItemGroupsByID(id).catch(reason => failed(reason, 'Grupos'))]).then(([items, stockGroups]) => {
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        if (!items[0] || items[0].StockItemID !== id) { setError('Producto no encontrado'); return }
           setItem(items[0])
           setGroups(stockGroups)
-        }
       })
-        .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'No fue posible obtener el producto') })
-    }
+        .catch(() => { if (!cancelled && isSessionCurrent(requestRevision)) setError(previous => previous ?? 'No fue posible obtener el producto. Intente nuevamente.') })
+    })
     return () => { cancelled = true }
-  }, [stockItemID])
+  }, [stockItemID, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   return (
     <main className="flex min-w-0 flex-1 bg-muted/30">
@@ -50,7 +70,7 @@ export default function StockItemDetailPage() {
         </Link>
 
         {!error && !item && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando producto...</p>}
-        {error && <p role="alert" className="rounded-lg border bg-card p-6 text-sm text-destructive">{error}</p>}
+        {error && <div className="space-y-3 rounded-lg border bg-card p-6"><p role="alert" className="text-sm text-destructive">{error}</p>{parseEntityId(stockItemID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}</div>}
 
         {item && !error && (
           <>

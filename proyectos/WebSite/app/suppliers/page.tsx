@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from '@/components/ui/toast'
+import { useSession } from '@/components/auth-session'
 import { getDeliveryMethods } from '@/app/api/application'
 import { deleteSupplierByID, getSupplierCategories, getSuppliers } from '@/app/api/suppliers'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
@@ -25,7 +26,16 @@ const initialFilters: SupplierFilters = {
   deliveryMethodID: null,
 }
 
+/** Conserva mensajes de negocio sin mostrar detalles internos de red o servidor. */
+function supplierError(reason: unknown): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return 'Sin permisos para realizar esta operación de proveedores.'
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return 'No fue posible completar la operación. Intente nuevamente.'
+  return reason instanceof Error ? reason.message : 'No fue posible obtener los proveedores.'
+}
+
 export default function SuppliersPage() {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [supplierName, setSupplierName] = useState('')
   const [supplierCategoryID, setSupplierCategoryID] = useState<SupplierFilters['supplierCategoryID']>(null)
   const [deliveryMethodID, setDeliveryMethodID] = useState<SupplierFilters['deliveryMethodID']>(null)
@@ -40,31 +50,75 @@ export default function SuppliersPage() {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [catalogRefresh, setCatalogRefresh] = useState(0)
+  const [catalogErrors, setCatalogErrors] = useState<{ categories?: string; methods?: string }>({})
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const deleteLock = useRef(false)
+  const lifetime = useRef({ active: false })
+
+  useEffect(() => {
+    const screen = { active: true }
+    lifetime.current = screen
+    return () => { screen.active = false }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadData() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
       try {
         const suppliersData = await getSuppliers(filters.supplierName, filters.supplierCategoryID, filters.deliveryMethodID, pageNumber, PAGE_SIZE)
-        if (!cancelled) setSuppliersResponse(suppliersData)
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener los proveedores')
+        if (!cancelled && isSessionCurrent(requestRevision)) setSuppliersResponse(suppliersData)
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setSuppliersResponse(null)
+          setSelectedSupplierID(null)
+          setIsConfirmingDelete(false)
+          setError(supplierError(reason))
+        }
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadData()
+    queueMicrotask(() => { void loadData() })
     return () => { cancelled = true }
-  }, [filters, pageNumber, refreshKey])
+  }, [filters, pageNumber, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   useEffect(() => {
-    getSupplierCategories().then(setCategories).catch(() => {})
-    getDeliveryMethods().then(setDeliveryMethods).catch(() => {})
-  }, [])
+    let cancelled = false
+    const requestRevision = revision
+    /** Cada referencia conserva sus datos o su error, sin ocultar un 401 concurrente. */
+    async function load<T>(key: 'categories' | 'methods', read: () => Promise<T[]>, apply: (items: T[]) => void) {
+      try {
+        if (!isSessionCurrent(requestRevision)) return
+        const items = await read()
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+          apply(items)
+        }
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          apply([])
+          setCatalogErrors(previous => ({ ...previous, [key]: supplierError(reason) }))
+        }
+      }
+    }
+    queueMicrotask(async () => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setCatalogLoading(true)
+      setCatalogErrors({})
+      await Promise.all([load('categories', getSupplierCategories, setCategories), load('methods', getDeliveryMethods, setDeliveryMethods)])
+      if (!cancelled && isSessionCurrent(requestRevision)) setCatalogLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -117,12 +171,17 @@ export default function SuppliersPage() {
     }
   }
 
+  /** Elimina una sola vez y descarta efectos de otra pantalla o revisión de sesión. */
   async function handleDeleteSupplier() {
-    if (!selectedSupplier || !isConfirmingDelete || isLoading || isDeleting) return
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (!selectedSupplier || !isConfirmingDelete || isLoading || isDeleting || deleteLock.current || !screen.active || !isSessionCurrent(requestRevision)) return
+    deleteLock.current = true
 
     setIsDeleting(true)
     try {
       await deleteSupplierByID(selectedSupplier.SupplierID)
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
       setSuppliersResponse((previous) => previous ? {
         ...previous,
         data: previous.data.filter((supplier) => supplier.SupplierID !== selectedSupplier.SupplierID),
@@ -138,17 +197,20 @@ export default function SuppliersPage() {
       } else {
         setRefreshKey((key) => key + 1)
       }
-    } catch (error) {
+    } catch (reason) {
+      if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
       setIsConfirmingDelete(false)
       toast.add({
         type: 'error',
         title: 'No se pudo eliminar el proveedor',
-        description: error instanceof Error ? error.message : 'No fue posible eliminar el proveedor',
+        description: reason instanceof TypeError ? 'No fue posible confirmar la eliminación. Compruebe el resultado antes de repetirla.' : supplierError(reason),
         priority: 'high',
         timeout: 8000,
       })
     } finally {
-      setIsDeleting(false)
+      deleteLock.current = false
+      if (screen.active && isSessionCurrent(requestRevision)) setIsDeleting(false)
     }
   }
 
@@ -165,6 +227,13 @@ export default function SuppliersPage() {
           </Button>
         </div>
 
+        {(error || catalogErrors.categories || catalogErrors.methods) && (
+          <div className="space-y-2 rounded-lg border bg-card p-4">
+            {catalogErrors.categories && <p role="alert" className="text-sm text-destructive">Categorías: {catalogErrors.categories}</p>}
+            {catalogErrors.methods && <p role="alert" className="text-sm text-destructive">Métodos de entrega: {catalogErrors.methods}</p>}
+            <Button type="button" variant="outline" disabled={isLoading || catalogLoading || isDeleting} onClick={() => { setRefreshKey(key => key + 1); setCatalogRefresh(key => key + 1) }}>Reintentar lecturas</Button>
+          </div>
+        )}
         <div className="rounded-lg border bg-card p-4 shadow-sm">
           <form className="grid gap-4 md:grid-cols-2 md:items-end lg:grid-cols-[minmax(0,1fr)_190px_190px_auto]" onSubmit={handleSubmit}>
             <div className="grid gap-2">
@@ -184,7 +253,7 @@ export default function SuppliersPage() {
                 <DropdownMenuTrigger
                   id="supplierCategory"
                   type="button"
-                  disabled={isDeleting}
+                  disabled={isDeleting || Boolean(catalogErrors.categories)}
                   className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
                   <span className="min-w-0 truncate">
@@ -216,7 +285,7 @@ export default function SuppliersPage() {
                 <DropdownMenuTrigger
                   id="supplierDeliveryMethod"
                   type="button"
-                  disabled={isDeleting}
+                  disabled={isDeleting || Boolean(catalogErrors.methods)}
                   className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
                   <span className="min-w-0 truncate">

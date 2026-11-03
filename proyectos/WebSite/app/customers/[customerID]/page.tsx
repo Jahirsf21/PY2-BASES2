@@ -6,22 +6,56 @@ import { useParams } from 'next/navigation'
 import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCustomerAddressByID, getCustomerByID, getCustomerContactsByID } from '@/app/api/customers'
+import { useSession } from '@/components/auth-session'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
 import type { CustomerAddress, CustomerContact, CustomerDetail, CustomerRouteParams } from '@/lib/types/customers'
 
+/** Reinicia el detalle inmediatamente al cambiar el identificador de la ruta. */
 export default function CustomerDetailPage() {
   const { customerID } = useParams<CustomerRouteParams>()
+  return <CustomerDetailContent key={customerID} customerID={customerID} />
+}
+
+/** Carga el detalle completo dentro de la revisión de sesión que lo solicitó. */
+function CustomerDetailContent({ customerID }: { customerID: string }) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [customer, setCustomer] = useState<CustomerDetail | null>(null)
   const [contacts, setContacts] = useState<CustomerContact | null>(null)
   const [address, setAddress] = useState<CustomerAddress | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
+
+    /** Trata cada 401 antes de que Promise.all descarte otro resultado pendiente. */
+    function readFailed(reason: unknown, resource: string): never {
+      const status = reason instanceof Error ? reason.cause : null
+      if (status === 401) invalidateSession(requestRevision)
+      else if (!cancelled && isSessionCurrent(requestRevision)) {
+        let message = reason instanceof Error ? reason.message : 'No fue posible cargar el recurso.'
+        if (status === 403) message = 'Sin permisos para consultar este recurso.'
+        else if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) message = 'No fue posible cargar el recurso. Intente nuevamente.'
+        setError(`${resource}: ${message}`)
+      }
+      throw reason
+    }
+
+    /** Rechaza un JSON inesperado antes de usarlo en la presentación. */
+    function requireArray<T>(items: T[]): T[] {
+      if (!Array.isArray(items)) throw new SyntaxError('Respuesta de detalle inesperada')
+      return items
+    }
+
     async function loadCustomer() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
+      setCustomer(null)
+      setContacts(null)
+      setAddress(null)
       const id = parseEntityId(customerID)
       if (id === null) {
         setError('Cliente no encontrado')
@@ -31,30 +65,38 @@ export default function CustomerDetailPage() {
 
       try {
         const [details, customerContacts, customerAddress] = await Promise.all([
-          getCustomerByID(id),
-          getCustomerContactsByID(id),
-          getCustomerAddressByID(id),
+          getCustomerByID(id).then(requireArray).catch(reason => readFailed(reason, 'Detalle del cliente')),
+          getCustomerContactsByID(id).then(requireArray).catch(reason => readFailed(reason, 'Contactos del cliente')),
+          getCustomerAddressByID(id).then(requireArray).catch(reason => readFailed(reason, 'Direcciones del cliente')),
         ])
 
-        if (cancelled) return
+        if (cancelled || !isSessionCurrent(requestRevision)) return
         if (!details[0]) {
           setError('Cliente no encontrado')
+          return
+        }
+        if (details[0].CustomerID !== id) {
+          setError('No fue posible confirmar el detalle del cliente solicitado. Intente nuevamente.')
           return
         }
 
         setCustomer(details[0])
         setContacts(customerContacts[0] ?? null)
         setAddress(customerAddress[0] ?? null)
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener el cliente')
+      } catch {
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setCustomer(null)
+          setContacts(null)
+          setAddress(null)
+        }
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadCustomer()
+    queueMicrotask(() => { void loadCustomer() })
     return () => { cancelled = true }
-  }, [customerID])
+  }, [customerID, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   const mapUrl = address?.Latitud != null && address.Longitud != null
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${address.Longitud - 0.02}%2C${address.Latitud - 0.01}%2C${address.Longitud + 0.02}%2C${address.Latitud + 0.01}&layer=mapnik&marker=${address.Latitud}%2C${address.Longitud}`
@@ -69,7 +111,12 @@ export default function CustomerDetailPage() {
         </Link>
 
         {isLoading && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando cliente...</p>}
-        {!isLoading && error && <p role="alert" className="rounded-lg border bg-card p-6 text-sm text-destructive">{error}</p>}
+        {!isLoading && error && (
+          <div className="space-y-3 rounded-lg border bg-card p-6">
+            <p role="alert" className="text-sm text-destructive">{error}</p>
+            {parseEntityId(customerID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}
+          </div>
+        )}
 
         {!isLoading && !error && customer && (
           <>

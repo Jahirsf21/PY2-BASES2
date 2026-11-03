@@ -1,6 +1,6 @@
 import type { InvoiceEdit, InvoiceFilters, InvoiceHeader, InvoiceLine, InvoicesResponse, NewInvoice } from '@/lib/types/sales'
 
-// URL base configurada para el servidor del API.
+import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -13,6 +13,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
  * @returns Respuesta paginada con las facturas encontradas.
  */
 export async function getInvoices(filters: InvoiceFilters, pageNumber: number, pageSize: number): Promise<InvoicesResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({
     customerName: filters.customerName,
     pageNumber: String(pageNumber),
@@ -36,10 +38,10 @@ export async function getInvoices(filters: InvoiceFilters, pageNumber: number, p
   if (filters.maxInvoiceAmount !== null) {
     query.set('maxInvoiceAmount', String(filters.maxInvoiceAmount))
   }
-  const res = await fetch(`${API_URL}/api/sales?${query}`)
+  const res = await fetch(`${API_URL}/api/sales?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las facturas')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las facturas', { cause: res.status })
   }
   return res.json()
 }
@@ -51,11 +53,13 @@ export async function getInvoices(filters: InvoiceFilters, pageNumber: number, p
  * @returns Arreglo con el encabezado solicitado.
  */
 export async function getInvoiceByID(invoiceID: number): Promise<InvoiceHeader[]> {
-  const res = await fetch(`${API_URL}/api/sales/${invoiceID}`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/sales/${invoiceID}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Factura no encontrada' : 'No fue posible obtener la factura'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -67,10 +71,12 @@ export async function getInvoiceByID(invoiceID: number): Promise<InvoiceHeader[]
  * @returns Arreglo de líneas; vacío si el API no encuentra líneas.
  */
 export async function getInvoiceLinesByID(invoiceID: number): Promise<InvoiceLine[]> {
-  const res = await fetch(`${API_URL}/api/sales/${invoiceID}/lines`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/sales/${invoiceID}/lines`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las líneas de la factura')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las líneas de la factura', { cause: res.status })
   }
   return res.json()
 }
@@ -82,11 +88,13 @@ export async function getInvoiceLinesByID(invoiceID: number): Promise<InvoiceLin
  * @returns Datos para precargar la edición del encabezado.
  */
 export async function getInvoiceForEdit(invoiceID: number): Promise<InvoiceEdit> {
-  const res = await fetch(`${API_URL}/api/sales/${invoiceID}/edit`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/sales/${invoiceID}/edit`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Factura no encontrada' : 'No fue posible cargar la factura para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -98,14 +106,22 @@ export async function getInvoiceForEdit(invoiceID: number): Promise<InvoiceEdit>
  * @returns Identificador de la factura creada.
  */
 export async function createInvoice(invoice: NewInvoice): Promise<number> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/sales`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(invoice),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear la factura')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear la factura', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
   const body: { invoiceID: number } = await res.json()
   return body.invoiceID
@@ -119,13 +135,21 @@ export async function createInvoice(invoice: NewInvoice): Promise<number> {
  * @returns Promesa que se resuelve al actualizarla.
  */
 export async function updateInvoiceByID(invoiceID: number, invoice: NewInvoice): Promise<void> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/sales/${invoiceID}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(invoice),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar la factura')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar la factura', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
 }

@@ -24,7 +24,7 @@ function isEmpty(value: unknown) {
  * @param required Indica si el campo es obligatorio.
  * @returns Agrega un mensaje a errors cuando el valor es inválido.
  */
-function checkText(errors: Record<string, string>, field: string, label: string, value: unknown, maxLength?: number, required = false) {
+export function checkText(errors: Record<string, string>, field: string, label: string, value: unknown, maxLength?: number, required = false) {
   if (isEmpty(value)) {
     if (required) errors[field] = `${label} es obligatorio.`
     return
@@ -44,7 +44,7 @@ function checkText(errors: Record<string, string>, field: string, label: string,
  * @param required Indica si el campo es obligatorio.
  * @returns Agrega un mensaje a errors cuando el identificador es inválido.
  */
-function checkId(errors: Record<string, string>, field: string, label: string, value: unknown, required = false) {
+export function checkId(errors: Record<string, string>, field: string, label: string, value: unknown, required = false) {
   if (isEmpty(value)) {
     if (required) errors[field] = `${label} es obligatorio.`
     return

@@ -5,22 +5,42 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useSession } from '@/components/auth-session'
 import { getSupplierAddressByID, getSupplierByID, getSupplierContactsByID } from '@/app/api/suppliers'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
 import type { SupplierAddress, SupplierContact, SupplierDetail, SupplierRouteParams } from '@/lib/types/suppliers'
 
 export default function SupplierDetailPage() {
   const { supplierID } = useParams<SupplierRouteParams>()
+  return <SupplierDetailContent key={supplierID} supplierID={supplierID} />
+}
+
+/** Vincula las tres lecturas del detalle al ID y sesión que las iniciaron. */
+function SupplierDetailContent({ supplierID }: { supplierID: string }) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [supplier, setSupplier] = useState<SupplierDetail | null>(null)
   const [contacts, setContacts] = useState<SupplierContact | null>(null)
   const [address, setAddress] = useState<SupplierAddress | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
+    /** Procesa todos los 401 aunque otra lectura paralela haya fallado antes. */
+    function failed(reason: unknown, resource: string): never {
+      const status = reason instanceof Error ? reason.cause : null
+      if (status === 401) invalidateSession(requestRevision)
+      else if (!cancelled && isSessionCurrent(requestRevision)) {
+        const message = status === 403 ? 'Sin permisos.' : reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503) ? 'No fue posible cargar el recurso. Intente nuevamente.' : reason instanceof Error ? reason.message : 'No disponible.'
+        setError(`${resource}: ${message}`)
+      }
+      throw reason
+    }
 
     async function loadSupplier() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
       setSupplier(null)
@@ -36,13 +56,13 @@ export default function SupplierDetailPage() {
 
       try {
         const [details, supplierContacts, supplierAddress] = await Promise.all([
-          getSupplierByID(id),
-          getSupplierContactsByID(id),
-          getSupplierAddressByID(id),
+          getSupplierByID(id).catch(reason => failed(reason, 'Proveedor')),
+          getSupplierContactsByID(id).catch(reason => failed(reason, 'Contactos')),
+          getSupplierAddressByID(id).catch(reason => failed(reason, 'Direcciones')),
         ])
 
-        if (cancelled) return
-        if (!details[0]) {
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        if (!details[0] || details[0].SupplierID !== id) {
           setError('Proveedor no encontrado')
           return
         }
@@ -50,16 +70,16 @@ export default function SupplierDetailPage() {
         setSupplier(details[0])
         setContacts(supplierContacts[0] ?? null)
         setAddress(supplierAddress[0] ?? null)
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener el proveedor')
+      } catch {
+        if (!cancelled && isSessionCurrent(requestRevision)) setError(previous => previous ?? 'No fue posible obtener el proveedor. Intente nuevamente.')
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadSupplier()
+    queueMicrotask(() => { void loadSupplier() })
     return () => { cancelled = true }
-  }, [supplierID])
+  }, [supplierID, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   const mapUrl = address?.Latitud != null && address.Longitud != null
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${address.Longitud - 0.02}%2C${address.Latitud - 0.01}%2C${address.Longitud + 0.02}%2C${address.Latitud + 0.01}&layer=mapnik&marker=${address.Latitud}%2C${address.Longitud}`
@@ -74,7 +94,7 @@ export default function SupplierDetailPage() {
         </Link>
 
         {isLoading && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando proveedor...</p>}
-        {!isLoading && error && <p role="alert" className="rounded-lg border bg-card p-6 text-sm text-destructive">{error}</p>}
+        {!isLoading && error && <div className="space-y-3 rounded-lg border bg-card p-6"><p role="alert" className="text-sm text-destructive">{error}</p>{parseEntityId(supplierID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}</div>}
 
         {!isLoading && !error && supplier && (
           <>

@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from '@/components/ui/toast'
 import { getDeliveryMethods } from '@/app/api/application'
 import { deleteCustomerByID, getCustomerCategories, getCustomers } from '@/app/api/customers'
+import { useSession } from '@/components/auth-session'
 import type { CustomerCategory, CustomerFilters, CustomersResponse } from '@/lib/types/customers'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
 
@@ -25,7 +26,39 @@ const initialFilters: CustomerFilters = {
   deliveryMethodID: null,
 }
 
+/**
+ * Obtiene el estado HTTP conservado en la causa del error de una lectura.
+ *
+ * @param error Error producido por un servicio del API.
+ * @returns Código HTTP cuando existe o null para errores locales/red.
+ */
+function readHttpStatus(error: unknown): number | null {
+  return error instanceof Error && typeof error.cause === 'number' ? error.cause : null
+}
+
+/**
+ * Prepara un mensaje de lectura que no expone fallos internos del navegador/API.
+ *
+ * @param error Error ocurrido al consultar un recurso.
+ * @param fallback Mensaje general correspondiente al recurso.
+ * @param denied Mensaje específico para una respuesta 403.
+ * @returns Mensaje seguro para la interfaz.
+ */
+function readErrorMessage(error: unknown, fallback: string, denied: string): string {
+  const status = readHttpStatus(error)
+  if (status === 403) return denied
+  if (status !== null && status >= 500) {
+    if (status === 503 && error instanceof Error) return error.message
+    return `${fallback}. Intente nuevamente.`
+  }
+  if (error instanceof Error && (error.name === 'TypeError' || error.name === 'SyntaxError')) {
+    return `${fallback}. Intente nuevamente.`
+  }
+  return error instanceof Error ? error.message : fallback
+}
+
 export default function Home() {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [customerName, setCustomerName] = useState('')
   const [customerCategoryID, setCustomerCategoryID] = useState<CustomerFilters['customerCategoryID']>(null)
   const [deliveryMethodID, setDeliveryMethodID] = useState<CustomerFilters['deliveryMethodID']>(null)
@@ -34,37 +67,138 @@ export default function Home() {
   const [customersResponse, setCustomersResponse] = useState<CustomersResponse | null>(null)
   const [categories, setCategories] = useState<CustomerCategory[]>([])
   const [deliveryMethods, setDeliveryMethods] = useState<DeliveryMethod[]>([])
+  const [categoriesError, setCategoriesError] = useState<string | null>(null)
+  const [deliveryMethodsError, setDeliveryMethodsError] = useState<string | null>(null)
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [deliveryMethodsLoading, setDeliveryMethodsLoading] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCustomerID, setSelectedCustomerID] = useState<number | null>(null)
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0)
+  const deleteLock = useRef(false)
+  const lifetime = useRef({ active: false })
+
+  useEffect(() => {
+    const current = { active: true }
+    lifetime.current = current
+    return () => { current.active = false }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadData() {
       setIsLoading(true)
       setError(null)
       try {
         const customersData = await getCustomers(filters.customerName, filters.customerCategoryID, filters.deliveryMethodID, pageNumber, PAGE_SIZE)
-        if (!cancelled) setCustomersResponse(customersData)
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener los clientes')
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setCustomersResponse(customersData)
+          setError(null)
+        }
+      } catch (reason) {
+        if (readHttpStatus(reason) === 401) {
+          invalidateSession(requestRevision)
+          return
+        }
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        setCustomersResponse(null)
+        setSelectedCustomerID(null)
+        setIsConfirmingDelete(false)
+        setError(readErrorMessage(reason, 'No fue posible obtener los datos de clientes', 'Sin permisos para consultar los clientes.'))
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadData()
+    queueMicrotask(() => {
+      if (cancelled) return
+      if (!isSessionCurrent(requestRevision)) {
+        setCustomersResponse(null)
+        setError(null)
+        setSelectedCustomerID(null)
+        setIsConfirmingDelete(false)
+        setIsLoading(false)
+        return
+      }
+      void loadData()
+    })
     return () => { cancelled = true }
-  }, [filters, pageNumber, refreshKey])
+  }, [filters, pageNumber, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   useEffect(() => {
-    getCustomerCategories().then(setCategories).catch(() => {})
-    getDeliveryMethods().then(setDeliveryMethods).catch(() => {})
-  }, [])
+    let cancelled = false
+    const requestRevision = revision
+
+    async function loadCategories() {
+      try {
+        const result = await getCustomerCategories()
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setCategories(result)
+          setCategoriesError(null)
+        }
+      } catch (reason) {
+        if (readHttpStatus(reason) === 401) {
+          invalidateSession(requestRevision)
+          return
+        }
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        setCategories([])
+        setCategoriesError(readErrorMessage(reason, 'No fue posible obtener las categorías de clientes', 'Sin permisos para consultar las categorías de clientes.'))
+      } finally {
+        if (!cancelled && isSessionCurrent(requestRevision)) setCategoriesLoading(false)
+      }
+    }
+
+    async function loadDeliveryMethods() {
+      try {
+        const result = await getDeliveryMethods()
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setDeliveryMethods(result)
+          setDeliveryMethodsError(null)
+        }
+      } catch (reason) {
+        if (readHttpStatus(reason) === 401) {
+          invalidateSession(requestRevision)
+          return
+        }
+        if (cancelled || !isSessionCurrent(requestRevision)) return
+        setDeliveryMethods([])
+        setDeliveryMethodsError(readErrorMessage(reason, 'No fue posible obtener los métodos de entrega', 'Sin permisos para consultar los métodos de entrega.'))
+      } finally {
+        if (!cancelled && isSessionCurrent(requestRevision)) setDeliveryMethodsLoading(false)
+      }
+    }
+
+    queueMicrotask(() => {
+      if (cancelled) return
+      if (!isSessionCurrent(requestRevision)) {
+        setCategories([])
+        setDeliveryMethods([])
+        setCategoriesError(null)
+        setDeliveryMethodsError(null)
+        setCategoriesLoading(false)
+        setDeliveryMethodsLoading(false)
+        return
+      }
+      setCategoriesLoading(true)
+      setDeliveryMethodsLoading(true)
+      void loadCategories()
+      void loadDeliveryMethods()
+    })
+    return () => { cancelled = true }
+  }, [catalogRefreshKey, revision, isSessionCurrent, invalidateSession])
+
+  /** Vuelve a solicitar listado y catálogos solo por acción expresa del usuario. */
+  function retryReads() {
+    if (isDeleting) return
+    setRefreshKey((key) => key + 1)
+    setCatalogRefreshKey((key) => key + 1)
+  }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -88,6 +222,7 @@ export default function Home() {
   const totalPages = customersResponse?.totalPages ?? 0
   const totalCount = customersResponse?.totalCount ?? 0
   const selectedCustomer = customers.find((customer) => customer.CustomerID === selectedCustomerID) ?? null
+  const hasReadError = Boolean(error || categoriesError || deliveryMethodsError)
 
   function clearSelection() {
     setSelectedCustomerID(null)
@@ -117,21 +252,27 @@ export default function Home() {
     }
   }
 
+  /** Confirma una sola eliminación y solo publica su resultado en la pantalla vigente. */
   async function handleDeleteCustomer() {
-    if (!selectedCustomer || !isConfirmingDelete || isLoading || isDeleting) return
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (!selectedCustomer || !isConfirmingDelete || isLoading || isDeleting || deleteLock.current || !screen.active || !isSessionCurrent(requestRevision)) return
+    const target = selectedCustomer
 
+    deleteLock.current = true
     setIsDeleting(true)
     try {
-      await deleteCustomerByID(selectedCustomer.CustomerID)
+      await deleteCustomerByID(target.CustomerID)
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
       setCustomersResponse((previous) => previous ? {
         ...previous,
-        data: previous.data.filter((customer) => customer.CustomerID !== selectedCustomer.CustomerID),
+        data: previous.data.filter((customer) => customer.CustomerID !== target.CustomerID),
         totalCount: Math.max(0, previous.totalCount - 1),
         totalPages: Math.ceil(Math.max(0, previous.totalCount - 1) / PAGE_SIZE),
       } : null)
       setSelectedCustomerID(null)
       setIsConfirmingDelete(false)
-      toast.add({ type: 'success', title: 'Cliente eliminado', description: `Se eliminó el cliente ${selectedCustomer.NombreCliente}.` })
+      toast.add({ type: 'success', title: 'Cliente eliminado', description: `Se eliminó el cliente ${target.NombreCliente}.` })
       setIsLoading(true)
 
       if (customers.length === 1 && pageNumber > 1) {
@@ -139,17 +280,27 @@ export default function Home() {
       } else {
         setRefreshKey((key) => key + 1)
       }
-    } catch (error) {
+    } catch (reason) {
+      const status = readHttpStatus(reason)
+      if (status === 401) {
+        invalidateSession(requestRevision)
+        return
+      }
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
+      let message = reason instanceof Error ? reason.message : 'No fue posible eliminar el cliente.'
+      if (status === 403) message = 'Sin permisos para eliminar el cliente.'
+      else if (reason instanceof TypeError || reason instanceof SyntaxError || (status !== null && status >= 500 && status !== 503)) message = 'No fue posible confirmar la eliminación. Compruebe si el cliente aún existe antes de repetirla.'
       setIsConfirmingDelete(false)
       toast.add({
         type: 'error',
         title: 'No se pudo eliminar el cliente',
-        description: error instanceof Error ? error.message : 'No fue posible eliminar el cliente',
+        description: message,
         priority: 'high',
         timeout: 8000,
       })
     } finally {
-      setIsDeleting(false)
+      deleteLock.current = false
+      if (screen.active && isSessionCurrent(requestRevision)) setIsDeleting(false)
     }
   }
 
@@ -165,6 +316,15 @@ export default function Home() {
             <PlusIcon data-icon="inline-start" /> Nuevo cliente
           </Button>
         </div>
+
+        {hasReadError && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-card p-4" role="group" aria-label="Errores de lectura">
+            <p className="text-sm text-destructive">Hay lecturas que no se pudieron completar.</p>
+            <Button type="button" variant="outline" disabled={isLoading || categoriesLoading || deliveryMethodsLoading || isDeleting} onClick={retryReads}>
+              <RotateCcwIcon data-icon="inline-start" /> Reintentar lecturas
+            </Button>
+          </div>
+        )}
 
         <div className="rounded-lg border bg-card p-4 shadow-sm">
           <form className="grid gap-4 md:grid-cols-2 md:items-end lg:grid-cols-[minmax(0,1fr)_190px_190px_auto]" onSubmit={handleSubmit}>
@@ -185,7 +345,7 @@ export default function Home() {
                 <DropdownMenuTrigger
                   id="customerCategory"
                   type="button"
-                  disabled={isDeleting}
+                  disabled={isDeleting || Boolean(categoriesError)}
                   className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
                   <span className="min-w-0 truncate">
@@ -209,6 +369,8 @@ export default function Home() {
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {categoriesLoading && <p role="status" className="text-xs text-muted-foreground">Cargando categorías...</p>}
+              {categoriesError && <p id="customerCategory-error" role="alert" className="text-xs text-destructive">{categoriesError}</p>}
             </div>
 
             <div className="grid gap-2">
@@ -217,7 +379,7 @@ export default function Home() {
                 <DropdownMenuTrigger
                   id="deliveryMethod"
                   type="button"
-                  disabled={isDeleting}
+                  disabled={isDeleting || Boolean(deliveryMethodsError)}
                   className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
                   <span className="min-w-0 truncate">
@@ -241,6 +403,8 @@ export default function Home() {
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {deliveryMethodsLoading && <p role="status" className="text-xs text-muted-foreground">Cargando métodos de entrega...</p>}
+              {deliveryMethodsError && <p id="deliveryMethod-error" role="alert" className="text-xs text-destructive">{deliveryMethodsError}</p>}
             </div>
 
             <div className="flex flex-wrap gap-2">

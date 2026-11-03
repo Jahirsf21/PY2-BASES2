@@ -1,6 +1,6 @@
 import type { BillToCustomersResponse, BuyingGroup, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerEdit, CustomersResponse, NewCustomer } from '@/lib/types/customers'
+import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 
-// URL base configurada para el servidor del API.
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -14,6 +14,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
  * @returns Respuesta paginada con los clientes encontrados.
  */
 export async function getCustomers(customerName: string, customerCategoryID: number | null, deliveryMethodID: number | null, pageNumber: number, pageSize: number): Promise<CustomersResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({
     customerName,
     pageNumber: String(pageNumber),
@@ -21,10 +23,12 @@ export async function getCustomers(customerName: string, customerCategoryID: num
   })
   if (customerCategoryID !== null) query.set('customerCategoryID', String(customerCategoryID))
   if (deliveryMethodID !== null) query.set('deliveryMethodID', String(deliveryMethodID))
-  const res = await fetch(`${API_URL}/api/customers?${query}`)
+  const res = await fetch(`${API_URL}/api/customers?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los datos de clientes')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los datos de clientes', { cause: res.status })
   }
   return res.json()
 }
@@ -38,15 +42,19 @@ export async function getCustomers(customerName: string, customerCategoryID: num
  * @returns Respuesta paginada con el ID y nombre de cada cliente.
  */
 export async function getBillToCustomers(customerName: string, pageNumber: number, pageSize: number): Promise<BillToCustomersResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({
     customerName,
     pageNumber: String(pageNumber),
     pageSize: String(pageSize),
   })
-  const res = await fetch(`${API_URL}/api/customers/bill-to?${query}`)
+  const res = await fetch(`${API_URL}/api/customers/bill-to?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los clientes por facturar')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los clientes por facturar', { cause: res.status })
   }
   return res.json()
 }
@@ -57,10 +65,14 @@ export async function getBillToCustomers(customerName: string, pageNumber: numbe
  * @returns Listado de categorías de cliente.
  */
 export async function getCustomerCategories(): Promise<CustomerCategory[]> {
-  const res = await fetch(`${API_URL}/api/customers/categories`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/categories`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las categorías de clientes')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las categorías de clientes', { cause: res.status })
   }
   return res.json()
 }
@@ -71,10 +83,14 @@ export async function getCustomerCategories(): Promise<CustomerCategory[]> {
  * @returns Listado de grupos de compra.
  */
 export async function getBuyingGroups(): Promise<BuyingGroup[]> {
-  const res = await fetch(`${API_URL}/api/customers/buying-groups`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/buying-groups`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de compra')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de compra', { cause: res.status })
   }
   return res.json()
 }
@@ -86,11 +102,15 @@ export async function getBuyingGroups(): Promise<BuyingGroup[]> {
  * @returns Arreglo con el detalle del cliente solicitado.
  */
 export async function getCustomerByID(customerID: number): Promise<CustomerDetail[]> {
-  const res = await fetch(`${API_URL}/api/customers/${customerID}`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Cliente no encontrado' : 'No fue posible obtener el cliente'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -102,10 +122,14 @@ export async function getCustomerByID(customerID: number): Promise<CustomerDetai
  * @returns Arreglo con la información de los contactos del cliente.
  */
 export async function getCustomerContactsByID(customerID: number): Promise<CustomerContact[]> {
-  const res = await fetch(`${API_URL}/api/customers/${customerID}/contacts`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/${customerID}/contacts`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los contactos del cliente')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los contactos del cliente', { cause: res.status })
   }
   return res.json()
 }
@@ -117,10 +141,14 @@ export async function getCustomerContactsByID(customerID: number): Promise<Custo
  * @returns Arreglo con las direcciones del cliente.
  */
 export async function getCustomerAddressByID(customerID: number): Promise<CustomerAddress[]> {
-  const res = await fetch(`${API_URL}/api/customers/${customerID}/address`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/${customerID}/address`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener la dirección del cliente')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener la dirección del cliente', { cause: res.status })
   }
   return res.json()
 }
@@ -132,11 +160,15 @@ export async function getCustomerAddressByID(customerID: number): Promise<Custom
  * @returns Datos para precargar su edición.
  */
 export async function getCustomerForEdit(customerID: number): Promise<CustomerEdit> {
-  const res = await fetch(`${API_URL}/api/customers/${customerID}/edit`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/${customerID}/edit`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Cliente no encontrado' : 'No fue posible cargar el cliente para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -148,14 +180,22 @@ export async function getCustomerForEdit(customerID: number): Promise<CustomerEd
  * @returns Identificador del cliente creado.
  */
 export async function createCustomer(customer: NewCustomer): Promise<number> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/customers`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(customer),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el cliente')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el cliente', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
   return res.json()
 }
@@ -168,14 +208,22 @@ export async function createCustomer(customer: NewCustomer): Promise<number> {
  * @returns Promesa que se resuelve al actualizarlo.
  */
 export async function updateCustomerByID(customerID: number, customer: NewCustomer): Promise<void> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(customer),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el cliente')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el cliente', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
 }
 
@@ -186,9 +234,14 @@ export async function updateCustomerByID(customerID: number, customer: NewCustom
  * @returns Promesa que se resuelve cuando el cliente se elimina.
  */
 export async function deleteCustomerByID(customerID: number): Promise<void> {
-  const res = await fetch(`${API_URL}/api/customers/${customerID}`, { method: 'DELETE' })
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el cliente')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el cliente', { cause: res.status })
   }
 }

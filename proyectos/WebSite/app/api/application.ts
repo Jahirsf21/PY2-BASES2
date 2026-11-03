@@ -1,7 +1,7 @@
 import type { CitiesResponse, Employee, PeopleResponse } from '@/lib/types/application'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
+import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 
-// URL base configurada para el servidor del API.
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -10,10 +10,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
  * @returns Listado de métodos de entrega.
  */
 export async function getDeliveryMethods(): Promise<DeliveryMethod[]> {
-  const res = await fetch(`${API_URL}/api/delivery-methods`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/delivery-methods`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los métodos de entrega')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los métodos de entrega', { cause: res.status })
   }
   return res.json()
 }
@@ -27,11 +31,15 @@ export async function getDeliveryMethods(): Promise<DeliveryMethod[]> {
  * @returns Respuesta paginada con las personas encontradas.
  */
 export async function getPeople(fullName: string, pageNumber: number, pageSize: number): Promise<PeopleResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({ fullName, pageNumber: String(pageNumber), pageSize: String(pageSize) })
-  const res = await fetch(`${API_URL}/api/people?${query}`)
+  const res = await fetch(`${API_URL}/api/people?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las personas')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las personas', { cause: res.status })
   }
   return res.json()
 }
@@ -45,11 +53,15 @@ export async function getPeople(fullName: string, pageNumber: number, pageSize: 
  * @returns Respuesta paginada con las ciudades encontradas.
  */
 export async function getCities(cityName: string, pageNumber: number, pageSize: number): Promise<CitiesResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({ cityName, pageNumber: String(pageNumber), pageSize: String(pageSize) })
-  const res = await fetch(`${API_URL}/api/cities?${query}`)
+  const res = await fetch(`${API_URL}/api/cities?${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las ciudades')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las ciudades', { cause: res.status })
   }
   return res.json()
 }
@@ -60,10 +72,14 @@ export async function getCities(cityName: string, pageNumber: number, pageSize: 
  * @returns Listado de empleados.
  */
 export async function getEmployees(): Promise<Employee[]> {
-  const res = await fetch(`${API_URL}/api/employees`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/employees`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los empleados')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los empleados', { cause: res.status })
   }
   return res.json()
 }
@@ -74,10 +90,12 @@ export async function getEmployees(): Promise<Employee[]> {
  * @returns Listado de vendedores.
  */
 export async function getSalespeople(): Promise<Employee[]> {
-  const res = await fetch(`${API_URL}/api/salespeople`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/salespeople`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los vendedores')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los vendedores', { cause: res.status })
   }
   return res.json()
 }

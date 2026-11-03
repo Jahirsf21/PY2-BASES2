@@ -1,7 +1,7 @@
 'use client'
 
 import type { SubmitEvent } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from '@/components/ui/toast'
+import { useSession } from '@/components/auth-session'
 import { deleteStockItemByID, getStockGroups, getStockItems } from '@/app/api/stockItems'
 import type { StockGroup, StockItemFilters, StockItemsResponse } from '@/lib/types/stockItems'
 
@@ -22,7 +23,16 @@ const initialFilters: StockItemFilters = {
   stockGroupIDs: [],
 }
 
+/** Presenta errores controlados del módulo sin cambiar la sesión por un 403/503. */
+function inventoryError(reason: unknown): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return 'Sin permisos para realizar esta operación de inventario.'
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return 'No fue posible completar la operación. Intente nuevamente.'
+  return reason instanceof Error ? reason.message : 'No fue posible obtener los productos.'
+}
+
 export default function InventoryPage() {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [stockItemName, setStockItemName] = useState('')
   const [stockGroupIDs, setStockGroupIDs] = useState<StockItemFilters['stockGroupIDs']>([])
   const [filters, setFilters] = useState<StockItemFilters>(initialFilters)
@@ -35,30 +45,68 @@ export default function InventoryPage() {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [groupsError, setGroupsError] = useState<string | null>(null)
+  const [groupsLoading, setGroupsLoading] = useState(true)
+  const [groupsRefresh, setGroupsRefresh] = useState(0)
+  const deleteLock = useRef(false)
+  const lifetime = useRef({ active: false })
+
+  useEffect(() => {
+    const screen = { active: true }
+    lifetime.current = screen
+    return () => { screen.active = false }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadData() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
       try {
         const itemsData = await getStockItems(filters.stockItemName, filters.stockGroupIDs, pageNumber, PAGE_SIZE)
-        if (!cancelled) setStockItemsResponse(itemsData)
-      } catch (error) {
-        if (!cancelled) setError(error instanceof Error ? error.message : 'No fue posible obtener los productos')
+        if (!cancelled && isSessionCurrent(requestRevision)) setStockItemsResponse(itemsData)
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          setStockItemsResponse(null)
+          setSelectedStockItemID(null)
+          setIsConfirmingDelete(false)
+          setError(inventoryError(reason))
+        }
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadData()
+    queueMicrotask(() => { void loadData() })
     return () => { cancelled = true }
-  }, [filters, pageNumber, refreshKey])
+  }, [filters, pageNumber, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   useEffect(() => {
-    getStockGroups().then(setGroups).catch(() => {})
-  }, [])
+    let cancelled = false
+    const requestRevision = revision
+    queueMicrotask(async () => {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
+      setGroupsLoading(true)
+      setGroupsError(null)
+      try {
+        const result = await getStockGroups()
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          if (!Array.isArray(result)) throw new SyntaxError('Catálogo inesperado')
+          setGroups(result)
+        }
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) { setGroups([]); setGroupsError(inventoryError(reason)) }
+      } finally {
+        if (!cancelled && isSessionCurrent(requestRevision)) setGroupsLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [groupsRefresh, revision, isSessionCurrent, invalidateSession])
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -110,12 +158,17 @@ export default function InventoryPage() {
     }
   }
 
+  /** Mantiene confirmación y envío único dentro de su pantalla y sesión originales. */
   async function handleDeleteStockItem() {
-    if (!selectedStockItem || !isConfirmingDelete || isLoading || isDeleting) return
+    const requestRevision = revision
+    const screen = lifetime.current
+    if (!selectedStockItem || !isConfirmingDelete || isLoading || isDeleting || deleteLock.current || !screen.active || !isSessionCurrent(requestRevision)) return
+    deleteLock.current = true
 
     setIsDeleting(true)
     try {
       await deleteStockItemByID(selectedStockItem.StockItemID)
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
       setStockItemsResponse((previous) => previous ? {
         ...previous,
         data: previous.data.filter((item) => item.StockItemID !== selectedStockItem.StockItemID),
@@ -131,17 +184,20 @@ export default function InventoryPage() {
       } else {
         setRefreshKey((key) => key + 1)
       }
-    } catch (error) {
+    } catch (reason) {
+      if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+      if (!screen.active || !isSessionCurrent(requestRevision)) return
       setIsConfirmingDelete(false)
       toast.add({
         type: 'error',
         title: 'No se pudo eliminar el producto',
-        description: error instanceof Error ? error.message : 'No fue posible eliminar el producto',
+        description: reason instanceof TypeError ? 'No fue posible confirmar la eliminación. Compruebe el resultado antes de repetirla.' : inventoryError(reason),
         priority: 'high',
         timeout: 8000,
       })
     } finally {
-      setIsDeleting(false)
+      deleteLock.current = false
+      if (screen.active && isSessionCurrent(requestRevision)) setIsDeleting(false)
     }
   }
 
@@ -158,6 +214,10 @@ export default function InventoryPage() {
           </Button>
         </div>
 
+        {(error || groupsError) && <div className="space-y-2 rounded-lg border bg-card p-4">
+          {groupsError && <p role="alert" className="text-sm text-destructive">Grupos de productos: {groupsError}</p>}
+          <Button type="button" variant="outline" disabled={isLoading || groupsLoading || isDeleting} onClick={() => { setRefreshKey(key => key + 1); setGroupsRefresh(key => key + 1) }}>Reintentar lecturas</Button>
+        </div>}
         <div className="rounded-lg border bg-card p-4 shadow-sm">
           <form className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end" onSubmit={handleSubmit}>
             <div className="grid gap-2">
@@ -177,7 +237,7 @@ export default function InventoryPage() {
                 <DropdownMenuTrigger
                   id="stockGroup"
                   type="button"
-                  disabled={isDeleting}
+                  disabled={isDeleting || Boolean(groupsError)}
                   className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                 >
                   <span className="min-w-0 truncate">

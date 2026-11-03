@@ -7,12 +7,20 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { toast } from '@/components/ui/toast'
+import { useSession } from '@/components/auth-session'
 import { getStockGroups } from '@/app/api/stockItems'
 import { getInvoiceYears, getPurchaseYears } from '@/app/api/stats'
 import type { MonthlyTrackingFilters, ReportYearSource, YearFilters, YearRangeFilters } from '@/lib/types/stats'
 import type { StockGroup } from '@/lib/types/stockItems'
 import { months } from '@/app/reports/report-view'
+
+/** Distingue fallos de permisos y transporte de un catálogo corporativo vacío. */
+function filterError(reason: unknown, label: string): string {
+  const status = reason instanceof Error ? reason.cause : null
+  if (status === 403) return `Sin permisos para consultar ${label}.`
+  if (reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503)) return `No fue posible cargar ${label}. Intente nuevamente.`
+  return reason instanceof Error ? reason.message : `No fue posible cargar ${label}.`
+}
 
 interface SummaryReportFiltersProps {
   entity: 'customer' | 'supplier'
@@ -42,6 +50,7 @@ export function SummaryReportFilters({ entity, name, categoryName, onNameChange,
 
 /** Obtiene los años del procedimiento correspondiente, sin depender de los resultados del reporte. */
 function useReportYears(source: ReportYearSource) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [years, setYears] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,27 +58,30 @@ function useReportYears(source: ReportYearSource) {
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadYears() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
       setError(null)
       try {
         const result = source === 'invoices' ? await getInvoiceYears() : await getPurchaseYears()
-        if (!cancelled) setYears(result.map((row) => row.Año))
-      } catch (error) {
-        if (!cancelled) {
-          const message = error instanceof Error ? error.message : 'No fue posible obtener los años disponibles'
+        if (!cancelled && isSessionCurrent(requestRevision)) setYears(result.map((row) => row.Año))
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          const message = filterError(reason, 'los años disponibles')
+          setYears([])
           setError(message)
-          toast.add({ type: 'error', title: 'No se pudieron cargar los años disponibles', description: message, priority: 'high', timeout: 8000 })
         }
       } finally {
-        if (!cancelled) setIsLoading(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoading(false)
       }
     }
 
-    void loadYears()
+    queueMicrotask(() => { void loadYears() })
     return () => { cancelled = true }
-  }, [source, refreshKey])
+  }, [source, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   return { years, isLoading, error, reload: () => setRefreshKey((key) => key + 1) }
 }
@@ -96,7 +108,7 @@ function ReportYearFilter({ id, label, value, years, isLoading, onChange, minYea
         <DropdownMenuTrigger
           id={id}
           type="button"
-          disabled={isLoading}
+          disabled={isLoading || Boolean(error)}
           aria-busy={isLoading}
           className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
         >
@@ -114,6 +126,7 @@ function ReportYearFilter({ id, label, value, years, isLoading, onChange, minYea
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {error && onRetry && <Button type="button" variant="outline" size="sm" className="w-fit" onClick={onRetry}>Reintentar años</Button>}
       {!isLoading && !error && years.length === 0 && <p className="text-sm text-muted-foreground">No hay años disponibles.</p>}
     </div>
@@ -163,6 +176,7 @@ export function YearRangeReportFilters({ source, filters, setFilters }: { source
         value={filters.yearTo}
         years={years}
         isLoading={isLoading}
+        error={error}
         minYear={filters.yearFrom}
         onChange={(value) => setFilters((previous) => ({ ...previous, yearTo: value }))}
       />
@@ -174,12 +188,13 @@ interface ReportStockGroupsFilterProps {
   stockGroupIDs: number[]
   stockGroups: StockGroup[]
   isLoading: boolean
+  error: boolean
   onToggle: (stockGroupID: number, checked: boolean) => void
   onClear: () => void
 }
 
 /** Selector de varias categorías de productos mediante casillas, sin límite de selección. */
-function ReportStockGroupsFilter({ stockGroupIDs, stockGroups, isLoading, onToggle, onClear }: ReportStockGroupsFilterProps) {
+function ReportStockGroupsFilter({ stockGroupIDs, stockGroups, isLoading, error, onToggle, onClear }: ReportStockGroupsFilterProps) {
   const selectionLabel = stockGroupIDs.length === 0
     ? 'Todas las categorías'
     : stockGroupIDs.length === 1
@@ -193,7 +208,7 @@ function ReportStockGroupsFilter({ stockGroupIDs, stockGroups, isLoading, onTogg
         <DropdownMenuTrigger
           id="reportStockGroups"
           type="button"
-          disabled={isLoading}
+          disabled={isLoading || error}
           aria-busy={isLoading}
           aria-describedby="reportStockGroupsHelp"
           className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
@@ -214,6 +229,7 @@ function ReportStockGroupsFilter({ stockGroupIDs, stockGroups, isLoading, onTogg
 
 /** Filtros de año, mes y categorías de productos para el seguimiento mensual. */
 export function MonthlyTrackingReportFilters({ source, filters, setFilters }: { source: ReportYearSource; filters: MonthlyTrackingFilters; setFilters: Dispatch<SetStateAction<MonthlyTrackingFilters>> }) {
+  const { revision, isSessionCurrent, invalidateSession } = useSession()
   const { years, isLoading, error, reload } = useReportYears(source)
   const [stockGroups, setStockGroups] = useState<StockGroup[]>([])
   const [isLoadingGroups, setIsLoadingGroups] = useState(true)
@@ -222,27 +238,33 @@ export function MonthlyTrackingReportFilters({ source, filters, setFilters }: { 
 
   useEffect(() => {
     let cancelled = false
+    const requestRevision = revision
 
     async function loadStockGroups() {
+      if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoadingGroups(true)
       setGroupsError(null)
       try {
         const result = await getStockGroups()
-        if (!cancelled) setStockGroups(result)
-      } catch (error) {
-        if (!cancelled) {
-          const message = error instanceof Error ? error.message : 'No fue posible obtener las categorías de productos'
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          if (!Array.isArray(result)) throw new SyntaxError('Grupos inesperados')
+          setStockGroups(result)
+        }
+      } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
+        if (!cancelled && isSessionCurrent(requestRevision)) {
+          const message = filterError(reason, 'los grupos de productos')
+          setStockGroups([])
           setGroupsError(message)
-          toast.add({ type: 'error', title: 'No se pudieron cargar las categorías de productos', description: message, priority: 'high', timeout: 8000 })
         }
       } finally {
-        if (!cancelled) setIsLoadingGroups(false)
+        if (!cancelled && isSessionCurrent(requestRevision)) setIsLoadingGroups(false)
       }
     }
 
-    void loadStockGroups()
+    queueMicrotask(() => { void loadStockGroups() })
     return () => { cancelled = true }
-  }, [groupsRefreshKey])
+  }, [groupsRefreshKey, revision, isSessionCurrent, invalidateSession])
 
   return (
     <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-2">
@@ -281,6 +303,7 @@ export function MonthlyTrackingReportFilters({ source, filters, setFilters }: { 
         stockGroupIDs={filters.stockGroupIDs}
         stockGroups={stockGroups}
         isLoading={isLoadingGroups}
+        error={Boolean(groupsError)}
         onToggle={(stockGroupID, checked) => setFilters((previous) => ({
           ...previous,
           stockGroupIDs: checked
@@ -292,9 +315,11 @@ export function MonthlyTrackingReportFilters({ source, filters, setFilters }: { 
       <p id="reportStockGroupsHelp" className="text-xs text-muted-foreground sm:col-span-2">Los montos incluyen productos que pertenecen a todas las categorías seleccionadas. Sin selección, se incluyen todas las categorías.</p>
       {groupsError && (
         <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
-          <Button type="button" variant="outline" size="sm" disabled={isLoadingGroups} onClick={() => setGroupsRefreshKey((key) => key + 1)}>Reintentar</Button>
+          <p role="alert" className="text-sm text-destructive">{groupsError}</p>
+          <Button type="button" variant="outline" size="sm" disabled={isLoadingGroups} onClick={() => setGroupsRefreshKey((key) => key + 1)}>Reintentar grupos</Button>
         </div>
       )}
+      {!isLoadingGroups && !groupsError && stockGroups.length === 0 && <p className="text-sm text-muted-foreground">No hay grupos disponibles.</p>}
     </div>
   )
 }

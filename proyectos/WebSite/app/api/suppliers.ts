@@ -1,6 +1,6 @@
 import type { NewSupplier, SupplierAddress, SupplierCategory, SupplierContact, SupplierDetail, SupplierEdit, SuppliersResponse } from '@/lib/types/suppliers'
 
-// URL base configurada para el servidor del API.
+import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -14,6 +14,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
  * @returns Respuesta paginada con los proveedores encontrados.
  */
 export async function getSuppliers(supplierName: string, supplierCategoryID: number | null, deliveryMethodID: number | null, pageNumber: number, pageSize: number): Promise<SuppliersResponse> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({
     supplierName,
     pageNumber: String(pageNumber),
@@ -21,10 +23,10 @@ export async function getSuppliers(supplierName: string, supplierCategoryID: num
   })
   if (supplierCategoryID !== null) query.set('supplierCategoryID', String(supplierCategoryID))
   if (deliveryMethodID !== null) query.set('deliveryMethodID', String(deliveryMethodID))
-  const res = await fetch(`${API_URL}/api/suppliers?${query}`)
+  const res = await fetch(`${API_URL}/api/suppliers?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los proveedores')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los proveedores', { cause: res.status })
   }
   return res.json()
 }
@@ -35,10 +37,12 @@ export async function getSuppliers(supplierName: string, supplierCategoryID: num
  * @returns Listado de categorías de proveedor.
  */
 export async function getSupplierCategories(): Promise<SupplierCategory[]> {
-  const res = await fetch(`${API_URL}/api/suppliers/categories`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/categories`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las categorías de proveedores')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las categorías de proveedores', { cause: res.status })
   }
   return res.json()
 }
@@ -50,11 +54,13 @@ export async function getSupplierCategories(): Promise<SupplierCategory[]> {
  * @returns Arreglo con el detalle del proveedor solicitado.
  */
 export async function getSupplierByID(supplierID: number): Promise<SupplierDetail[]> {
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Proveedor no encontrado' : 'No fue posible obtener el proveedor'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -66,10 +72,12 @@ export async function getSupplierByID(supplierID: number): Promise<SupplierDetai
  * @returns Arreglo con la información de los contactos del proveedor.
  */
 export async function getSupplierContactsByID(supplierID: number): Promise<SupplierContact[]> {
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/contacts`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/contacts`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los contactos del proveedor')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los contactos del proveedor', { cause: res.status })
   }
   return res.json()
 }
@@ -81,10 +89,12 @@ export async function getSupplierContactsByID(supplierID: number): Promise<Suppl
  * @returns Arreglo con las direcciones del proveedor.
  */
 export async function getSupplierAddressByID(supplierID: number): Promise<SupplierAddress[]> {
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/address`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/address`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener la dirección del proveedor')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener la dirección del proveedor', { cause: res.status })
   }
   return res.json()
 }
@@ -96,11 +106,13 @@ export async function getSupplierAddressByID(supplierID: number): Promise<Suppli
  * @returns Datos para precargar su edición.
  */
 export async function getSupplierForEdit(supplierID: number): Promise<SupplierEdit> {
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/edit`)
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/edit`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Proveedor no encontrado' : 'No fue posible cargar el proveedor para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage)
+    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
   }
   return res.json()
 }
@@ -112,14 +124,22 @@ export async function getSupplierForEdit(supplierID: number): Promise<SupplierEd
  * @returns Identificador del proveedor creado.
  */
 export async function createSupplier(supplier: NewSupplier): Promise<number> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/suppliers`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(supplier),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el proveedor')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el proveedor', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
   const body: { supplierID: number } = await res.json()
   return body.supplierID
@@ -133,14 +153,22 @@ export async function createSupplier(supplier: NewSupplier): Promise<number> {
  * @returns Promesa que se resuelve al actualizarlo.
  */
 export async function updateSupplierByID(supplierID: number, supplier: NewSupplier): Promise<void> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/suppliers/${supplierID}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(supplier),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el proveedor')
+    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el proveedor', { cause: res.status })
+    if (res.status === 400) {
+      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+      Object.assign(error, { fields, errors })
+    }
+    throw error
   }
 }
 
@@ -151,9 +179,11 @@ export async function updateSupplierByID(supplierID: number, supplier: NewSuppli
  * @returns Promesa que se resuelve cuando el proveedor se elimina.
  */
 export async function deleteSupplierByID(supplierID: number): Promise<void> {
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}`, { method: 'DELETE' })
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el proveedor')
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el proveedor', { cause: res.status })
   }
 }
