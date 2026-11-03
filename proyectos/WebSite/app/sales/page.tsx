@@ -3,12 +3,12 @@
 import type { SubmitEvent } from 'react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, SearchIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { CalendarIcon, HashIcon, ReceiptTextIcon, TruckIcon } from 'lucide-react'
+import { EmptyState, ErrorState, FilterCard, FilterSelect, HEAD_CLASS, ListCard, ListPagination, NewButton, PageHeader, ReadErrorsBanner, RowActions, RowMenu, SearchField, TableSkeleton } from '@/components/list-kit'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getDeliveryMethods } from '@/app/api/application'
 import { getInvoices } from '@/app/api/sales'
 import { useSession } from '@/components/auth-session'
@@ -135,290 +135,129 @@ export default function SalesPage() {
     }
   }
 
+  const activeFilters = [filters.invoiceID !== null, filters.customerName.trim() !== '', filters.invoiceDateFrom !== '', filters.invoiceDateTo !== '', filters.deliveryMethodID !== null, filters.minInvoiceAmount !== null, filters.maxInvoiceAmount !== null].filter(Boolean).length
+  const retryReads = () => { setRefreshKey(key => key + 1); setMethodsRefresh(key => key + 1) }
+  const pageTotal = invoices.reduce((sum, invoice) => sum + invoice.MontoFacturado, 0)
+
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-8 sm:py-8">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Ventas</h1>
-            <p className="text-sm text-muted-foreground">{totalCount} {totalCount === 1 ? 'Factura' : 'Facturas'}</p>
+    <main className="flex min-w-0 flex-1 bg-muted/40">
+      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pt-6 pb-24 sm:px-8 sm:pt-8 lg:pb-8">
+        <PageHeader icon={ReceiptTextIcon} title="Ventas" subtitle={`${totalCount} ${totalCount === 1 ? 'factura' : 'facturas'}${activeFilters > 0 ? ' con los filtros aplicados' : ' registradas'}`}
+          action={<NewButton href="/sales/new" label="Nueva factura" />} />
+
+        <ReadErrorsBanner messages={methodsError ? [`Métodos de entrega: ${methodsError}`] : []} onRetry={retryReads} disabled={isLoading || methodsLoading} />
+
+        <FilterCard activeFilters={activeFilters} onSubmit={handleSubmit} onReset={resetFilters} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="invoiceID">Número de factura</Label>
+            <div className="relative">
+              <HashIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input id="invoiceID" type="number" min={1} step={1} placeholder="Número de factura" value={invoiceID ?? ''} onChange={(event) => setInvoiceID(event.target.value ? Number(event.target.value) : null)} className="pl-8" />
+            </div>
           </div>
-          <Button nativeButton={false} render={<Link href="/sales/new" />}>
-            <PlusIcon data-icon="inline-start" /> Nueva factura
-          </Button>
-        </div>
-
-        {(error || methodsError) && <div className="space-y-2 rounded-lg border bg-card p-4">
-          {methodsError && <p role="alert" className="text-sm text-destructive">Métodos de entrega: {methodsError}</p>}
-          <Button type="button" variant="outline" disabled={isLoading || methodsLoading} onClick={() => { setRefreshKey(key => key + 1); setMethodsRefresh(key => key + 1) }}>Reintentar lecturas</Button>
-        </div>}
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <form className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end" onSubmit={handleSubmit}>
-            <div className="grid gap-2">
-              <Label htmlFor="invoiceID">Número de factura</Label>
-              <Input
-                id="invoiceID"
-                type="number"
-                min={1}
-                step={1}
-                placeholder="Número de factura"
-                value={invoiceID ?? ''}
-                onChange={(event) => setInvoiceID(event.target.value ? Number(event.target.value) : null)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="customerName">Nombre del cliente</Label>
-              <Input
-                id="customerName"
-                placeholder="Buscar por cliente"
-                value={customerName}
-                onChange={(event) => setCustomerName(event.target.value)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="invoiceDateFrom">Fecha desde</Label>
-              <Input
-                id="invoiceDateFrom"
-                type="date"
-                max={invoiceDateTo || undefined}
-                value={invoiceDateFrom}
-                onChange={(event) => setInvoiceDateFrom(event.target.value)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="invoiceDateTo">Fecha hasta</Label>
-              <Input
-                id="invoiceDateTo"
-                type="date"
-                min={invoiceDateFrom || undefined}
-                value={invoiceDateTo}
-                onChange={(event) => setInvoiceDateTo(event.target.value)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="deliveryMethod">Método de entrega</Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  id="deliveryMethod"
-                  type="button"
-                  disabled={Boolean(methodsError)}
-                  className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-                >
-                  <span className="min-w-0 truncate">
-                    {deliveryMethodID === null ? 'Todos los métodos' : deliveryMethods.find((method) => method.DeliveryMethodID === deliveryMethodID)?.NombreMetodoEntrega ?? 'Método seleccionado'}
-                  </span>
-                  <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
-                  <DropdownMenuRadioGroup
-                    value={deliveryMethodID === null ? '' : String(deliveryMethodID)}
-                    onValueChange={(value) => setDeliveryMethodID(value === '' ? null : Number(value))}
-                  >
-                    <DropdownMenuRadioItem value="" closeOnClick>Todos los métodos</DropdownMenuRadioItem>
-                    {deliveryMethods.map((method) => (
-                      <DropdownMenuRadioItem key={method.DeliveryMethodID} value={String(method.DeliveryMethodID)} closeOnClick>
-                        {method.NombreMetodoEntrega}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="minInvoiceAmount">Monto mínimo</Label>
-              <Input
-                id="minInvoiceAmount"
-                type="number"
-                min={0}
-                max={maxInvoiceAmount ?? undefined}
-                step="0.01"
-                placeholder="Monto mínimo"
-                value={minInvoiceAmount ?? ''}
-                onKeyDown={(event) => { if (event.key === '-') event.preventDefault() }}
-                onChange={(event) => setMinInvoiceAmount(event.target.value ? Math.max(0, Number(event.target.value)) : null)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="maxInvoiceAmount">Monto máximo</Label>
-              <Input
-                id="maxInvoiceAmount"
-                type="number"
-                min={minInvoiceAmount ?? 0}
-                step="0.01"
-                placeholder="Monto máximo"
-                value={maxInvoiceAmount ?? ''}
-                onKeyDown={(event) => { if (event.key === '-') event.preventDefault() }}
-                onChange={(event) => setMaxInvoiceAmount(event.target.value ? Math.max(0, Number(event.target.value)) : null)}
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit">
-                <SearchIcon data-icon="inline-start" />
-                Buscar
-              </Button>
-              <Button type="button" variant="outline" onClick={resetFilters}>
-                <RotateCcwIcon data-icon="inline-start" />
-                Limpiar
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="font-medium">Listado de facturas</h2>
-            <span className="text-sm text-muted-foreground">
-              {isLoading && invoices.length > 0
-                ? 'Actualizando...'
-                : `Página ${pageNumber} de ${totalPages}`}
-            </span>
+          <SearchField id="customerName" label="Nombre del cliente" placeholder="Buscar por cliente" value={customerName} onChange={setCustomerName} />
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="invoiceDateFrom">Fecha desde</Label>
+            <Input id="invoiceDateFrom" type="date" max={invoiceDateTo || undefined} value={invoiceDateFrom} onChange={(event) => setInvoiceDateFrom(event.target.value)} />
           </div>
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="invoiceDateTo">Fecha hasta</Label>
+            <Input id="invoiceDateTo" type="date" min={invoiceDateFrom || undefined} value={invoiceDateTo} onChange={(event) => setInvoiceDateTo(event.target.value)} />
+          </div>
+          <FilterSelect id="deliveryMethod" label="Método de entrega" allLabel="Todos los métodos" value={deliveryMethodID} onChange={setDeliveryMethodID} disabled={methodsLoading || Boolean(methodsError)}
+            options={deliveryMethods.map(method => ({ value: method.DeliveryMethodID, label: method.NombreMetodoEntrega }))} />
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="minInvoiceAmount">Monto mínimo</Label>
+            <Input id="minInvoiceAmount" type="number" min={0} max={maxInvoiceAmount ?? undefined} step="0.01" placeholder="0.00" value={minInvoiceAmount ?? ''}
+              onKeyDown={(event) => { if (event.key === '-') event.preventDefault() }}
+              onChange={(event) => setMinInvoiceAmount(event.target.value ? Math.max(0, Number(event.target.value)) : null)} />
+          </div>
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="maxInvoiceAmount">Monto máximo</Label>
+            <Input id="maxInvoiceAmount" type="number" min={minInvoiceAmount ?? 0} step="0.01" placeholder="Sin límite" value={maxInvoiceAmount ?? ''}
+              onKeyDown={(event) => { if (event.key === '-') event.preventDefault() }}
+              onChange={(event) => setMaxInvoiceAmount(event.target.value ? Math.max(0, Number(event.target.value)) : null)} />
+          </div>
+        </FilterCard>
 
-          <div className="min-h-[20rem] md:min-h-[26rem]" aria-busy={isLoading}>
-            {isLoading && invoices.length === 0 && (
-              <p className="flex h-32 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                Cargando facturas...
-              </p>
-            )}
-
-            {!isLoading && error && (
-              <p className="flex h-32 items-center justify-center px-4 text-center text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            )}
-
-            {!isLoading && !error && invoices.length === 0 && (
-              <p className="flex h-32 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                No se encontraron facturas con los filtros seleccionados.
-              </p>
-            )}
+        <ListCard title="Listado de facturas" loadingMore={isLoading && invoices.length > 0} pageNumber={pageNumber} totalPages={totalPages}>
+          <div className="min-h-[20rem] md:min-h-[30rem]" aria-busy={isLoading}>
+            {isLoading && invoices.length === 0 && <TableSkeleton label="Cargando facturas..." avatar={false} />}
+            {!isLoading && error && <ErrorState message={error} onRetry={retryReads} disabled={isLoading || methodsLoading} />}
+            {!isLoading && !error && invoices.length === 0 && <EmptyState message="No se encontraron facturas con los filtros seleccionados." onReset={activeFilters > 0 ? resetFilters : undefined} />}
 
             {!error && invoices.length > 0 && (
               <>
                 <ul className="divide-y md:hidden">
                   {invoices.map((invoice) => (
-                    <li key={invoice.NumeroFactura} className="space-y-3 px-4 py-4 text-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="min-w-0 break-words font-medium">Factura #{invoice.NumeroFactura}</p>
-                        <p className="font-medium tabular-nums">${amountFormatter.format(invoice.MontoFacturado)}</p>
-                      </div>
-                      <p className="break-words">{invoice.NombreCliente}</p>
-                      <dl className="grid grid-cols-2 gap-x-4">
-                        <div className="min-w-0">
-                          <dt className="text-xs text-muted-foreground">Fecha</dt>
-                          <dd>{dateFormatter.format(new Date(invoice.FechaFactura))}</dd>
+                    <li key={invoice.NumeroFactura} className="flex gap-3 px-4 py-4">
+                      <InvoiceIcon />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <Link href={`/sales/${invoice.NumeroFactura}`} className="font-medium tabular-nums hover:underline">Factura #{invoice.NumeroFactura}</Link>
+                          <span className="font-semibold tabular-nums">${amountFormatter.format(invoice.MontoFacturado)}</span>
                         </div>
-                        <div className="min-w-0">
-                          <dt className="text-xs text-muted-foreground">Método de entrega</dt>
-                          <dd className="break-words">{invoice.NombreMetodoEntrega}</dd>
+                        <p className="break-words text-sm">{invoice.NombreCliente}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1"><CalendarIcon className="size-3" aria-hidden="true" />{dateFormatter.format(new Date(invoice.FechaFactura))}</span>
+                          <Badge variant="outline"><TruckIcon aria-hidden="true" />{invoice.NombreMetodoEntrega}</Badge>
                         </div>
-                      </dl>
-                      <div className="flex justify-end">
-                        <Button nativeButton={false} render={<Link href={`/sales/${invoice.NumeroFactura}`} />} variant="outline" size="sm">Ver detalle</Button>
                       </div>
+                      <RowMenu detailHref={`/sales/${invoice.NumeroFactura}`} editHref={`/sales/${invoice.NumeroFactura}/edit`} name={`la factura ${invoice.NumeroFactura}`} />
                     </li>
                   ))}
                 </ul>
 
                 <div className="hidden md:block">
-                  <Table className="min-w-[800px] table-fixed">
-                    <colgroup>
-                      <col className="w-[13%]" />
-                      <col className="w-[15%]" />
-                      <col className="w-[23%]" />
-                      <col className="w-[19%]" />
-                      <col className="w-[17%]" />
-                      <col className="w-[13%]" />
-                    </colgroup>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Factura</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Método de entrega</TableHead>
-                        <TableHead className="text-right">Monto facturado</TableHead>
-                        <TableHead>Acciones</TableHead>
+                  <Table className="min-w-[860px] table-fixed">
+                    <colgroup><col className="w-36" /><col className="w-36" /><col /><col className="w-[20%]" /><col className="w-40" /><col className="w-44" /></colgroup>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className={HEAD_CLASS}>Factura</TableHead>
+                        <TableHead className={HEAD_CLASS}>Fecha</TableHead>
+                        <TableHead className={HEAD_CLASS}>Cliente</TableHead>
+                        <TableHead className={HEAD_CLASS}>Método de entrega</TableHead>
+                        <TableHead className={`text-right ${HEAD_CLASS}`}>Monto facturado</TableHead>
+                        <TableHead className={`text-right ${HEAD_CLASS}`}>Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {invoices.map((invoice) => (
                         <TableRow key={invoice.NumeroFactura}>
-                          <TableCell className="truncate font-medium">#{invoice.NumeroFactura}</TableCell>
-                          <TableCell className="truncate">{dateFormatter.format(new Date(invoice.FechaFactura))}</TableCell>
-                          <TableCell className="truncate" title={invoice.NombreCliente}>{invoice.NombreCliente}</TableCell>
-                          <TableCell className="truncate" title={invoice.NombreMetodoEntrega}>{invoice.NombreMetodoEntrega}</TableCell>
-                          <TableCell className="truncate text-right tabular-nums">${amountFormatter.format(invoice.MontoFacturado)}</TableCell>
-                          <TableCell><Button nativeButton={false} render={<Link href={`/sales/${invoice.NumeroFactura}`} />} variant="outline" size="sm">Ver detalle</Button></TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <InvoiceIcon />
+                              <Link href={`/sales/${invoice.NumeroFactura}`} className="font-medium tabular-nums hover:underline">#{invoice.NumeroFactura}</Link>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground tabular-nums">{dateFormatter.format(new Date(invoice.FechaFactura))}</TableCell>
+                          <TableCell className="truncate font-medium" title={invoice.NombreCliente}>{invoice.NombreCliente}</TableCell>
+                          <TableCell><Badge variant="outline" className="max-w-full" title={invoice.NombreMetodoEntrega}><TruckIcon aria-hidden="true" /><span className="truncate">{invoice.NombreMetodoEntrega}</span></Badge></TableCell>
+                          <TableCell className="text-right font-semibold tabular-nums">${amountFormatter.format(invoice.MontoFacturado)}</TableCell>
+                          <TableCell><RowActions detailHref={`/sales/${invoice.NumeroFactura}`} editHref={`/sales/${invoice.NumeroFactura}/edit`} name={`la factura ${invoice.NumeroFactura}`} /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter className="bg-muted/30">
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={4} className="text-right text-xs font-medium text-muted-foreground uppercase">Total de esta página</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">${amountFormatter.format(pageTotal)}</TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableFooter>
                   </Table>
                 </div>
               </>
             )}
           </div>
 
-          <div className="flex flex-col items-center gap-3 border-t px-4 py-3 sm:flex-row sm:justify-between">
-            <p className="text-center text-sm text-muted-foreground sm:text-left">
-              Mostrando {invoices.length} de {totalCount} Facturas
-            </p>
-            <div className="flex flex-col items-center gap-2 sm:flex-row">
-              <div className="flex justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pageNumber === 1 || isLoading || !!error || totalPages === 0}
-                  onClick={() => changePage(pageNumber - 1)}
-                >
-                  <ChevronLeftIcon data-icon="inline-start" />
-                  Anterior
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pageNumber >= totalPages || isLoading || !!error}
-                  onClick={() => changePage(pageNumber + 1)}
-                >
-                  Siguiente
-                  <ChevronRightIcon data-icon="inline-end" />
-                </Button>
-              </div>
-              <form className="flex items-center justify-center gap-2" onSubmit={handlePageSubmit}>
-                <Label htmlFor="salesPageNumber" className="sr-only">Número de página</Label>
-                <Input
-                  key={pageNumber}
-                  id="salesPageNumber"
-                  name="pageNumber"
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  step={1}
-                  required
-                  defaultValue={pageNumber}
-                  disabled={isLoading || !!error || totalPages === 0}
-                  onKeyDown={(event) => { if (event.key === '-') event.preventDefault() }}
-                  onChange={(event) => {
-                    if (event.currentTarget.value !== '' && Number(event.currentTarget.value) < 1) {
-                      event.currentTarget.value = '1'
-                    }
-                  }}
-                  className="w-16 text-center"
-                />
-                <Button type="submit" variant="outline" disabled={isLoading || !!error || totalPages === 0}>
-                  Ir
-                </Button>
-              </form>
-            </div>
-          </div>
-        </div>
+          <ListPagination inputId="salesPageNumber" noun="facturas" pageNumber={pageNumber} totalPages={totalPages} totalCount={totalCount} pageSize={PAGE_SIZE} shown={invoices.length} disabled={isLoading || Boolean(error)} onChange={changePage} onSubmit={handlePageSubmit} />
+        </ListCard>
       </section>
     </main>
   )
+}
+
+function InvoiceIcon() {
+  return <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-foreground/10"><ReceiptTextIcon className="size-4" /></span>
 }

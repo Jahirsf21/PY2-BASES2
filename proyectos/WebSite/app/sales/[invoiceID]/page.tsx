@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeftIcon } from 'lucide-react'
+import { BadgeCheckIcon, CalendarIcon, DollarSignIcon, HashIcon, ListOrderedIcon, PackageIcon, PencilIcon, ReceiptTextIcon, TruckIcon, UserIcon } from 'lucide-react'
+import { BackLink, DetailError, DetailHero, DetailItem, DetailSkeleton, SectionCard } from '@/components/detail-kit'
+import { HEAD_CLASS } from '@/components/list-kit'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/components/auth-session'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,11 +15,7 @@ import { parseEntityId } from '@/lib/helpers/entityValidation'
 import type { InvoiceDetail } from '@/lib/types/sales'
 
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const dateFormatter = new Intl.DateTimeFormat('es-CR', { timeZone: 'UTC', dateStyle: 'medium' })
-
-function DetailField({ label, value }: { label: string; value: ReactNode }) {
-  return <div><dt className="text-sm text-muted-foreground">{label}</dt><dd className="break-words font-medium">{value ?? 'No disponible'}</dd></div>
-}
+const dateFormatter = new Intl.DateTimeFormat('es-CR', { timeZone: 'UTC', dateStyle: 'long' })
 
 export default function InvoiceDetailPage() {
   const { invoiceID } = useParams<{ invoiceID: string }>()
@@ -63,100 +61,97 @@ function InvoiceDetailContent({ invoiceID }: { invoiceID: string }) {
   const total = invoice?.lines.reduce((sum, line) => sum + line.TotalLinea, 0) ?? 0
 
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
+    <main className="flex min-w-0 flex-1 bg-muted/40">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-8 sm:py-8">
-        <Link href="/sales" className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline">
-          <ArrowLeftIcon className="size-4" aria-hidden="true" />
-          Volver a ventas
-        </Link>
+        <BackLink href="/sales">Volver a ventas</BackLink>
 
-        {!error && !invoice && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando factura...</p>}
-        {error && <div className="space-y-3 rounded-lg border bg-card p-6"><p role="alert" className="text-sm text-destructive">{error}</p>{parseEntityId(invoiceID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}</div>}
+        {!error && !invoice && <DetailSkeleton label="Cargando factura..." />}
+        {error && <DetailError message={error} onRetry={parseEntityId(invoiceID) !== null ? () => setRefreshKey(key => key + 1) : undefined} />}
 
         {invoice && header && !error && (
           <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Factura #{header.NumeroFactura}</p>
-                <h1 className="break-words text-2xl font-semibold tracking-tight">{header.NombreCliente}</h1>
-              </div>
-              <Button nativeButton={false} render={<Link href={`/sales/${header.NumeroFactura}/edit`} />} variant="outline">Editar factura</Button>
-            </div>
+            <DetailHero
+              badge={<ReceiptTextIcon className="size-6" />}
+              eyebrow={`Factura #${header.NumeroFactura}`}
+              title={header.NombreCliente}
+              tags={<>
+                <Badge variant="secondary"><CalendarIcon aria-hidden="true" />{dateFormatter.format(new Date(header.FechaFactura))}</Badge>
+                {header.NombreMetodoEntrega && <Badge variant="outline"><TruckIcon aria-hidden="true" />{header.NombreMetodoEntrega}</Badge>}
+              </>}
+              action={<Button nativeButton={false} render={<Link href={`/sales/${header.NumeroFactura}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar factura</Button>}
+              stats={[
+                { icon: DollarSignIcon, label: 'Total facturado', value: `$${amountFormatter.format(total)}` },
+                { icon: ListOrderedIcon, label: 'Líneas', value: String(invoice.lines.length) },
+                { icon: HashIcon, label: 'Número de orden', value: header.NumeroOrden },
+                { icon: BadgeCheckIcon, label: 'Vendedor', value: header.NombreVendedor, title: header.NombreVendedor ?? undefined },
+              ]}
+            />
 
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="general-title">
-              <h2 id="general-title" className="mb-4 text-lg font-semibold">Datos generales</h2>
-              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <DetailField label="Fecha de factura" value={dateFormatter.format(new Date(header.FechaFactura))} />
-                <DetailField label="Cliente" value={header.NombreCliente} />
-                <DetailField label="Número de orden" value={header.NumeroOrden} />
-                <DetailField label="Método de entrega" value={header.NombreMetodoEntrega} />
-                <DetailField label="Contacto" value={header.NombreContacto} />
-                <DetailField label="Vendedor" value={header.NombreVendedor} />
-              </dl>
-            </section>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="delivery-title">
-              <h2 id="delivery-title" className="mb-4 text-lg font-semibold">Entrega</h2>
-              <dl className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="Instrucciones de entrega" value={header.InstruccionesEntrega} />
-              </dl>
-            </section>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="lines-title">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <h2 id="lines-title" className="text-lg font-semibold">Productos facturados</h2>
-                <p className="text-sm text-muted-foreground">{invoice.lines.length} {invoice.lines.length === 1 ? 'línea' : 'líneas'}</p>
-              </div>
-
-              {invoice.lines.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Esta factura no tiene líneas de productos.</p>
-              ) : (
-                <>
-                  <ul className="divide-y border-y md:hidden">
-                    {invoice.lines.map((line, index) => (
-                      <li key={`${line.StockItemID}-${index}`} className="space-y-3 py-4 text-sm">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <p className="break-words font-medium">{line.NombreProducto}</p>
-                          <p className="font-medium tabular-nums">${amountFormatter.format(line.TotalLinea)}</p>
-                        </div>
-                        <dl className="grid grid-cols-2 gap-3">
-                          <DetailField label="Cantidad" value={line.Cantidad} />
-                          <DetailField label="Precio unitario" value={`$${amountFormatter.format(line.PrecioUnitario)}`} />
-                          <DetailField label="Impuesto aplicado" value={`${line.ImpuestoAplicado} %`} />
-                          <DetailField label="Monto del impuesto" value={`$${amountFormatter.format(line.MontoImpuesto)}`} />
-                        </dl>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="hidden md:block">
-                    <Table className="min-w-[720px] table-fixed">
-                      <TableHeader><TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead className="text-right">Cantidad</TableHead>
-                        <TableHead className="text-right">Precio unitario</TableHead>
-                        <TableHead className="text-right">Impuesto</TableHead>
-                        <TableHead className="text-right">Monto impuesto</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow></TableHeader>
-                      <TableBody>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="min-w-0 lg:col-span-2">
+                <SectionCard icon={PackageIcon} title="Productos facturados" description={`${invoice.lines.length} ${invoice.lines.length === 1 ? 'línea' : 'líneas'}`} contentClassName="p-0">
+                  {invoice.lines.length === 0 ? (
+                    <p className="px-4 py-10 text-center text-sm text-muted-foreground">Esta factura no tiene líneas de productos.</p>
+                  ) : (
+                    <>
+                      <ul className="divide-y md:hidden">
                         {invoice.lines.map((line, index) => (
-                          <TableRow key={`${line.StockItemID}-${index}`}>
-                            <TableCell className="break-words">{line.NombreProducto}</TableCell>
-                            <TableCell className="text-right tabular-nums">{line.Cantidad}</TableCell>
-                            <TableCell className="text-right tabular-nums">${amountFormatter.format(line.PrecioUnitario)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{line.ImpuestoAplicado} %</TableCell>
-                            <TableCell className="text-right tabular-nums">${amountFormatter.format(line.MontoImpuesto)}</TableCell>
-                            <TableCell className="text-right tabular-nums">${amountFormatter.format(line.TotalLinea)}</TableCell>
-                          </TableRow>
+                          <li key={`${line.StockItemID}-${index}`} className="space-y-2 px-4 py-4 text-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="min-w-0 break-words font-medium">{line.NombreProducto}</p>
+                              <p className="shrink-0 font-semibold tabular-nums">${amountFormatter.format(line.TotalLinea)}</p>
+                            </div>
+                            <p className="text-xs text-muted-foreground tabular-nums">{line.Cantidad} × ${amountFormatter.format(line.PrecioUnitario)} · Impuesto {line.ImpuestoAplicado} % (${amountFormatter.format(line.MontoImpuesto)})</p>
+                          </li>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </ul>
+                      <div className="hidden md:block">
+                        <Table className="min-w-[640px]">
+                          <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">
+                            <TableHead className={`pl-4 ${HEAD_CLASS}`}>Producto</TableHead>
+                            <TableHead className={`text-right ${HEAD_CLASS}`}>Cantidad</TableHead>
+                            <TableHead className={`text-right ${HEAD_CLASS}`}>Precio</TableHead>
+                            <TableHead className={`text-right ${HEAD_CLASS}`}>Impuesto</TableHead>
+                            <TableHead className={`pr-4 text-right ${HEAD_CLASS}`}>Total</TableHead>
+                          </TableRow></TableHeader>
+                          <TableBody>
+                            {invoice.lines.map((line, index) => (
+                              <TableRow key={`${line.StockItemID}-${index}`}>
+                                <TableCell className="max-w-72 truncate pl-4 font-medium" title={line.NombreProducto}>{line.NombreProducto}</TableCell>
+                                <TableCell className="text-right tabular-nums">{line.Cantidad}</TableCell>
+                                <TableCell className="text-right tabular-nums">${amountFormatter.format(line.PrecioUnitario)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground tabular-nums">{line.ImpuestoAplicado} % · ${amountFormatter.format(line.MontoImpuesto)}</TableCell>
+                                <TableCell className="pr-4 text-right font-semibold tabular-nums">${amountFormatter.format(line.TotalLinea)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex items-center justify-between gap-2 border-t bg-muted/30 px-4 py-3">
+                    <span className="text-xs font-medium text-muted-foreground uppercase">Total facturado</span>
+                    <span className="text-lg font-semibold tabular-nums">${amountFormatter.format(total)}</span>
                   </div>
-                </>
-              )}
-              <p className="mt-4 border-t pt-4 text-right font-semibold tabular-nums">Total facturado: ${amountFormatter.format(total)}</p>
-            </section>
+                </SectionCard>
+              </div>
+
+              <div className="min-w-0 space-y-6">
+                <SectionCard icon={UserIcon} title="Cliente y contacto">
+                  <dl className="space-y-4">
+                    <DetailItem label="Cliente" value={header.NombreCliente} />
+                    <DetailItem label="Contacto" value={header.NombreContacto} />
+                    <DetailItem label="Vendedor" value={header.NombreVendedor} />
+                  </dl>
+                </SectionCard>
+                <SectionCard icon={TruckIcon} title="Entrega">
+                  <dl className="space-y-4">
+                    <DetailItem label="Método de entrega" value={header.NombreMetodoEntrega} />
+                    <DetailItem label="Instrucciones de entrega" value={header.InstruccionesEntrega} />
+                  </dl>
+                </SectionCard>
+              </div>
+            </div>
           </>
         )}
       </div>

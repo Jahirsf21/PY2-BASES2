@@ -2,17 +2,15 @@
 
 import type { SubmitEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftIcon, ChevronDownIcon } from 'lucide-react'
 import { getCities, getDeliveryMethods, getEmployees, getPeople } from '@/app/api/application'
 import { createSupplier, getSupplierCategories, updateSupplierByID } from '@/app/api/suppliers'
 import { LookupPicker, type LookupOption } from '@/app/customers/lookup-picker'
-import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { FormStepper, StepPanel, type FormStep } from '@/components/form-stepper'
+import { FormAlerts, FormHeader, RequiredMark, ReviewSections, SelectField, StepActions, TextField, serverFieldErrors, useStepForm } from '@/components/form-kit'
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { checkId, validateSupplier } from '@/lib/helpers/entityValidation'
 import { useSession } from '@/components/auth-session'
@@ -21,7 +19,22 @@ import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
 import type { NewSupplier, SupplierCategory, SupplierEdit } from '@/lib/types/suppliers'
 
 const LOOKUP_SIZE = 8
-const dropdownClass = 'flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
+
+const STEPS: FormStep[] = [
+  { id: 'general', title: 'Datos generales', description: 'Identificación, categoría, condiciones de pago y medios de contacto del proveedor.' },
+  { id: 'contacts', title: 'Contactos', description: 'Personas de referencia con las que se coordina el proveedor.' },
+  { id: 'addresses', title: 'Direcciones', description: 'Dirección de entrega, dirección postal y ubicación opcional en el mapa.' },
+  { id: 'bank', title: 'Banco y notas', description: 'Datos bancarios opcionales y comentarios internos.' },
+  { id: 'review', title: 'Revisión', description: 'Compruebe la información antes de guardar.' },
+]
+
+/** Paso al que pertenece cada campo, para dirigir al usuario al primer error. */
+const FIELD_STEP: Record<string, number> = {
+  supplierName: 0, supplierReference: 0, supplierCategoryID: 0, deliveryMethodID: 0, lastEditedBy: 0, paymentDays: 0, phoneNumber: 0, faxNumber: 0, websiteURL: 0,
+  primaryContactPersonID: 1, alternateContactPersonID: 1, primaryContact: 1, alternateContact: 1,
+  deliveryAddressLine1: 2, deliveryAddressLine2: 2, deliveryCityID: 2, deliveryCity: 2, deliveryPostalCode: 2, postalAddressLine1: 2, postalAddressLine2: 2, latitude: 2, longitude: 2,
+  bankAccountName: 3, bankAccountBranch: 3, bankAccountCode: 3, bankAccountNumber: 3, bankInternationalCode: 3, internalComments: 3,
+}
 
 async function findPeople(query: string, page: number) {
   const result = await getPeople(query, page, LOOKUP_SIZE)
@@ -31,10 +44,6 @@ async function findPeople(query: string, page: number) {
 async function findCities(query: string, page: number) {
   const result = await getCities(query, page, LOOKUP_SIZE)
   return { items: result.data.map((city) => ({ id: city.CityID, label: `${city.NombreCiudad}, ${city.Provincia}, ${city.NombrePais}` })), totalPages: result.totalPages }
-}
-
-function TextField({ label, name, required, ...props }: { label: string; name: string } & React.ComponentProps<typeof Input>) {
-  return <div className="grid min-w-0 gap-2"><Label htmlFor={name}>{label}{required ? ' *' : ''}</Label><Input id={name} name={name} required={required} {...props} /></div>
 }
 
 /** Conserva errores de negocio sin exponer detalles internos del transporte. */
@@ -65,6 +74,31 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
   const submitLock = useRef(false)
   const lifetime = useRef({ active: false })
   const back = initial ? `/suppliers/${initial.SupplierID}` : '/suppliers'
+
+  const { formRef, topRef, ...form } = useStepForm({
+    steps: STEPS,
+    editing: Boolean(initial),
+    stepOf: key => FIELD_STEP[key],
+    customErrors: (index, data) => {
+      const errors: Record<string, string> = {}
+      if (index === 0) {
+        if (categoryID === null) errors.supplierCategoryID = 'Seleccione una categoría.'
+        if (methodID === null) errors.deliveryMethodID = 'Seleccione un método de entrega.'
+        if (lastEditedBy === null || !employees.some((employee) => employee.PersonID === lastEditedBy)) errors.lastEditedBy = 'Seleccione un empleado válido.'
+      }
+      if (index === 1) {
+        if (!primaryContact) errors.primaryContact = 'Seleccione el contacto principal.'
+        if (!alternateContact) errors.alternateContact = 'Seleccione el contacto alternativo.'
+      }
+      if (index === 2) {
+        if (!deliveryCity) errors.deliveryCity = 'Seleccione la ciudad de entrega.'
+        const latitude = String(data?.get('latitude') ?? '').trim(), longitude = String(data?.get('longitude') ?? '').trim()
+        if ((latitude === '') !== (longitude === '')) errors[latitude === '' ? 'latitude' : 'longitude'] = 'Indique latitud y longitud, o deje ambas vacías.'
+      }
+      return errors
+    },
+  })
+  const { fieldErrors, clearError } = form
 
   useEffect(() => {
     const screen = { active: true }
@@ -108,22 +142,16 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
     return () => { cancelled = true }
   }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
-  function showValidationError(message: string) {
-    toast.add({ type: 'error', title: 'Revise los datos del proveedor', description: message, priority: 'high', timeout: 8000 })
-  }
-
   /** Mantiene el envío único y sus efectos dentro de la pantalla y sesión iniciadoras. */
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!form.isReview) { form.next(); return }
     const requestRevision = revision
     const screen = lifetime.current
     if (submitting || submitLock.current || catalogLoading || catalogError || !screen.active || !isSessionCurrent(requestRevision)) return
-    if (categoryID === null || methodID === null || lastEditedBy === null || !employees.some((employee) => employee.PersonID === lastEditedBy)) {
-      showValidationError('Seleccione la categoría, el método de entrega y un empleado válido que registre el proveedor.')
-      return
-    }
-    if (!primaryContact || !alternateContact || !deliveryCity) {
-      showValidationError('Seleccione ambos contactos y la ciudad de entrega.')
+    const stepErrors = form.allErrors()
+    if (Object.keys(stepErrors).length > 0 || categoryID === null || methodID === null || lastEditedBy === null || !primaryContact || !alternateContact || !deliveryCity) {
+      form.showErrorsAt(stepErrors)
       return
     }
     const data = new FormData(event.currentTarget)
@@ -148,7 +176,7 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
     }
     const { fields, errors } = validateSupplier(supplier)
     if (fields.length > 0) {
-      showValidationError(errors[fields[0]])
+      form.showErrorsAt(Object.fromEntries(fields.map(field => [field, errors[field]])))
       return
     }
     if (!isSessionCurrent(requestRevision)) return
@@ -174,7 +202,9 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
       if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
       if (!screen.active || !isSessionCurrent(requestRevision)) return
       let message = reason instanceof TypeError || reason instanceof SyntaxError ? 'No fue posible confirmar el guardado. Compruebe el resultado antes de volver a enviarlo.' : supplierFormError(reason)
-      if (reason instanceof Error && reason.cause === 400 && 'errors' in reason && reason.errors && typeof reason.errors === 'object') message += ` ${Object.values(reason.errors).filter(value => typeof value === 'string').join(' ')}`
+      const serverErrors = serverFieldErrors(reason)
+      if (Object.keys(serverErrors).length) message += ` ${Object.values(serverErrors).join(' ')}`
+      if (Object.keys(serverErrors).some(key => key in FIELD_STEP)) form.showErrorsAt(serverErrors)
       setSubmitError(message)
       toast.add({ type: 'error', title: 'No se pudo guardar el proveedor', description: message, priority: 'high', timeout: 8000 })
       setSubmitting(false)
@@ -183,76 +213,112 @@ export function SupplierForm({ initial }: { initial?: SupplierEdit }) {
     }
   }
 
+  const catalogBlocked = catalogLoading || Boolean(catalogError)
+  const option = <T,>(list: T[], key: keyof T, label: keyof T) => list.map(item => ({ value: Number(item[key]), label: String(item[label]) }))
+  const nameOf = <T,>(list: T[], key: keyof T, label: keyof T, id: number | null) => { const found = list.find(item => item[key] === id); return found ? String(found[label]) : null }
+  const review = form.review
+
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
-      <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
-        <Link href={back} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline"><ArrowLeftIcon className="size-4" aria-hidden="true" />{initial ? 'Volver al detalle' : 'Volver a proveedores'}</Link>
-        <div><h1 className="text-2xl font-semibold tracking-tight">{initial ? 'Editar proveedor' : 'Crear proveedor'}</h1><p className="text-sm text-muted-foreground">Complete los datos obligatorios marcados con *.</p></div>
-        {catalogLoading && <p role="status" className="text-sm text-muted-foreground">Cargando opciones...</p>}
-        {catalogError && <div className="space-y-3 rounded-lg border bg-card p-4"><p role="alert" className="text-sm text-destructive">{catalogError}</p><Button type="button" variant="outline" disabled={catalogLoading || submitting} onClick={() => setCatalogRefresh(key => key + 1)}>Reintentar opciones</Button></div>}
-        {submitError && <p role="alert" className="rounded-lg border bg-card p-4 text-sm text-destructive">{submitError}</p>}
-        <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
-          <fieldset disabled={submitting} className="space-y-6">
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Datos generales</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField label="Nombre del proveedor" name="supplierName" maxLength={100} defaultValue={initial?.NombreProveedor} required />
-                <TextField label="Código de referencia" name="supplierReference" maxLength={20} defaultValue={initial?.CodigoProveedor ?? ''} />
-                <div className="grid gap-2"><Label htmlFor="supplierCategoryID">Categoría *</Label><DropdownMenu>
-                  <DropdownMenuTrigger id="supplierCategoryID" type="button" disabled={Boolean(catalogError)} className={dropdownClass}><span className="min-w-0 truncate">{categories.find((category) => category.SupplierCategoryID === categoryID)?.NombreCategoriaProveedor ?? 'Seleccione una categoría'}</span><ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" /></DropdownMenuTrigger>
-                  <DropdownMenuContent className="max-w-[calc(100vw-2rem)]"><DropdownMenuRadioGroup value={categoryID === null ? '' : String(categoryID)} onValueChange={(value) => setCategoryID(Number(value))}>{categories.map((category) => <DropdownMenuRadioItem key={category.SupplierCategoryID} value={String(category.SupplierCategoryID)} closeOnClick>{category.NombreCategoriaProveedor}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent>
-                </DropdownMenu></div>
-                <div className="grid gap-2"><Label htmlFor="deliveryMethodID">Método de entrega *</Label><DropdownMenu>
-                  <DropdownMenuTrigger id="deliveryMethodID" type="button" disabled={Boolean(catalogError)} className={dropdownClass}><span className="min-w-0 truncate">{methods.find((method) => method.DeliveryMethodID === methodID)?.NombreMetodoEntrega ?? 'Seleccione un método'}</span><ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" /></DropdownMenuTrigger>
-                  <DropdownMenuContent className="max-w-[calc(100vw-2rem)]"><DropdownMenuRadioGroup value={methodID === null ? '' : String(methodID)} onValueChange={(value) => setMethodID(Number(value))}>{methods.map((method) => <DropdownMenuRadioItem key={method.DeliveryMethodID} value={String(method.DeliveryMethodID)} closeOnClick>{method.NombreMetodoEntrega}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent>
-                </DropdownMenu></div>
-                <div className="grid gap-2"><Label htmlFor="lastEditedBy">{initial ? 'Empleado a cargo de la actualización *' : 'Empleado que registra *'}</Label><DropdownMenu>
-                  <DropdownMenuTrigger id="lastEditedBy" type="button" disabled={Boolean(catalogError)} className={dropdownClass}><span className="min-w-0 truncate">{employees.find((employee) => employee.PersonID === lastEditedBy)?.NombreCompleto ?? 'Seleccione un empleado'}</span><ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" /></DropdownMenuTrigger>
-                  <DropdownMenuContent className="max-w-[calc(100vw-2rem)] overflow-hidden p-0"><ScrollArea className="h-48 max-h-(--available-height)"><DropdownMenuRadioGroup value={lastEditedBy === null ? '' : String(lastEditedBy)} onValueChange={(value) => setLastEditedBy(Number(value))} className="p-1">{employees.map((employee) => <DropdownMenuRadioItem key={employee.PersonID} value={String(employee.PersonID)} closeOnClick>{employee.NombreCompleto}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></ScrollArea></DropdownMenuContent>
-                </DropdownMenu>{initial && !employees.some((employee) => employee.PersonID === initial.LastEditedBy) && !catalogError && employees.length > 0 && <p className="text-xs text-muted-foreground">El último editor registrado no es empleado. Seleccione uno para guardar.</p>}</div>
-                <TextField label="Días para pagar" name="paymentDays" type="number" min={0} step={1} defaultValue={initial?.DiasGraciaPago} required />
-                <TextField label="Teléfono" name="phoneNumber" maxLength={20} defaultValue={initial?.Telefono} required />
-                <TextField label="Fax" name="faxNumber" maxLength={20} defaultValue={initial?.Fax ?? ''} />
-                <TextField label="Sitio web" name="websiteURL" type="url" maxLength={256} placeholder="https://ejemplo.com" defaultValue={initial?.SitioWeb ?? ''} />
-              </div>
-            </section>
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Contactos</h2><div className="grid gap-4 md:grid-cols-2">
-                <LookupPicker id="primaryContact" label="Contacto principal" value={primaryContact} onChange={setPrimaryContact} search={findPeople} disabled={submitting} required sessionAware />
-                 <LookupPicker id="alternateContact" label="Contacto alternativo" value={alternateContact} onChange={setAlternateContact} search={findPeople} disabled={submitting} required sessionAware />
-              </div>
-            </section>
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Datos bancarios</h2><div className="grid gap-4 sm:grid-cols-2">
-                <TextField label="Nombre de la cuenta" name="bankAccountName" maxLength={50} defaultValue={initial?.NombreBanco ?? ''} />
-                <TextField label="Sucursal" name="bankAccountBranch" maxLength={50} defaultValue={initial?.SucursalBanco ?? ''} />
-                <TextField label="Código de banco" name="bankAccountCode" maxLength={20} defaultValue={initial?.CodigoCuentaBancaria ?? ''} />
-                <TextField label="Número de cuenta" name="bankAccountNumber" maxLength={20} defaultValue={initial?.NumeroCuentaBancaria ?? ''} />
-                <TextField label="Código SWIFT" name="bankInternationalCode" maxLength={20} defaultValue={initial?.CodigoSwift ?? ''} />
-              </div>
-            </section>
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Direcciones</h2><div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4"><h3 className="font-medium">Entrega</h3>
-                  <TextField label="Dirección, línea 1" name="deliveryAddressLine1" maxLength={60} defaultValue={initial?.DireccionEntrega1} required />
-                  <TextField label="Dirección, línea 2" name="deliveryAddressLine2" maxLength={60} defaultValue={initial?.DireccionEntrega2 ?? ''} />
-                  <LookupPicker id="deliveryCity" label="Ciudad de entrega" value={deliveryCity} onChange={setDeliveryCity} search={findCities} disabled={submitting} required sessionAware />
-                  <TextField label="Código postal" name="deliveryPostalCode" maxLength={10} defaultValue={initial?.CodigoPostalEntrega} required />
+    <main className="flex min-w-0 flex-1 bg-muted/40">
+      <div ref={topRef} className="mx-auto w-full max-w-4xl scroll-mt-4 space-y-6 px-4 pt-6 sm:px-8 sm:pt-8">
+        <FormHeader backHref={back} backLabel={initial ? 'Volver al detalle' : 'Volver a proveedores'} title={initial ? 'Editar proveedor' : 'Nuevo proveedor'}
+          description={initial ? <>Modificando <span className="font-medium text-foreground">{initial.NombreProveedor}</span>. Puede saltar a cualquier paso.</> : 'Complete los pasos. Los campos marcados con * son obligatorios.'} />
+
+        <FormStepper steps={STEPS} current={form.step} invalid={form.invalidSteps} completed={index => index < form.visited} canSelect={index => index <= form.visited && !submitting} onSelect={form.goTo} />
+
+        <FormAlerts loading={catalogLoading} errors={catalogError ? [catalogError] : []} onRetry={() => setCatalogRefresh(key => key + 1)} retryDisabled={catalogLoading || submitting} submitError={submitError} />
+
+        <form ref={formRef} noValidate className="space-y-6" onSubmit={(event) => void handleSubmit(event)} onInput={form.onInput}>
+          <fieldset disabled={submitting} className="min-w-0">
+            <StepPanel step={STEPS[0]} index={0} active={form.step === 0}>
+              <FieldGroup>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <TextField label="Nombre del proveedor" name="supplierName" maxLength={100} defaultValue={initial?.NombreProveedor} required error={fieldErrors.supplierName} />
+                  <TextField label="Código de referencia" name="supplierReference" maxLength={20} defaultValue={initial?.CodigoProveedor ?? ''} error={fieldErrors.supplierReference} />
+                  <SelectField id="supplierCategoryID" label="Categoría" placeholder="Seleccione una categoría" value={categoryID} onChange={(value) => { setCategoryID(value); clearError('supplierCategoryID') }} options={option(categories, 'SupplierCategoryID', 'NombreCategoriaProveedor')} disabled={catalogBlocked || submitting} error={fieldErrors.supplierCategoryID} />
+                  <SelectField id="deliveryMethodID" label="Método de entrega" placeholder="Seleccione un método" value={methodID} onChange={(value) => { setMethodID(value); clearError('deliveryMethodID') }} options={option(methods, 'DeliveryMethodID', 'NombreMetodoEntrega')} disabled={catalogBlocked || submitting} error={fieldErrors.deliveryMethodID} />
                 </div>
-                <div className="space-y-4"><h3 className="font-medium">Postal</h3>
-                  <TextField label="Dirección, línea 1" name="postalAddressLine1" maxLength={60} defaultValue={initial?.DireccionPostal1} required />
-                  <TextField label="Dirección, línea 2" name="postalAddressLine2" maxLength={60} defaultValue={initial?.DireccionPostal2 ?? ''} />
-                  <p className="text-sm text-muted-foreground">La ciudad y el código postal serán los mismos que en la dirección de entrega.</p>
+                <Separator />
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SelectField id="lastEditedBy" label={initial ? 'Empleado a cargo de la actualización' : 'Empleado que registra'} placeholder="Seleccione un empleado" value={lastEditedBy} onChange={(value) => { setLastEditedBy(value); clearError('lastEditedBy') }} options={option(employees, 'PersonID', 'NombreCompleto')} disabled={catalogBlocked || submitting} error={fieldErrors.lastEditedBy}
+                    hint={initial && !employees.some((employee) => employee.PersonID === initial.LastEditedBy) && !catalogError && employees.length > 0 ? 'El último editor registrado no es empleado. Seleccione uno para guardar.' : undefined} />
+                  <TextField label="Días para pagar" name="paymentDays" type="number" inputMode="numeric" min={0} step={1} defaultValue={initial?.DiasGraciaPago} required error={fieldErrors.paymentDays} />
                 </div>
+                <Separator />
+                <div className="grid gap-5 sm:grid-cols-3">
+                  <TextField label="Teléfono" name="phoneNumber" type="tel" maxLength={20} defaultValue={initial?.Telefono} required error={fieldErrors.phoneNumber} />
+                  <TextField label="Fax" name="faxNumber" type="tel" maxLength={20} defaultValue={initial?.Fax ?? ''} error={fieldErrors.faxNumber} />
+                  <TextField label="Sitio web" name="websiteURL" type="url" maxLength={256} placeholder="https://ejemplo.com" defaultValue={initial?.SitioWeb ?? ''} error={fieldErrors.websiteURL} />
+                </div>
+              </FieldGroup>
+            </StepPanel>
+
+            <StepPanel step={STEPS[1]} index={1} active={form.step === 1}>
+              <div className="grid gap-5 md:grid-cols-2">
+                <LookupPicker id="primaryContact" label="Contacto principal" placeholder="Seleccione una persona" value={primaryContact} onChange={(value) => { setPrimaryContact(value); clearError('primaryContact') }} search={findPeople} disabled={submitting} required sessionAware error={fieldErrors.primaryContact ?? fieldErrors.primaryContactPersonID} />
+                <LookupPicker id="alternateContact" label="Contacto alternativo" placeholder="Seleccione una persona" value={alternateContact} onChange={(value) => { setAlternateContact(value); clearError('alternateContact') }} search={findPeople} disabled={submitting} required sessionAware error={fieldErrors.alternateContact ?? fieldErrors.alternateContactPersonID} />
               </div>
-              <h3 className="font-medium">Ubicación de entrega (opcional)</h3><p className="text-sm text-muted-foreground">Si proporciona coordenadas, indique ambas.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField label="Latitud" name="latitude" type="number" min={-90} max={90} step="any" defaultValue={initial?.Latitud ?? ''} />
-                <TextField label="Longitud" name="longitude" type="number" min={-180} max={180} step="any" defaultValue={initial?.Longitud ?? ''} />
+            </StepPanel>
+
+            <StepPanel step={STEPS[2]} index={2} active={form.step === 2}>
+              <div className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FieldSet className="rounded-lg border bg-muted/30 p-4">
+                    <FieldLegend>Dirección de entrega</FieldLegend>
+                    <TextField label="Dirección, línea 1" name="deliveryAddressLine1" maxLength={60} defaultValue={initial?.DireccionEntrega1} required error={fieldErrors.deliveryAddressLine1} />
+                    <TextField label="Dirección, línea 2" name="deliveryAddressLine2" maxLength={60} defaultValue={initial?.DireccionEntrega2 ?? ''} error={fieldErrors.deliveryAddressLine2} />
+                    <LookupPicker id="deliveryCity" label="Ciudad de entrega" placeholder="Seleccione una ciudad" value={deliveryCity} onChange={(value) => { setDeliveryCity(value); clearError('deliveryCity') }} search={findCities} disabled={submitting} required sessionAware error={fieldErrors.deliveryCity ?? fieldErrors.deliveryCityID} />
+                    <TextField label="Código postal" name="deliveryPostalCode" maxLength={10} defaultValue={initial?.CodigoPostalEntrega} required error={fieldErrors.deliveryPostalCode} />
+                  </FieldSet>
+                  <FieldSet className="rounded-lg border bg-muted/30 p-4">
+                    <FieldLegend>Dirección postal</FieldLegend>
+                    <TextField label="Dirección, línea 1" name="postalAddressLine1" maxLength={60} defaultValue={initial?.DireccionPostal1} required error={fieldErrors.postalAddressLine1} />
+                    <TextField label="Dirección, línea 2" name="postalAddressLine2" maxLength={60} defaultValue={initial?.DireccionPostal2 ?? ''} error={fieldErrors.postalAddressLine2} />
+                    <FieldDescription>La ciudad y el código postal serán los mismos que en la dirección de entrega.</FieldDescription>
+                  </FieldSet>
+                </div>
+                <FieldSet>
+                  <FieldLegend>Ubicación de entrega</FieldLegend>
+                  <FieldDescription>Opcional. Si proporciona coordenadas, indique ambas.</FieldDescription>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <TextField label="Latitud" name="latitude" type="number" min={-90} max={90} step="any" defaultValue={initial?.Latitud ?? ''} error={fieldErrors.latitude} />
+                    <TextField label="Longitud" name="longitude" type="number" min={-180} max={180} step="any" defaultValue={initial?.Longitud ?? ''} error={fieldErrors.longitude} />
+                  </div>
+                </FieldSet>
               </div>
-            </section>
-            <section className="space-y-2 rounded-lg border bg-card p-4 shadow-sm sm:p-6"><Label htmlFor="internalComments">Comentarios internos</Label><textarea id="internalComments" name="internalComments" defaultValue={initial?.ComentariosInternos ?? ''} className="min-h-24 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus-visible:outline-ring" /></section>
-            <div className="flex flex-wrap justify-end gap-2"><Button nativeButton={false} render={<Link href={back} />} variant="outline">Cancelar</Button><Button type="submit" disabled={submitting || catalogLoading || Boolean(catalogError)}>{submitting ? 'Guardando...' : initial ? 'Guardar cambios' : 'Crear proveedor'}</Button></div>
+            </StepPanel>
+
+            <StepPanel step={STEPS[3]} index={3} active={form.step === 3}>
+              <FieldGroup>
+                <FieldSet>
+                  <FieldLegend>Datos bancarios</FieldLegend>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <TextField label="Nombre de la cuenta" name="bankAccountName" maxLength={50} defaultValue={initial?.NombreBanco ?? ''} error={fieldErrors.bankAccountName} />
+                    <TextField label="Sucursal" name="bankAccountBranch" maxLength={50} defaultValue={initial?.SucursalBanco ?? ''} error={fieldErrors.bankAccountBranch} />
+                    <TextField label="Código de banco" name="bankAccountCode" maxLength={20} defaultValue={initial?.CodigoCuentaBancaria ?? ''} error={fieldErrors.bankAccountCode} />
+                    <TextField label="Número de cuenta" name="bankAccountNumber" maxLength={20} defaultValue={initial?.NumeroCuentaBancaria ?? ''} error={fieldErrors.bankAccountNumber} />
+                    <TextField label="Código SWIFT" name="bankInternationalCode" maxLength={20} defaultValue={initial?.CodigoSwift ?? ''} error={fieldErrors.bankInternationalCode} />
+                  </div>
+                </FieldSet>
+                <Separator />
+                <Field data-invalid={Boolean(fieldErrors.internalComments) || undefined}>
+                  <FieldLabel htmlFor="internalComments">Comentarios internos<RequiredMark /></FieldLabel>
+                  <Textarea id="internalComments" name="internalComments" defaultValue={initial?.ComentariosInternos ?? ''} className="min-h-28" aria-invalid={Boolean(fieldErrors.internalComments) || undefined} />
+                  {fieldErrors.internalComments && <FieldError>{fieldErrors.internalComments}</FieldError>}
+                </Field>
+              </FieldGroup>
+            </StepPanel>
+
+            <StepPanel step={STEPS[4]} index={4} active={form.isReview}>
+              <ReviewSections steps={STEPS} onEdit={form.goTo} sections={[
+                { step: 0, items: [['Nombre', review.supplierName], ['Código de referencia', review.supplierReference], ['Categoría', nameOf(categories, 'SupplierCategoryID', 'NombreCategoriaProveedor', categoryID)], ['Método de entrega', nameOf(methods, 'DeliveryMethodID', 'NombreMetodoEntrega', methodID)], [initial ? 'Empleado a cargo' : 'Empleado que registra', nameOf(employees, 'PersonID', 'NombreCompleto', lastEditedBy)], ['Días para pagar', review.paymentDays], ['Teléfono', review.phoneNumber], ['Fax', review.faxNumber], ['Sitio web', review.websiteURL]] },
+                { step: 1, items: [['Contacto principal', primaryContact?.label], ['Contacto alternativo', alternateContact?.label]] },
+                { step: 2, items: [['Entrega', [review.deliveryAddressLine1, review.deliveryAddressLine2].filter(Boolean).join(', ')], ['Ciudad', deliveryCity?.label], ['Código postal', review.deliveryPostalCode], ['Postal', [review.postalAddressLine1, review.postalAddressLine2].filter(Boolean).join(', ')], ['Coordenadas', review.latitude && review.longitude ? `${review.latitude}, ${review.longitude}` : null]] },
+                { step: 3, items: [['Cuenta', review.bankAccountName], ['Sucursal', review.bankAccountBranch], ['Código de banco', review.bankAccountCode], ['Número de cuenta', review.bankAccountNumber], ['SWIFT', review.bankInternationalCode], ['Comentarios', review.internalComments]] },
+              ]} />
+            </StepPanel>
+
+            <StepActions step={form.step} total={STEPS.length} backHref={back} onBack={() => form.goTo(form.step - 1)} submitting={submitting} saveDisabled={catalogBlocked} saveLabel={initial ? 'Guardar cambios' : 'Crear proveedor'} />
           </fieldset>
         </form>
       </div>

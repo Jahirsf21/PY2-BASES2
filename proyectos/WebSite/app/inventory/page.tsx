@@ -3,13 +3,14 @@
 import type { SubmitEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from 'lucide-react'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
+import { ChevronDownIcon, PackageIcon, XIcon } from 'lucide-react'
+import { SCROLL_LIST_CLASS } from '@/components/form-kit'
+import { EmptyState, ErrorState, FilterCard, HEAD_CLASS, ListCard, ListPagination, NewButton, PageHeader, ReadErrorsBanner, RowActions, RowMenu, SearchField, SelectionBar, TableSkeleton } from '@/components/list-kit'
+import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from '@/components/ui/toast'
 import { useSession } from '@/components/auth-session'
@@ -201,212 +202,119 @@ export default function InventoryPage() {
     }
   }
 
+  const activeFilters = [filters.stockItemName.trim() !== '', filters.stockGroupIDs.length > 0].filter(Boolean).length
+  const retryReads = () => { setRefreshKey(key => key + 1); setGroupsRefresh(key => key + 1) }
+  const groupLabel = stockGroupIDs.length === 0 ? 'Todos los grupos' : stockGroupIDs.length === 1 ? groups.find((group) => group.StockGroupID === stockGroupIDs[0])?.NombreGrupoProducto ?? '1 grupo seleccionado' : `${stockGroupIDs.length} grupos seleccionados`
+
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-8 sm:py-8">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Inventario</h1>
-            <p className="text-sm text-muted-foreground">{totalCount} {totalCount === 1 ? 'Producto' : 'Productos'}</p>
+    <main className="flex min-w-0 flex-1 bg-muted/40">
+      <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pt-6 pb-24 sm:px-8 sm:pt-8 lg:pb-8">
+        <PageHeader icon={PackageIcon} title="Inventario" subtitle={`${totalCount} ${totalCount === 1 ? 'producto' : 'productos'}${activeFilters > 0 ? ' con los filtros aplicados' : ' registrados'}`}
+          action={<NewButton href="/inventory/new" label="Nuevo producto" />} />
+
+        <ReadErrorsBanner messages={groupsError ? [`Grupos de productos: ${groupsError}`] : []} onRetry={retryReads} disabled={isLoading || groupsLoading || isDeleting} />
+
+        <FilterCard activeFilters={activeFilters} onSubmit={handleSubmit} onReset={resetFilters} disabled={isDeleting} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px_auto] md:items-end">
+          <SearchField id="stockItemName" label="Nombre del producto" placeholder="Buscar por nombre" value={stockItemName} onChange={setStockItemName} disabled={isDeleting} />
+          <div className="grid min-w-0 gap-2">
+            <Label htmlFor="stockGroup">Grupos de productos</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger id="stockGroup" type="button" disabled={isDeleting || groupsLoading || Boolean(groupsError)}
+                className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30">
+                <span className={stockGroupIDs.length ? 'min-w-0 truncate' : 'min-w-0 truncate'}>{groupLabel}</span>
+                {stockGroupIDs.length > 1 ? <Badge variant="secondary" className="shrink-0">{stockGroupIDs.length}</Badge> : <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-(--anchor-width) min-w-56 max-w-[calc(100vw-2rem)] overflow-hidden p-0">
+                <ScrollArea className={SCROLL_LIST_CLASS}>
+                  <div className="p-1">
+                    {groups.map((group) => (
+                      <DropdownMenuCheckboxItem
+                        key={group.StockGroupID}
+                        checked={stockGroupIDs.includes(group.StockGroupID)}
+                        disabled={isDeleting}
+                        onCheckedChange={(checked) => setStockGroupIDs((previous) => checked
+                          ? previous.includes(group.StockGroupID) ? previous : [...previous, group.StockGroupID]
+                          : previous.filter((id) => id !== group.StockGroupID))}
+                        closeOnClick={false}
+                      >
+                        {group.NombreGrupoProducto}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </div>
+                </ScrollArea>
+                {stockGroupIDs.length > 0 && (
+                  <div className="border-t p-1">
+                    <DropdownMenuItem disabled={isDeleting} onClick={() => setStockGroupIDs([])} closeOnClick={false} className="text-muted-foreground"><XIcon />Quitar filtro de grupos</DropdownMenuItem>
+                  </div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <Button nativeButton={false} render={<Link href="/inventory/new" />}>
-            <PlusIcon data-icon="inline-start" /> Nuevo producto
-          </Button>
-        </div>
+        </FilterCard>
 
-        {(error || groupsError) && <div className="space-y-2 rounded-lg border bg-card p-4">
-          {groupsError && <p role="alert" className="text-sm text-destructive">Grupos de productos: {groupsError}</p>}
-          <Button type="button" variant="outline" disabled={isLoading || groupsLoading || isDeleting} onClick={() => { setRefreshKey(key => key + 1); setGroupsRefresh(key => key + 1) }}>Reintentar lecturas</Button>
-        </div>}
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <form className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end" onSubmit={handleSubmit}>
-            <div className="grid gap-2">
-              <Label htmlFor="stockItemName">Nombre del producto</Label>
-              <Input
-                id="stockItemName"
-                placeholder="Buscar por nombre"
-                value={stockItemName}
-                disabled={isDeleting}
-                onChange={(event) => setStockItemName(event.target.value)}
-              />
-            </div>
+        <ListCard title="Listado de productos" loadingMore={isLoading && stockItems.length > 0} pageNumber={pageNumber} totalPages={totalPages}>
+          <SelectionBar selectedName={selectedStockItem?.NombreProducto ?? null} hint="Marque la casilla de un producto para eliminarlo." noun="producto" onClear={clearSelection}
+            confirming={isConfirmingDelete} onConfirmingChange={setIsConfirmingDelete} deleting={isDeleting} disabled={!selectedStockItem || isLoading} onDelete={() => void handleDeleteStockItem()} />
 
-            <div className="grid gap-2">
-              <Label htmlFor="stockGroup">Grupos de productos</Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  id="stockGroup"
-                  type="button"
-                  disabled={isDeleting || Boolean(groupsError)}
-                  className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-                >
-                  <span className="min-w-0 truncate">
-                    {stockGroupIDs.length === 0 ? 'Todos los grupos' : stockGroupIDs.length === 1 ? groups.find((group) => group.StockGroupID === stockGroupIDs[0])?.NombreGrupoProducto ?? '1 grupo seleccionado' : `${stockGroupIDs.length} grupos seleccionados`}
-                  </span>
-                  <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
-                  <DropdownMenuItem disabled={isDeleting} onClick={() => setStockGroupIDs([])} closeOnClick={false}>Quitar filtro de grupos</DropdownMenuItem>
-                  {groups.map((group) => (
-                    <DropdownMenuCheckboxItem
-                      key={group.StockGroupID}
-                      checked={stockGroupIDs.includes(group.StockGroupID)}
-                      disabled={isDeleting}
-                      onCheckedChange={(checked) => setStockGroupIDs((previous) => checked
-                        ? previous.includes(group.StockGroupID) ? previous : [...previous, group.StockGroupID]
-                        : previous.filter((id) => id !== group.StockGroupID))}
-                      closeOnClick={false}
-                    >
-                      {group.NombreGrupoProducto}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={isDeleting}>
-                <SearchIcon data-icon="inline-start" />
-                Buscar
-              </Button>
-              <Button type="button" variant="outline" disabled={isDeleting} onClick={resetFilters}>
-                <RotateCcwIcon data-icon="inline-start" />
-                Limpiar
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <h2 className="font-medium">Listado de productos</h2>
-            <span className="text-sm text-muted-foreground">
-              {isLoading && stockItems.length > 0
-                ? 'Actualizando...'
-                : `Página ${pageNumber} de ${totalPages}`}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="min-w-0 break-words text-sm text-muted-foreground" aria-live="polite">
-              {selectedStockItem ? `Seleccionado: ${selectedStockItem.NombreProducto}` : 'Seleccione un producto para eliminarlo.'}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {selectedStockItem && (
-                <Button type="button" variant="outline" disabled={isLoading || isDeleting} onClick={clearSelection}>
-                  Quitar selección
-                </Button>
-              )}
-              <AlertDialog open={isConfirmingDelete} onOpenChange={(open) => { if (!isDeleting) setIsConfirmingDelete(open) }}>
-                <AlertDialogTrigger render={<Button variant="destructive" />} disabled={!selectedStockItem || isLoading || isDeleting}>
-                  <Trash2Icon data-icon="inline-start" />
-                  Eliminar producto
-                </AlertDialogTrigger>
-                <AlertDialogContent aria-busy={isDeleting}>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar a {selectedStockItem?.NombreProducto}?</AlertDialogTitle>
-                    <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction type="button" variant="destructive" disabled={isDeleting || !selectedStockItem} onClick={() => void handleDeleteStockItem()}>
-                      {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-
-          <div className="min-h-[20rem] md:min-h-[26rem]" aria-busy={isLoading}>
-            {isLoading && stockItems.length === 0 && (
-              <p className="flex h-32 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                Cargando productos...
-              </p>
-            )}
-
-            {!isLoading && error && (
-              <p className="flex h-32 items-center justify-center px-4 text-center text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            )}
-
-            {!isLoading && !error && stockItems.length === 0 && (
-              <p className="flex h-32 items-center justify-center px-4 text-center text-sm text-muted-foreground">
-                No se encontraron productos con los filtros seleccionados.
-              </p>
-            )}
+          <div className="min-h-[20rem] md:min-h-[30rem]" aria-busy={isLoading}>
+            {isLoading && stockItems.length === 0 && <TableSkeleton label="Cargando productos..." />}
+            {!isLoading && error && <ErrorState message={error} onRetry={retryReads} disabled={isLoading || groupsLoading || isDeleting} />}
+            {!isLoading && !error && stockItems.length === 0 && <EmptyState message="No se encontraron productos con los filtros seleccionados." onReset={activeFilters > 0 ? resetFilters : undefined} />}
 
             {!error && stockItems.length > 0 && (
               <>
                 <ul className="divide-y md:hidden">
                   {stockItems.map((item) => (
-                    <li key={item.StockItemID} data-state={selectedStockItemID === item.StockItemID ? 'selected' : undefined} className="space-y-3 px-4 py-4 data-[state=selected]:bg-muted">
-                      <div className="flex items-start gap-3">
-                        <Checkbox
-                          id={`stock-item-mobile-${item.StockItemID}`}
-                          checked={selectedStockItemID === item.StockItemID}
-                          disabled={isLoading || isDeleting}
-                          onCheckedChange={() => toggleStockItem(item.StockItemID)}
-                          className="mt-0.5"
-                        />
-                        <label htmlFor={`stock-item-mobile-${item.StockItemID}`} className="min-w-0 cursor-pointer break-words text-sm font-medium">
-                          {item.NombreProducto}
-                        </label>
-                      </div>
-                      <dl className="grid grid-cols-2 gap-x-4 text-sm">
-                        <div className="min-w-0">
-                          <dt className="text-xs text-muted-foreground">Grupos</dt>
-                          <dd className="break-words">{item.NombreGrupoProducto}</dd>
+                    <li key={item.StockItemID} data-state={selectedStockItemID === item.StockItemID ? 'selected' : undefined} className="flex gap-3 px-4 py-4 transition-colors data-[state=selected]:bg-muted">
+                      <Checkbox id={`stock-item-mobile-${item.StockItemID}`} aria-label={`Seleccionar a ${item.NombreProducto}`} checked={selectedStockItemID === item.StockItemID} disabled={isLoading || isDeleting} onCheckedChange={() => toggleStockItem(item.StockItemID)} className="mt-2.5" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex items-start gap-3">
+                          <ProductIcon />
+                          <div className="min-w-0 flex-1">
+                            <Link href={`/inventory/${item.StockItemID}`} className="block break-words font-medium hover:underline">{item.NombreProducto}</Link>
+                            <p className="text-xs text-muted-foreground tabular-nums">#{item.StockItemID}</p>
+                          </div>
+                          <StockQuantity value={item.CantidadTotalEnInventarios} />
                         </div>
-                        <div className="min-w-0">
-                          <dt className="text-xs text-muted-foreground">Cantidad en inventario</dt>
-                          <dd>{item.CantidadTotalEnInventarios}</dd>
-                        </div>
-                      </dl>
-                      <div className="flex justify-end">
-                        <Button nativeButton={false} render={<Link href={`/inventory/${item.StockItemID}`} />} variant="outline" size="sm">Ver detalle</Button>
+                        <GroupBadges value={item.NombreGrupoProducto} />
                       </div>
+                      <RowMenu detailHref={`/inventory/${item.StockItemID}`} editHref={`/inventory/${item.StockItemID}/edit`} name={item.NombreProducto} />
                     </li>
                   ))}
                 </ul>
 
                 <div className="hidden md:block">
-                  <Table className="min-w-[720px] table-fixed">
-                    <colgroup>
-                      <col className="w-[12%]" />
-                      <col className="w-[30%]" />
-                      <col className="w-[23%]" />
-                      <col className="w-[18%]" />
-                      <col className="w-[17%]" />
-                    </colgroup>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-center">Seleccionar</TableHead>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead>Grupos</TableHead>
-                        <TableHead>Cantidad en inventario</TableHead>
-                        <TableHead>Acciones</TableHead>
+                  <Table className="min-w-[760px] table-fixed">
+                    <colgroup><col className="w-14" /><col /><col className="w-[28%]" /><col className="w-40" /><col className="w-44" /></colgroup>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-center"><span className="sr-only">Seleccionar</span></TableHead>
+                        <TableHead className={HEAD_CLASS}>Producto</TableHead>
+                        <TableHead className={HEAD_CLASS}>Grupos</TableHead>
+                        <TableHead className={`text-right ${HEAD_CLASS}`}>En inventario</TableHead>
+                        <TableHead className={`text-right ${HEAD_CLASS}`}>Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {stockItems.map((item) => (
                         <TableRow key={item.StockItemID} data-state={selectedStockItemID === item.StockItemID ? 'selected' : undefined}>
                           <TableCell className="p-0">
-                            <label className="flex min-h-10 cursor-pointer items-center justify-center" htmlFor={`stock-item-desktop-${item.StockItemID}`}>
-                              <Checkbox
-                                id={`stock-item-desktop-${item.StockItemID}`}
-                                aria-label={`Seleccionar a ${item.NombreProducto}`}
-                                checked={selectedStockItemID === item.StockItemID}
-                                disabled={isLoading || isDeleting}
-                                onCheckedChange={() => toggleStockItem(item.StockItemID)}
-                              />
+                            <label className="flex min-h-14 cursor-pointer items-center justify-center" htmlFor={`stock-item-desktop-${item.StockItemID}`}>
+                              <Checkbox id={`stock-item-desktop-${item.StockItemID}`} aria-label={`Seleccionar a ${item.NombreProducto}`} checked={selectedStockItemID === item.StockItemID} disabled={isLoading || isDeleting} onCheckedChange={() => toggleStockItem(item.StockItemID)} />
                             </label>
                           </TableCell>
-                          <TableCell className="p-0"><label htmlFor={`stock-item-desktop-${item.StockItemID}`} className="block cursor-pointer truncate p-2" title={item.NombreProducto}>{item.NombreProducto}</label></TableCell>
-                          <TableCell className="p-0"><label htmlFor={`stock-item-desktop-${item.StockItemID}`} className="block cursor-pointer truncate p-2" title={item.NombreGrupoProducto}>{item.NombreGrupoProducto}</label></TableCell>
-                          <TableCell className="p-0"><label htmlFor={`stock-item-desktop-${item.StockItemID}`} className="block cursor-pointer truncate p-2">{item.CantidadTotalEnInventarios}</label></TableCell>
-                          <TableCell><Button nativeButton={false} render={<Link href={`/inventory/${item.StockItemID}`} />} variant="outline" size="sm">Ver detalle</Button></TableCell>
+                          <TableCell>
+                            <div className="flex min-w-0 items-center gap-3">
+                              <ProductIcon />
+                              <div className="min-w-0">
+                                <Link href={`/inventory/${item.StockItemID}`} className="block truncate font-medium hover:underline" title={item.NombreProducto}>{item.NombreProducto}</Link>
+                                <p className="text-xs text-muted-foreground tabular-nums">#{item.StockItemID}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell><GroupBadges value={item.NombreGrupoProducto} /></TableCell>
+                          <TableCell className="text-right"><StockQuantity value={item.CantidadTotalEnInventarios} /></TableCell>
+                          <TableCell><RowActions detailHref={`/inventory/${item.StockItemID}`} editHref={`/inventory/${item.StockItemID}/edit`} name={item.NombreProducto} /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -416,60 +324,33 @@ export default function InventoryPage() {
             )}
           </div>
 
-          <div className="flex flex-col items-center gap-3 border-t px-4 py-3 sm:flex-row sm:justify-between">
-            <p className="text-center text-sm text-muted-foreground sm:text-left">
-              Mostrando {stockItems.length} de {totalCount} Productos
-            </p>
-            <div className="flex flex-col items-center gap-2 sm:flex-row">
-              <div className="flex justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pageNumber === 1 || isLoading || isDeleting}
-                  onClick={() => changePage(pageNumber - 1)}
-                >
-                  <ChevronLeftIcon data-icon="inline-start" />
-                  Anterior
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={pageNumber >= totalPages || isLoading || isDeleting}
-                  onClick={() => changePage(pageNumber + 1)}
-                >
-                  Siguiente
-                  <ChevronRightIcon data-icon="inline-end" />
-                </Button>
-              </div>
-              <form className="flex items-center justify-center gap-2" onSubmit={handlePageSubmit}>
-                <Label htmlFor="inventoryPageNumber" className="sr-only">Número de página</Label>
-                <Input
-                  key={pageNumber}
-                  id="inventoryPageNumber"
-                  name="pageNumber"
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  step={1}
-                  required
-                  defaultValue={pageNumber}
-                  disabled={isLoading || isDeleting || totalPages === 0}
-                  onKeyDown={(event) => { if (event.key === '-') event.preventDefault() }}
-                  onChange={(event) => {
-                    if (event.currentTarget.value !== '' && Number(event.currentTarget.value) < 1) {
-                      event.currentTarget.value = '1'
-                    }
-                  }}
-                  className="w-16 text-center"
-                />
-                <Button type="submit" variant="outline" disabled={isLoading || isDeleting || totalPages === 0}>
-                  Ir
-                </Button>
-              </form>
-            </div>
-          </div>
-        </div>
+          <ListPagination inputId="inventoryPageNumber" noun="productos" pageNumber={pageNumber} totalPages={totalPages} totalCount={totalCount} pageSize={PAGE_SIZE} shown={stockItems.length} disabled={isLoading || isDeleting} onChange={changePage} onSubmit={handlePageSubmit} />
+        </ListCard>
       </section>
     </main>
+  )
+}
+
+const quantityFormatter = new Intl.NumberFormat('es-CR')
+
+function ProductIcon() {
+  return <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-foreground/10"><PackageIcon className="size-4" /></span>
+}
+
+/** Cantidad en inventario, destacando los productos sin existencias. */
+function StockQuantity({ value }: { value: number }) {
+  if (!value) return <Badge variant="destructive">Sin existencias</Badge>
+  return <span className="font-semibold tabular-nums">{quantityFormatter.format(value)}</span>
+}
+
+/** Muestra hasta dos grupos como etiquetas y resume el resto. */
+function GroupBadges({ value }: { value: string | null }) {
+  const names = (value ?? '').split(',').map(name => name.trim()).filter(Boolean)
+  if (names.length === 0) return <span className="text-sm text-muted-foreground italic">Sin grupo</span>
+  return (
+    <div className="flex min-w-0 flex-wrap gap-1" title={names.join(', ')}>
+      {names.slice(0, 2).map(name => <Badge key={name} variant="secondary" className="max-w-full"><span className="truncate">{name}</span></Badge>)}
+      {names.length > 2 && <Badge variant="outline">+{names.length - 2}</Badge>}
+    </div>
   )
 }

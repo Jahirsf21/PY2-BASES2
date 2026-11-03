@@ -2,18 +2,15 @@
 
 import type { SubmitEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeftIcon, ChevronDownIcon } from 'lucide-react'
 import { createCustomer, getBillToCustomers, getBuyingGroups, getCustomerCategories, updateCustomerByID } from '@/app/api/customers'
 import { getCities, getDeliveryMethods, getEmployees, getPeople } from '@/app/api/application'
 import { LookupPicker, type LookupOption } from '@/app/customers/lookup-picker'
-import { Button } from '@/components/ui/button'
+import { FormStepper, StepPanel, type FormStep } from '@/components/form-stepper'
+import { FormAlerts, FormHeader, ReviewSections, SelectField, StepActions, TextField, serverFieldErrors, useStepForm } from '@/components/form-kit'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Separator } from '@/components/ui/separator'
 import { toast } from '@/components/ui/toast'
 import { useSession } from '@/components/auth-session'
 import { checkId, validateCustomer } from '@/lib/helpers/entityValidation'
@@ -24,6 +21,24 @@ import type { Employee } from '@/lib/types/application'
 const LOOKUP_SIZE = 8
 const catalogLabels = { categories: 'categorías de clientes', groups: 'grupos de compra', methods: 'métodos de entrega', employees: 'empleados' }
 type CatalogKey = keyof typeof catalogLabels
+
+const STEPS: FormStep[] = [
+  { id: 'general', title: 'Datos generales', description: 'Identificación, clasificación, condiciones de pago y medios de contacto del cliente.' },
+  { id: 'credit', title: 'Crédito y facturación', description: 'Cliente al que se factura, descuento, límite de crédito y estados de cuenta.' },
+  { id: 'contacts', title: 'Contactos', description: 'Personas de referencia del cliente.' },
+  { id: 'addresses', title: 'Direcciones', description: 'Dirección de entrega, dirección postal y ubicación opcional en el mapa.' },
+  { id: 'review', title: 'Revisión', description: 'Compruebe la información antes de guardar.' },
+]
+
+/** Paso al que pertenece cada campo, para dirigir al usuario al primer error. */
+const FIELD_STEP: Record<string, number> = {
+  customerName: 0, customerCategoryID: 0, buyingGroupID: 0, deliveryMethodID: 0, lastEditedBy: 0, paymentDays: 0, phoneNumber: 0, faxNumber: 0, websiteURL: 0,
+  billTo: 1, billToCustomerID: 1, standardDiscountPercentage: 1, creditLimit: 1, isStatementSent: 1, isOnCreditHold: 1,
+  primaryContact: 2, primaryContactPersonID: 2, alternateContact: 2, alternateContactPersonID: 2,
+  deliveryAddressLine1: 3, deliveryAddressLine2: 3, deliveryCity: 3, deliveryCityID: 3, deliveryPostalCode: 3, postalAddressLine1: 3, postalAddressLine2: 3, latitude: 3, longitude: 3,
+}
+
+const moneyFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** Busca clientes por facturar conservando el tamaño de página del formulario. */
 async function findBillTo(query: string, page: number) {
@@ -42,18 +57,6 @@ async function findCities(query: string, page: number) {
   const result = await getCities(query, page, LOOKUP_SIZE)
   return { items: result.data.map((city) => ({ id: city.CityID, label: `${city.NombreCiudad}, ${city.Provincia}, ${city.NombrePais}` })), totalPages: result.totalPages }
 }
-
-/** Presenta un campo sin cambiar los límites y validaciones existentes. */
-function TextField({ label, name, required, ...props }: { label: string; name: string } & React.ComponentProps<typeof Input>) {
-  return (
-    <div className="grid min-w-0 gap-2">
-      <Label htmlFor={name}>{label}{required ? ' *' : ''}</Label>
-      <Input id={name} name={name} required={required} {...props} />
-    </div>
-  )
-}
-
-const dropdownClass = 'flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 text-left text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30'
 
 /** Presenta errores de lectura sin exponer detalles internos de red o JSON. */
 function catalogMessage(reason: unknown, label: string): string {
@@ -91,6 +94,29 @@ export function CustomerForm({ initial }: { initial?: CustomerEdit }) {
   const lifetime = useRef({ active: false })
   const catalogsPending = Object.values(catalogLoading).some(Boolean)
   const catalogsFailed = Object.values(catalogErrors).some(Boolean)
+  const back = initial ? `/customers/${initial.CustomerID}` : '/'
+
+  const { formRef, topRef, ...form } = useStepForm({
+    steps: STEPS,
+    editing,
+    stepOf: key => FIELD_STEP[key],
+    customErrors: (index, data) => {
+      const errors: Record<string, string> = {}
+      if (index === 0) {
+        if (customerCategoryID === null) errors.customerCategoryID = 'Seleccione una categoría.'
+        if (deliveryMethodID === null) errors.deliveryMethodID = 'Seleccione un método de entrega.'
+        if (lastEditedBy === null || !employees.some((employee) => employee.PersonID === lastEditedBy)) errors.lastEditedBy = 'Seleccione un empleado válido.'
+      }
+      if (index === 2 && !primaryContact) errors.primaryContact = 'Seleccione el contacto principal.'
+      if (index === 3) {
+        if (!deliveryCity) errors.deliveryCity = 'Seleccione la ciudad de entrega.'
+        const latitude = String(data?.get('latitude') ?? '').trim(), longitude = String(data?.get('longitude') ?? '').trim()
+        if ((latitude === '') !== (longitude === '')) errors[latitude === '' ? 'latitude' : 'longitude'] = 'Indique latitud y longitud, o deje ambas vacías.'
+      }
+      return errors
+    },
+  })
+  const { fieldErrors, clearError } = form
 
   useEffect(() => {
     const current = { active: true }
@@ -147,6 +173,7 @@ export function CustomerForm({ initial }: { initial?: CustomerEdit }) {
   /** Envía una sola mutación y descarta sus efectos si cambia pantalla o sesión. */
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!form.isReview) { form.next(); return }
     const requestRevision = revision
     const screen = lifetime.current
     if (submitLock.current || submitting || !screen.active || !isSessionCurrent(requestRevision)) return
@@ -154,12 +181,9 @@ export function CustomerForm({ initial }: { initial?: CustomerEdit }) {
       showValidationError('Espere a que las opciones del formulario estén disponibles o reintente su carga.')
       return
     }
-    if (customerCategoryID === null || deliveryMethodID === null || lastEditedBy === null || !employees.some((employee) => employee.PersonID === lastEditedBy)) {
-      showValidationError('Seleccione la categoría, el método de entrega y un empleado válido que registre el cliente.')
-      return
-    }
-    if (!primaryContact || !deliveryCity) {
-      showValidationError('Seleccione el contacto principal y la ciudad de entrega.')
+    const stepErrors = form.allErrors()
+    if (Object.keys(stepErrors).length > 0 || customerCategoryID === null || deliveryMethodID === null || lastEditedBy === null || !primaryContact || !deliveryCity) {
+      form.showErrorsAt(stepErrors)
       return
     }
 
@@ -198,7 +222,7 @@ export function CustomerForm({ initial }: { initial?: CustomerEdit }) {
 
     const { fields, errors } = validateCustomer(customer, editing)
     if (fields.length > 0) {
-      showValidationError(errors[fields[0]])
+      form.showErrorsAt(Object.fromEntries(fields.map(field => [field, errors[field]])))
       return
     }
 
@@ -232,13 +256,9 @@ export function CustomerForm({ initial }: { initial?: CustomerEdit }) {
       if (status === 403) message = 'Sin permisos para guardar el cliente.'
       else if (reason instanceof TypeError || reason instanceof SyntaxError) message = 'No fue posible confirmar el resultado del guardado. Compruebe si el cliente se guardó antes de volver a enviarlo.'
       else if (typeof status === 'number' && status >= 500 && status !== 503) message = 'No fue posible guardar el cliente. Compruebe el resultado antes de volver a enviarlo.'
-      const fields: [string, string][] = []
-      if (status === 400 && reason instanceof Error && 'errors' in reason && reason.errors !== null && typeof reason.errors === 'object') {
-        for (const [field, text] of Object.entries(reason.errors)) {
-          if (typeof text === 'string') fields.push([field, text])
-        }
-      }
-      setSubmitError({ message, fields })
+      const serverErrors = serverFieldErrors(reason)
+      if (Object.keys(serverErrors).some(key => key in FIELD_STEP)) form.showErrorsAt(serverErrors)
+      setSubmitError({ message, fields: Object.entries(serverErrors) })
       toast.add({ type: 'error', title: editing ? 'No se pudo actualizar el cliente' : 'No se pudo crear el cliente', description: message, priority: 'high', timeout: 8000 })
       setSubmitting(false)
     } finally {
@@ -246,157 +266,116 @@ export function CustomerForm({ initial }: { initial?: CustomerEdit }) {
     }
   }
 
+  const option = <T,>(list: T[], key: keyof T, label: keyof T) => list.map(item => ({ value: Number(item[key]), label: String(item[label]) }))
+  const nameOf = <T,>(list: T[], key: keyof T, label: keyof T, id: number | null) => { const found = list.find(item => item[key] === id); return found ? String(found[label]) : null }
+  const review = form.review
+  const blocked = (key: CatalogKey) => submitting || catalogLoading[key] || Boolean(catalogErrors[key])
+
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
-      <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-8 sm:py-8">
-        <Link href={initial ? `/customers/${initial.CustomerID}` : '/'} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline">
-          <ArrowLeftIcon className="size-4" aria-hidden="true" /> {editing ? 'Volver al detalle' : 'Volver a clientes'}
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{editing ? 'Editar cliente' : 'Crear cliente'}</h1>
-          <p className="text-sm text-muted-foreground">Complete los datos obligatorios marcados con *.</p>
-        </div>
-        {catalogsPending && <p role="status" className="text-sm text-muted-foreground">Cargando opciones del formulario...</p>}
-        {catalogsFailed && (
-          <div className="space-y-3 rounded-lg border border-destructive/30 bg-card p-4">
-            <ul role="alert" className="space-y-1 text-sm text-destructive">
-              {(Object.keys(catalogLabels) as CatalogKey[]).map(key => catalogErrors[key] && <li key={key}>{catalogErrors[key]}</li>)}
-            </ul>
-            <Button type="button" variant="outline" disabled={submitting || catalogsPending} onClick={() => setCatalogRefresh(value => value + 1)}>Reintentar opciones</Button>
-          </div>
-        )}
-        {submitError && (
-          <div role="alert" className="space-y-2 rounded-lg border border-destructive/30 bg-card p-4 text-sm text-destructive">
-            <p>{submitError.message}</p>
-            {submitError.fields.length > 0 && <ul>{submitError.fields.map(([field, message]) => <li key={field}>{field}: {message}</li>)}</ul>}
-          </div>
-        )}
-        <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
-          <fieldset disabled={submitting} className="space-y-6">
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Datos generales</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField label="Nombre del cliente" name="customerName" maxLength={100} defaultValue={initial?.NombreCliente} required />
-                <div className="grid gap-2">
-                  <Label htmlFor="customerCategoryID">Categoría *</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger id="customerCategoryID" type="button" disabled={submitting || catalogLoading.categories || Boolean(catalogErrors.categories)} className={dropdownClass}>
-                      <span className="min-w-0 truncate">{categories.find((category) => category.CustomerCategoryID === customerCategoryID)?.NombreCategoria ?? 'Seleccione una categoría'}</span>
-                      <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
-                      <DropdownMenuRadioGroup value={customerCategoryID === null ? '' : String(customerCategoryID)} onValueChange={(value) => setCustomerCategoryID(Number(value))}>
-                        {categories.map((category) => (
-                          <DropdownMenuRadioItem key={category.CustomerCategoryID} value={String(category.CustomerCategoryID)} closeOnClick>{category.NombreCategoria}</DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="deliveryMethodID">Método de entrega *</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger id="deliveryMethodID" type="button" disabled={submitting || catalogLoading.methods || Boolean(catalogErrors.methods)} className={dropdownClass}>
-                      <span className="min-w-0 truncate">{methods.find((method) => method.DeliveryMethodID === deliveryMethodID)?.NombreMetodoEntrega ?? 'Seleccione un método'}</span>
-                      <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
-                      <DropdownMenuRadioGroup value={deliveryMethodID === null ? '' : String(deliveryMethodID)} onValueChange={(value) => setDeliveryMethodID(Number(value))}>
-                        {methods.map((method) => (
-                          <DropdownMenuRadioItem key={method.DeliveryMethodID} value={String(method.DeliveryMethodID)} closeOnClick>{method.NombreMetodoEntrega}</DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="buyingGroupID">Grupo de compra</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger id="buyingGroupID" type="button" disabled={submitting || catalogLoading.groups || Boolean(catalogErrors.groups)} className={dropdownClass}>
-                      <span className="min-w-0 truncate">{groups.find((group) => group.BuyingGroupID === buyingGroupID)?.NombreGrupoCompra ?? (buyingGroupID === null ? 'Sin grupo' : 'Grupo seleccionado')}</span>
-                      <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="max-w-[calc(100vw-2rem)]">
-                      <DropdownMenuRadioGroup value={buyingGroupID === null ? '' : String(buyingGroupID)} onValueChange={(value) => setBuyingGroupID(value === '' ? null : Number(value))}>
-                        <DropdownMenuRadioItem value="" closeOnClick>Sin grupo</DropdownMenuRadioItem>
-                        {groups.map((group) => (
-                          <DropdownMenuRadioItem key={group.BuyingGroupID} value={String(group.BuyingGroupID)} closeOnClick>{group.NombreGrupoCompra}</DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <TextField label="Días para pagar" name="paymentDays" type="number" min={0} step={1} defaultValue={initial?.DiasGraciaPago} required />
-                <div className="grid gap-2">
-                   <Label htmlFor="lastEditedBy">{editing ? 'Empleado a cargo de la actualización *' : 'Empleado que registra *'}</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger id="lastEditedBy" type="button" disabled={submitting || catalogLoading.employees || Boolean(catalogErrors.employees)} className={dropdownClass}>
-                      <span className="min-w-0 truncate">{employees.find((employee) => employee.PersonID === lastEditedBy)?.NombreCompleto ?? 'Seleccione un empleado'}</span>
-                      <ChevronDownIcon className="size-4 shrink-0" aria-hidden="true" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="max-w-[calc(100vw-2rem)] overflow-hidden p-0">
-                      <ScrollArea className="h-48 max-h-(--available-height)">
-                        <DropdownMenuRadioGroup value={lastEditedBy === null ? '' : String(lastEditedBy)} onValueChange={(value) => setLastEditedBy(Number(value))} className="p-1">
-                          {employees.map((employee) => (
-                            <DropdownMenuRadioItem key={employee.PersonID} value={String(employee.PersonID)} closeOnClick>{employee.NombreCompleto}</DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                      </ScrollArea>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <TextField label="Descuento estándar (%)" name="standardDiscountPercentage" type="number" min={0} max={100} step="0.001" defaultValue={initial?.PorcentajeDescuentoEstandar ?? 0} />
-                <TextField label="Límite de crédito" name="creditLimit" type="number" min={0} step="0.01" defaultValue={initial?.LimiteCredito ?? ''} />
-                <TextField label="Teléfono" name="phoneNumber" maxLength={20} defaultValue={initial?.Telefono} required />
-                <TextField label="Fax" name="faxNumber" maxLength={20} defaultValue={initial?.Fax ?? ''} />
-                <TextField label="Sitio web" name="websiteURL" type="url" maxLength={256} placeholder="https://ejemplo.com" defaultValue={initial?.SitioWeb ?? ''} />
-              </div>
-              <div className="flex flex-wrap gap-6">
-                <label className="flex items-center gap-2 text-sm"><Checkbox checked={statementSent} disabled={submitting} onCheckedChange={setStatementSent} /> Enviar estados de cuenta</label>
-                <label className="flex items-center gap-2 text-sm"><Checkbox checked={creditHold} disabled={submitting} onCheckedChange={setCreditHold} /> Crédito suspendido</label>
-              </div>
-            </section>
+    <main className="flex min-w-0 flex-1 bg-muted/40">
+      <div ref={topRef} className="mx-auto w-full max-w-4xl scroll-mt-4 space-y-6 px-4 pt-6 sm:px-8 sm:pt-8">
+        <FormHeader backHref={back} backLabel={editing ? 'Volver al detalle' : 'Volver a clientes'} title={editing ? 'Editar cliente' : 'Nuevo cliente'}
+          description={initial ? <>Modificando <span className="font-medium text-foreground">{initial.NombreCliente}</span>. Puede saltar a cualquier paso.</> : 'Complete los pasos. Los campos marcados con * son obligatorios.'} />
 
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Facturación y contactos</h2>
-              <div className="grid gap-4 md:grid-cols-2">
+        <FormStepper steps={STEPS} current={form.step} invalid={form.invalidSteps} completed={index => index < form.visited} canSelect={index => index <= form.visited && !submitting} onSelect={form.goTo} />
+
+        <FormAlerts loading={catalogsPending} errors={(Object.keys(catalogLabels) as CatalogKey[]).flatMap(key => catalogErrors[key] ? [catalogErrors[key]!] : [])} onRetry={() => setCatalogRefresh(value => value + 1)} retryDisabled={submitting || catalogsPending}
+          submitError={submitError && <><p>{submitError.message}</p>{submitError.fields.length > 0 && <ul className="list-disc pl-4">{submitError.fields.map(([field, message]) => <li key={field}>{message}</li>)}</ul>}</>} />
+
+        <form ref={formRef} noValidate className="space-y-6" onSubmit={(event) => void handleSubmit(event)} onInput={form.onInput}>
+          <fieldset disabled={submitting} className="min-w-0">
+            <StepPanel step={STEPS[0]} index={0} active={form.step === 0}>
+              <FieldGroup>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <TextField label="Nombre del cliente" name="customerName" maxLength={100} defaultValue={initial?.NombreCliente} required error={fieldErrors.customerName} />
+                  <SelectField id="customerCategoryID" label="Categoría" placeholder="Seleccione una categoría" value={customerCategoryID} onChange={(value) => { setCustomerCategoryID(value); clearError('customerCategoryID') }} options={option(categories, 'CustomerCategoryID', 'NombreCategoria')} disabled={blocked('categories')} error={fieldErrors.customerCategoryID} />
+                  <SelectField id="buyingGroupID" label="Grupo de compra" placeholder="Sin grupo" required={false} noneLabel="Sin grupo" value={buyingGroupID} onChange={setBuyingGroupID} options={option(groups, 'BuyingGroupID', 'NombreGrupoCompra')} disabled={blocked('groups')} error={fieldErrors.buyingGroupID} />
+                  <SelectField id="deliveryMethodID" label="Método de entrega" placeholder="Seleccione un método" value={deliveryMethodID} onChange={(value) => { setDeliveryMethodID(value); clearError('deliveryMethodID') }} options={option(methods, 'DeliveryMethodID', 'NombreMetodoEntrega')} disabled={blocked('methods')} error={fieldErrors.deliveryMethodID} />
+                </div>
+                <Separator />
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <SelectField id="lastEditedBy" label={editing ? 'Empleado a cargo de la actualización' : 'Empleado que registra'} placeholder="Seleccione un empleado" value={lastEditedBy} onChange={(value) => { setLastEditedBy(value); clearError('lastEditedBy') }} options={option(employees, 'PersonID', 'NombreCompleto')} disabled={blocked('employees')} error={fieldErrors.lastEditedBy}
+                    hint={initial && !employees.some((employee) => employee.PersonID === initial.LastEditedBy) && !catalogErrors.employees && employees.length > 0 ? 'El último editor registrado no es empleado. Seleccione uno para guardar.' : undefined} />
+                  <TextField label="Días para pagar" name="paymentDays" type="number" inputMode="numeric" min={0} step={1} defaultValue={initial?.DiasGraciaPago} required error={fieldErrors.paymentDays} />
+                </div>
+                <Separator />
+                <div className="grid gap-5 sm:grid-cols-3">
+                  <TextField label="Teléfono" name="phoneNumber" type="tel" maxLength={20} defaultValue={initial?.Telefono} required error={fieldErrors.phoneNumber} />
+                  <TextField label="Fax" name="faxNumber" type="tel" maxLength={20} defaultValue={initial?.Fax ?? ''} error={fieldErrors.faxNumber} />
+                  <TextField label="Sitio web" name="websiteURL" type="url" maxLength={256} placeholder="https://ejemplo.com" defaultValue={initial?.SitioWeb ?? ''} error={fieldErrors.websiteURL} />
+                </div>
+              </FieldGroup>
+            </StepPanel>
+
+            <StepPanel step={STEPS[1]} index={1} active={form.step === 1}>
+              <FieldGroup>
                 <div className="space-y-2">
-                  <LookupPicker id="billTo" label="Cliente por facturar" value={billTo} onChange={setBillTo} search={findBillTo} disabled={submitting} sessionAware />
-                  <p className="text-xs text-muted-foreground">Si no selecciona otro cliente, {editing ? 'este cliente' : 'el nuevo cliente'} se factura a sí mismo.</p>
+                  <LookupPicker id="billTo" label="Cliente por facturar" placeholder={editing ? 'Se factura a sí mismo' : 'El nuevo cliente se factura a sí mismo'} value={billTo} onChange={(value) => { setBillTo(value); clearError('billTo') }} search={findBillTo} disabled={submitting} sessionAware error={fieldErrors.billTo ?? fieldErrors.billToCustomerID} />
+                  <FieldDescription>Si no selecciona otro cliente, {editing ? 'este cliente' : 'el nuevo cliente'} se factura a sí mismo.</FieldDescription>
                 </div>
-                <LookupPicker id="primaryContact" label="Contacto principal" value={primaryContact} onChange={setPrimaryContact} search={findPeople} disabled={submitting} required sessionAware />
-                <LookupPicker id="alternateContact" label="Contacto alternativo" value={alternateContact} onChange={setAlternateContact} search={findPeople} disabled={submitting} sessionAware />
-              </div>
-            </section>
+                <Separator />
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <TextField label="Descuento estándar (%)" name="standardDiscountPercentage" type="number" min={0} max={100} step="0.001" defaultValue={initial?.PorcentajeDescuentoEstandar ?? 0} error={fieldErrors.standardDiscountPercentage} />
+                  <TextField label="Límite de crédito" name="creditLimit" type="number" min={0} step="0.01" defaultValue={initial?.LimiteCredito ?? ''} description="Déjelo vacío si el cliente no tiene límite." error={fieldErrors.creditLimit} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/30 p-4 has-data-checked:border-primary/40 has-data-checked:bg-primary/5">
+                    <Checkbox checked={statementSent} disabled={submitting} onCheckedChange={setStatementSent} className="mt-0.5" />
+                    <span className="space-y-0.5"><span className="block text-sm font-medium">Enviar estados de cuenta</span><span className="block text-xs text-muted-foreground">El cliente recibe estados de cuenta periódicos.</span></span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/30 p-4 has-data-checked:border-destructive/40 has-data-checked:bg-destructive/5">
+                    <Checkbox checked={creditHold} disabled={submitting} onCheckedChange={setCreditHold} className="mt-0.5" />
+                    <span className="space-y-0.5"><span className="block text-sm font-medium">Crédito suspendido</span><span className="block text-xs text-muted-foreground">Bloquea nuevas ventas a crédito.</span></span>
+                  </label>
+                </div>
+              </FieldGroup>
+            </StepPanel>
 
-            <section className="space-y-4 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-              <h2 className="text-lg font-semibold">Direcciones</h2>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <h3 className="font-medium">Entrega</h3>
-                  <TextField label="Dirección, línea 1" name="deliveryAddressLine1" maxLength={60} defaultValue={initial?.DireccionEntrega1} required />
-                  <TextField label="Dirección, línea 2" name="deliveryAddressLine2" maxLength={60} defaultValue={initial?.DireccionEntrega2 ?? ''} />
-                  <LookupPicker id="deliveryCity" label="Ciudad de entrega" value={deliveryCity} onChange={setDeliveryCity} search={findCities} disabled={submitting} required sessionAware />
-                  <TextField label="Código postal" name="deliveryPostalCode" maxLength={10} defaultValue={initial?.CodigoPostalEntrega} required />
-                </div>
-                <div className="space-y-4">
-                  <h3 className="font-medium">Postal</h3>
-                  <TextField label="Dirección, línea 1" name="postalAddressLine1" maxLength={60} defaultValue={initial?.DireccionPostal1} required />
-                  <TextField label="Dirección, línea 2" name="postalAddressLine2" maxLength={60} defaultValue={initial?.DireccionPostal2 ?? ''} />
-                  <p className="text-sm text-muted-foreground">La ciudad y el código postal serán los mismos que en la dirección de entrega.</p>
-                </div>
+            <StepPanel step={STEPS[2]} index={2} active={form.step === 2}>
+              <div className="grid gap-5 md:grid-cols-2">
+                <LookupPicker id="primaryContact" label="Contacto principal" placeholder="Seleccione una persona" value={primaryContact} onChange={(value) => { setPrimaryContact(value); clearError('primaryContact') }} search={findPeople} disabled={submitting} required sessionAware error={fieldErrors.primaryContact ?? fieldErrors.primaryContactPersonID} />
+                <LookupPicker id="alternateContact" label="Contacto alternativo" placeholder="Sin contacto alternativo" value={alternateContact} onChange={(value) => { setAlternateContact(value); clearError('alternateContact') }} search={findPeople} disabled={submitting} sessionAware error={fieldErrors.alternateContact ?? fieldErrors.alternateContactPersonID} />
               </div>
-              <h3 className="font-medium">Ubicación de entrega (opcional)</h3>
-              <p className="text-sm text-muted-foreground">Si proporciona coordenadas, indique ambas.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField label="Latitud" name="latitude" type="number" min={-90} max={90} step="any" defaultValue={initial?.Latitud ?? ''} />
-                <TextField label="Longitud" name="longitude" type="number" min={-180} max={180} step="any" defaultValue={initial?.Longitud ?? ''} />
+            </StepPanel>
+
+            <StepPanel step={STEPS[3]} index={3} active={form.step === 3}>
+              <div className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FieldSet className="rounded-lg border bg-muted/30 p-4">
+                    <FieldLegend>Dirección de entrega</FieldLegend>
+                    <TextField label="Dirección, línea 1" name="deliveryAddressLine1" maxLength={60} defaultValue={initial?.DireccionEntrega1} required error={fieldErrors.deliveryAddressLine1} />
+                    <TextField label="Dirección, línea 2" name="deliveryAddressLine2" maxLength={60} defaultValue={initial?.DireccionEntrega2 ?? ''} error={fieldErrors.deliveryAddressLine2} />
+                    <LookupPicker id="deliveryCity" label="Ciudad de entrega" placeholder="Seleccione una ciudad" value={deliveryCity} onChange={(value) => { setDeliveryCity(value); clearError('deliveryCity') }} search={findCities} disabled={submitting} required sessionAware error={fieldErrors.deliveryCity ?? fieldErrors.deliveryCityID} />
+                    <TextField label="Código postal" name="deliveryPostalCode" maxLength={10} defaultValue={initial?.CodigoPostalEntrega} required error={fieldErrors.deliveryPostalCode} />
+                  </FieldSet>
+                  <FieldSet className="rounded-lg border bg-muted/30 p-4">
+                    <FieldLegend>Dirección postal</FieldLegend>
+                    <TextField label="Dirección, línea 1" name="postalAddressLine1" maxLength={60} defaultValue={initial?.DireccionPostal1} required error={fieldErrors.postalAddressLine1} />
+                    <TextField label="Dirección, línea 2" name="postalAddressLine2" maxLength={60} defaultValue={initial?.DireccionPostal2 ?? ''} error={fieldErrors.postalAddressLine2} />
+                    <FieldDescription>La ciudad y el código postal serán los mismos que en la dirección de entrega.</FieldDescription>
+                  </FieldSet>
+                </div>
+                <FieldSet>
+                  <FieldLegend>Ubicación de entrega</FieldLegend>
+                  <FieldDescription>Opcional. Si proporciona coordenadas, indique ambas.</FieldDescription>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <TextField label="Latitud" name="latitude" type="number" min={-90} max={90} step="any" defaultValue={initial?.Latitud ?? ''} error={fieldErrors.latitude} />
+                    <TextField label="Longitud" name="longitude" type="number" min={-180} max={180} step="any" defaultValue={initial?.Longitud ?? ''} error={fieldErrors.longitude} />
+                  </div>
+                </FieldSet>
               </div>
-            </section>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button nativeButton={false} render={<Link href={initial ? `/customers/${initial.CustomerID}` : '/'} />} variant="outline">Cancelar</Button>
-              <Button type="submit" disabled={submitting || catalogsPending || catalogsFailed}>{submitting ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear cliente'}</Button>
-            </div>
+            </StepPanel>
+
+            <StepPanel step={STEPS[4]} index={4} active={form.isReview}>
+              <ReviewSections steps={STEPS} onEdit={form.goTo} sections={[
+                { step: 0, items: [['Nombre', review.customerName], ['Categoría', nameOf(categories, 'CustomerCategoryID', 'NombreCategoria', customerCategoryID)], ['Grupo de compra', nameOf(groups, 'BuyingGroupID', 'NombreGrupoCompra', buyingGroupID) ?? 'Sin grupo'], ['Método de entrega', nameOf(methods, 'DeliveryMethodID', 'NombreMetodoEntrega', deliveryMethodID)], [editing ? 'Empleado a cargo' : 'Empleado que registra', nameOf(employees, 'PersonID', 'NombreCompleto', lastEditedBy)], ['Días para pagar', review.paymentDays], ['Teléfono', review.phoneNumber], ['Fax', review.faxNumber], ['Sitio web', review.websiteURL]] },
+                { step: 1, items: [['Cliente por facturar', billTo?.label ?? (editing ? 'Se factura a sí mismo' : 'El nuevo cliente')], ['Descuento estándar', review.standardDiscountPercentage ? `${review.standardDiscountPercentage} %` : '0 %'], ['Límite de crédito', review.creditLimit ? `$${moneyFormatter.format(Number(review.creditLimit))}` : 'Sin límite'], ['Estados de cuenta', statementSent ? 'Se envían' : 'No se envían'], ['Crédito', creditHold ? 'Suspendido' : 'Activo']] },
+                { step: 2, items: [['Contacto principal', primaryContact?.label], ['Contacto alternativo', alternateContact?.label ?? 'Sin contacto alternativo']] },
+                { step: 3, items: [['Entrega', [review.deliveryAddressLine1, review.deliveryAddressLine2].filter(Boolean).join(', ')], ['Ciudad', deliveryCity?.label], ['Código postal', review.deliveryPostalCode], ['Postal', [review.postalAddressLine1, review.postalAddressLine2].filter(Boolean).join(', ')], ['Coordenadas', review.latitude && review.longitude ? `${review.latitude}, ${review.longitude}` : null]] },
+              ]} />
+            </StepPanel>
+
+            <StepActions step={form.step} total={STEPS.length} backHref={back} onBack={() => form.goTo(form.step - 1)} submitting={submitting} saveDisabled={catalogsPending || catalogsFailed} saveLabel={editing ? 'Guardar cambios' : 'Crear cliente'} />
           </fieldset>
         </form>
       </div>

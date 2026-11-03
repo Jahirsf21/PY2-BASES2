@@ -3,8 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react'
+import { CalendarClockIcon, GlobeIcon, MapPinIcon, PencilIcon, PhoneIcon, ReceiptTextIcon, TagIcon, TruckIcon, UsersIcon, UsersRoundIcon } from 'lucide-react'
+import { AddressBlock, BackLink, ContactBlock, DetailError, DetailHero, DetailSkeleton, MapCard, SectionCard, osmEmbedUrl } from '@/components/detail-kit'
+import { initials } from '@/components/list-kit'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import { getCustomerAddressByID, getCustomerByID, getCustomerContactsByID } from '@/app/api/customers'
 import { useSession } from '@/components/auth-session'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
@@ -98,120 +102,58 @@ function CustomerDetailContent({ customerID }: { customerID: string }) {
     return () => { cancelled = true }
   }, [customerID, refreshKey, revision, isSessionCurrent, invalidateSession])
 
-  const mapUrl = address?.Latitud != null && address.Longitud != null
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${address.Longitud - 0.02}%2C${address.Latitud - 0.01}%2C${address.Longitud + 0.02}%2C${address.Latitud + 0.01}&layer=mapnik&marker=${address.Latitud}%2C${address.Longitud}`
-    : null
+  const mapUrl = osmEmbedUrl(address?.Latitud, address?.Longitud)
+  const website = customer?.SitioWeb && /^https?:\/\//i.test(customer.SitioWeb) ? customer.SitioWeb : null
 
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
+    <main className="flex min-w-0 flex-1 bg-muted/40">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-8 sm:py-8">
-        <Link href="/" className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline">
-          <ArrowLeftIcon className="size-4" aria-hidden="true" />
-          Volver a clientes
-        </Link>
+        <BackLink href="/">Volver a clientes</BackLink>
 
-        {isLoading && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando cliente...</p>}
-        {!isLoading && error && (
-          <div className="space-y-3 rounded-lg border bg-card p-6">
-            <p role="alert" className="text-sm text-destructive">{error}</p>
-            {parseEntityId(customerID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}
-          </div>
-        )}
+        {isLoading && <DetailSkeleton label="Cargando cliente..." />}
+        {!isLoading && error && <DetailError message={error} onRetry={parseEntityId(customerID) !== null ? () => setRefreshKey(key => key + 1) : undefined} />}
 
         {!isLoading && !error && customer && (
           <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Cliente #{customer.CustomerID}</p>
-                <h1 className="break-words text-2xl font-semibold tracking-tight">{customer.NombreCliente}</h1>
+            <DetailHero
+              badge={initials(customer.NombreCliente)}
+              eyebrow={`Cliente #${customer.CustomerID}`}
+              title={customer.NombreCliente}
+              tags={<>
+                <Badge variant="secondary"><TagIcon aria-hidden="true" />{customer.NombreCategoriaCliente}</Badge>
+                <Badge variant="outline"><TruckIcon aria-hidden="true" />{customer.NombreMetodoEntrega}</Badge>
+                {customer.NombreGrupoCompra && <Badge variant="outline"><UsersRoundIcon aria-hidden="true" />{customer.NombreGrupoCompra}</Badge>}
+              </>}
+              action={<Button nativeButton={false} render={<Link href={`/customers/${customer.CustomerID}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar cliente</Button>}
+              stats={[
+                { icon: CalendarClockIcon, label: 'Días para pagar', value: String(customer.DiasGraciaPago) },
+                { icon: ReceiptTextIcon, label: 'Se factura a', value: customer.NombreClientePorFacturar, title: customer.NombreClientePorFacturar },
+                { icon: PhoneIcon, label: 'Teléfono principal', value: contacts?.TelefonoPrincipal },
+                { icon: GlobeIcon, label: 'Sitio web', value: website, href: website ?? undefined, title: website ?? undefined },
+              ]}
+            />
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="min-w-0 space-y-6 lg:col-span-2">
+                <SectionCard icon={MapPinIcon} title="Direcciones" description="Entrega y correspondencia del cliente.">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <AddressBlock title="Dirección de entrega" lines={[address?.DireccionEntrega1, address?.DireccionEntrega2, [address?.CiudadEntrega, address?.ProvinciaEntrega, address?.PaisEntrega].filter(Boolean).join(', ')]} postalCode={address?.CodigoPostalEntrega} />
+                    <AddressBlock title="Dirección postal" lines={[address?.DireccionPostal1, address?.DireccionPostal2, [address?.CiudadPostal, address?.ProvinciaPostal, address?.PaisPostal].filter(Boolean).join(', ')]} postalCode={address?.CodigoPostalPostal} />
+                  </div>
+                </SectionCard>
+                <MapCard url={mapUrl} title={`Ubicación de entrega de ${customer.NombreCliente}`} emptyMessage="Este cliente no tiene coordenadas disponibles." />
               </div>
-              <Button nativeButton={false} render={<Link href={`/customers/${customer.CustomerID}/edit`} />} variant="outline">Editar cliente</Button>
+
+              <div className="min-w-0 space-y-6">
+                <SectionCard icon={UsersIcon} title="Contactos">
+                  <div className="space-y-4">
+                    <ContactBlock role="Principal" name={contacts?.NombreContactoPrincipal} phone={contacts?.TelefonoPrincipal} fax={contacts?.FaxPrincipal} email={contacts?.CorreoPrincipal} />
+                    <Separator />
+                    <ContactBlock role="Alternativo" name={contacts?.NombreContactoAlternativo} phone={contacts?.TelefonoAlternativo} fax={contacts?.FaxAlternativo} email={contacts?.CorreoAlternativo} />
+                  </div>
+                </SectionCard>
+              </div>
             </div>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="general-title">
-              <h2 id="general-title" className="mb-4 text-lg font-semibold">Datos generales</h2>
-              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div><dt className="text-sm text-muted-foreground">Categoría</dt><dd className="break-words font-medium">{customer.NombreCategoriaCliente}</dd></div>
-                <div><dt className="text-sm text-muted-foreground">Grupo de compra</dt><dd className="break-words font-medium">{customer.NombreGrupoCompra ?? 'No asignado'}</dd></div>
-                <div>
-                  <dt className="text-sm text-muted-foreground">Cliente por facturar</dt>
-                  <dd className="break-words font-medium">{customer.NombreClientePorFacturar}</dd>
-                </div>
-                <div><dt className="text-sm text-muted-foreground">Método de entrega</dt><dd className="break-words font-medium">{customer.NombreMetodoEntrega}</dd></div>
-                <div><dt className="text-sm text-muted-foreground">Días de gracia para pagar</dt><dd className="font-medium">{customer.DiasGraciaPago}</dd></div>
-                <div>
-                  <dt className="text-sm text-muted-foreground">Sitio web</dt>
-                  <dd className="break-all font-medium">
-                    {customer.SitioWeb && /^https?:\/\//i.test(customer.SitioWeb) ? (
-                      <a href={customer.SitioWeb} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-foreground underline underline-offset-2">
-                        {customer.SitioWeb} <ExternalLinkIcon className="size-3 shrink-0" aria-hidden="true" />
-                      </a>
-                    ) : 'No disponible'}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            <section aria-labelledby="contacts-title">
-              <h2 id="contacts-title" className="mb-3 text-lg font-semibold">Contactos</h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-                  <h3 className="mb-3 font-medium">Contacto principal</h3>
-                  <dl className="space-y-3 text-sm">
-                    <div><dt className="text-muted-foreground">Nombre</dt><dd className="break-words">{contacts?.NombreContactoPrincipal ?? 'No disponible'}</dd></div>
-                    <div><dt className="text-muted-foreground">Teléfono</dt><dd>{contacts?.TelefonoPrincipal ?? 'No disponible'}</dd></div>
-                    <div><dt className="text-muted-foreground">Fax</dt><dd>{contacts?.FaxPrincipal ?? 'No disponible'}</dd></div>
-                    <div><dt className="text-muted-foreground">Correo</dt><dd className="break-all">{contacts?.CorreoPrincipal ?? 'No disponible'}</dd></div>
-                  </dl>
-                </div>
-                <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-                  <h3 className="mb-3 font-medium">Contacto alternativo</h3>
-                  <dl className="space-y-3 text-sm">
-                    <div><dt className="text-muted-foreground">Nombre</dt><dd className="break-words">{contacts?.NombreContactoAlternativo ?? 'No disponible'}</dd></div>
-                    <div><dt className="text-muted-foreground">Teléfono</dt><dd>{contacts?.TelefonoAlternativo ?? 'No disponible'}</dd></div>
-                    <div><dt className="text-muted-foreground">Fax</dt><dd>{contacts?.FaxAlternativo ?? 'No disponible'}</dd></div>
-                    <div><dt className="text-muted-foreground">Correo</dt><dd className="break-all">{contacts?.CorreoAlternativo ?? 'No disponible'}</dd></div>
-                  </dl>
-                </div>
-              </div>
-            </section>
-
-            <section aria-labelledby="addresses-title">
-              <h2 id="addresses-title" className="mb-3 text-lg font-semibold">Direcciones</h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-                  <h3 className="mb-3 font-medium">Dirección de entrega</h3>
-                  <address className="space-y-1 break-words text-sm not-italic">
-                    <p>{address?.DireccionEntrega1 ?? 'No disponible'}</p>
-                    {address?.DireccionEntrega2 && <p>{address.DireccionEntrega2}</p>}
-                    <p>{[address?.CiudadEntrega, address?.ProvinciaEntrega, address?.PaisEntrega].join(', ')}</p>
-                    <p>Código postal: {address?.CodigoPostalEntrega ?? 'No disponible'}</p>
-                  </address>
-                </div>
-                <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm sm:p-6">
-                  <h3 className="mb-3 font-medium">Dirección postal</h3>
-                  <address className="space-y-1 break-words text-sm not-italic">
-                    <p>{address?.DireccionPostal1 ?? 'No disponible'}</p>
-                    {address?.DireccionPostal2 && <p>{address.DireccionPostal2}</p>}
-                    <p>{[address?.CiudadPostal, address?.ProvinciaPostal, address?.PaisPostal].join(', ')}</p>
-                    <p>Código postal: {address?.CodigoPostalPostal ?? 'No disponible'}</p>
-                  </address>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="location-title">
-              <h2 id="location-title" className="mb-3 text-lg font-semibold">Ubicación de entrega</h2>
-              {mapUrl ? (
-                <iframe
-                  title={`Ubicación de entrega de ${customer.NombreCliente}`}
-                  src={mapUrl}
-                  loading="lazy"
-                  className="h-72 w-full rounded-lg border sm:h-96"
-                  referrerPolicy="no-referrer"
-                />
-              ) : <p className="text-sm text-muted-foreground">Este cliente no tiene coordenadas disponibles.</p>}
-            </section>
           </>
         )}
       </div>

@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChartNoAxesCombinedIcon, LogOutIcon, PackageIcon, ShoppingCartIcon, TruckIcon, UsersRoundIcon } from 'lucide-react'
+import { ChartNoAxesCombinedIcon, ChevronDownIcon, GlobeIcon, LogOutIcon, MapPinIcon, PackageIcon, ShieldIcon, ShoppingCartIcon, TruckIcon, UsersRoundIcon } from 'lucide-react'
 import { NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList } from '@/components/ui/navigation-menu'
-import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useSession } from '@/components/auth-session'
 import { branches, requiredPageRole } from '@/lib/helpers/session'
 
@@ -47,13 +47,16 @@ export function AppNavigation() {
     logout()
   }
 
+  const initials = session.userName.replace(/[^\p{L}\p{N}\s_.-]/gu, '').split(/[\s_.-]+/).filter(Boolean).slice(0, 2).map(word => word[0]?.toUpperCase()).join('') || '?'
+
   return (
     <>
-      <header className="sticky top-0 z-40 border-b bg-card px-4 sm:px-8">
-        <div className="mx-auto flex min-h-14 max-w-7xl flex-wrap items-center justify-between gap-3 py-3">
-          <span className="text-sm font-semibold">
-            World Wide Importers
-          </span>
+      <header className="sticky top-0 z-40 border-b bg-card/95 px-4 backdrop-blur supports-backdrop-filter:bg-card/80 sm:px-8">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3">
+          <Link href={visibleLinks[0]?.href ?? '/'} className="flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label="World Wide Importers, inicio">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-foreground text-background" aria-hidden="true"><GlobeIcon className="size-4" /></span>
+            <span className="hidden text-sm font-semibold sm:inline">World Wide Importers</span>
+          </Link>
           <NavigationMenu aria-label="Navegación principal" className="hidden max-w-none lg:flex">
             <NavigationMenuList>
               {visibleLinks.map(({ href, label, icon: Icon }) => (
@@ -70,13 +73,30 @@ export function AppNavigation() {
               ))}
             </NavigationMenuList>
           </NavigationMenu>
-          <div className="flex min-w-0 max-w-full items-center gap-3 lg:ml-auto">
-            <div className="min-w-0 text-right text-xs" aria-label="Sesión actual">
-              <p className="truncate font-medium" title={session.userName}>{session.userName}</p>
-              <p className="truncate text-muted-foreground" title={`${session.rol} · ${branch}`}>{session.rol} · {branch}</p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={closeSession}><LogOutIcon data-icon="inline-start" />Cerrar sesión</Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Sesión de ${session.userName} en ${branch}. Abrir menú de sesión`}
+              className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-2 pl-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 data-popup-open:bg-muted"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold ring-1 ring-foreground/10" aria-hidden="true">{initials}</span>
+              <span className="min-w-0 leading-tight">
+                <span className="block max-w-36 truncate text-sm font-medium">{session.userName}</span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground"><MapPinIcon className="size-3 shrink-0" aria-hidden="true" /><span className="truncate">{branch}</span></span>
+              </span>
+              <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="space-y-0.5 py-2">
+                  <span className="block truncate text-sm font-medium text-foreground">{session.userName}</span>
+                  <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground"><ShieldIcon className="size-3" aria-hidden="true" />{session.rol}</span>
+                  <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground"><MapPinIcon className="size-3" aria-hidden="true" />Sucursal {branch}</span>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={closeSession}><LogOutIcon />Cerrar sesión</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

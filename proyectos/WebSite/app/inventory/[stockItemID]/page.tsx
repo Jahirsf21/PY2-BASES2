@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeftIcon } from 'lucide-react'
+import { BadgeDollarSignIcon, BoxesIcon, DollarSignIcon, InfoIcon, PackageIcon, PackageOpenIcon, PaletteIcon, PencilIcon, PercentIcon, TagIcon, WarehouseIcon } from 'lucide-react'
+import { BackLink, DetailError, DetailHero, DetailItem, DetailSkeleton, SectionCard } from '@/components/detail-kit'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/components/auth-session'
 import { getStockItemByID, getStockItemGroupsByID } from '@/app/api/stockItems'
@@ -13,10 +14,6 @@ import type { StockGroup, StockItemDetail } from '@/lib/types/stockItems'
 
 const numberFormatter = new Intl.NumberFormat('es-CR', { maximumFractionDigits: 3 })
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-function DetailField({ label, value }: { label: string; value: ReactNode }) {
-  return <div><dt className="text-sm text-muted-foreground">{label}</dt><dd className="break-words font-medium">{value ?? 'No disponible'}</dd></div>
-}
 
 export default function StockItemDetailPage() {
   const { stockItemID } = useParams<{ stockItemID: string }>()
@@ -62,58 +59,66 @@ function StockItemDetailContent({ stockItemID }: { stockItemID: string }) {
   }, [stockItemID, refreshKey, revision, isSessionCurrent, invalidateSession])
 
   return (
-    <main className="flex min-w-0 flex-1 bg-muted/30">
+    <main className="flex min-w-0 flex-1 bg-muted/40">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-8 sm:py-8">
-        <Link href="/inventory" className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline">
-          <ArrowLeftIcon className="size-4" aria-hidden="true" />
-          Volver al inventario
-        </Link>
+        <BackLink href="/inventory">Volver al inventario</BackLink>
 
-        {!error && !item && <p className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">Cargando producto...</p>}
-        {error && <div className="space-y-3 rounded-lg border bg-card p-6"><p role="alert" className="text-sm text-destructive">{error}</p>{parseEntityId(stockItemID) !== null && <Button type="button" variant="outline" onClick={() => setRefreshKey(key => key + 1)}>Reintentar detalle</Button>}</div>}
+        {!error && !item && <DetailSkeleton label="Cargando producto..." />}
+        {error && <DetailError message={error} onRetry={parseEntityId(stockItemID) !== null ? () => setRefreshKey(key => key + 1) : undefined} />}
 
         {item && !error && (
           <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Producto #{item.StockItemID}</p>
-                <h1 className="break-words text-2xl font-semibold tracking-tight">{item.NombreProducto}</h1>
+            <DetailHero
+              badge={<PackageIcon className="size-6" />}
+              eyebrow={`Producto #${item.StockItemID}`}
+              title={item.NombreProducto}
+              tags={<>
+                {groups.map((group) => <Badge key={group.StockGroupID} variant="secondary"><TagIcon aria-hidden="true" />{group.NombreGrupoProducto}</Badge>)}
+                {item.Color && <Badge variant="outline"><PaletteIcon aria-hidden="true" />{item.Color}</Badge>}
+                {!item.CantidadDisponible && <Badge variant="destructive">Sin existencias</Badge>}
+              </>}
+              action={<Button nativeButton={false} render={<Link href={`/inventory/${item.StockItemID}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar producto</Button>}
+              stats={[
+                { icon: DollarSignIcon, label: 'Precio unitario', value: item.PrecioUnitario == null ? null : `$${amountFormatter.format(item.PrecioUnitario)}` },
+                { icon: BadgeDollarSignIcon, label: 'Precio de venta', value: item.PrecioVenta == null ? null : `$${amountFormatter.format(item.PrecioVenta)}` },
+                { icon: PercentIcon, label: 'Impuesto', value: item.Impuesto == null ? null : `${numberFormatter.format(item.Impuesto)} %` },
+                { icon: BoxesIcon, label: 'Disponible', value: item.CantidadDisponible == null ? null : numberFormatter.format(item.CantidadDisponible) },
+              ]}
+            />
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="min-w-0 space-y-6 lg:col-span-2">
+                <SectionCard icon={InfoIcon} title="Datos generales" description="Proveedor e identificación del producto.">
+                  <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <DetailItem label="Proveedor" value={item.NombreProveedor} />
+                    <DetailItem label="Marca" value={item.Marca} />
+                    <DetailItem label="Talla" value={item.Talla} />
+                    <DetailItem label="Color" value={item.Color} />
+                    <div className="sm:col-span-2"><DetailItem label="Palabras clave" value={item.PalabrasClave} /></div>
+                  </dl>
+                </SectionCard>
+                <SectionCard icon={PackageOpenIcon} title="Empaque" description="Cómo se agrupa y almacena el producto.">
+                  <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <DetailItem label="Empaque unitario" value={item.UnidadEmpaquetamiento} />
+                    <DetailItem label="Empaque exterior" value={item.Empaquetamiento} />
+                    <DetailItem label="Unidades por empaque" value={item.CantidadEmpaquetamiento} />
+                    <DetailItem label="Peso por unidad" value={item.Peso == null ? null : numberFormatter.format(item.Peso)} />
+                  </dl>
+                </SectionCard>
               </div>
-              <Button nativeButton={false} render={<Link href={`/inventory/${item.StockItemID}/edit`} />} variant="outline">Editar producto</Button>
+
+              <div className="min-w-0 space-y-6">
+                <SectionCard icon={WarehouseIcon} title="Inventario">
+                  <dl className="space-y-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                      <dt className="text-xs text-muted-foreground">Cantidad disponible</dt>
+                      <dd className="mt-1 text-3xl font-semibold tabular-nums">{item.CantidadDisponible == null ? <span className="text-base font-normal text-muted-foreground italic">No disponible</span> : numberFormatter.format(item.CantidadDisponible)}</dd>
+                    </div>
+                    <DetailItem label="Ubicación en bodega" value={item.Ubicacion} mono />
+                  </dl>
+                </SectionCard>
+              </div>
             </div>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="general-title">
-              <h2 id="general-title" className="mb-4 text-lg font-semibold">Datos generales</h2>
-              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <DetailField label="Proveedor" value={item.NombreProveedor} />
-                 <DetailField label="Grupos de productos" value={groups.length ? groups.map((group) => group.NombreGrupoProducto).join(', ') : null} />
-                <DetailField label="Color" value={item.Color} />
-                <DetailField label="Marca" value={item.Marca} />
-                <DetailField label="Talla" value={item.Talla} />
-                <DetailField label="Empaque unitario" value={item.UnidadEmpaquetamiento} />
-                <DetailField label="Empaque exterior" value={item.Empaquetamiento} />
-                <DetailField label="Unidades por empaque" value={item.CantidadEmpaquetamiento} />
-                <DetailField label="Palabras clave" value={item.PalabrasClave} />
-              </dl>
-            </section>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="prices-title">
-              <h2 id="prices-title" className="mb-4 text-lg font-semibold">Precios e impuestos</h2>
-              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <DetailField label="Precio unitario" value={item.PrecioUnitario == null ? null : `$${amountFormatter.format(item.PrecioUnitario)}`} />
-                <DetailField label="Precio de venta recomendado" value={item.PrecioVenta == null ? null : `$${amountFormatter.format(item.PrecioVenta)}`} />
-                <DetailField label="Impuesto aplicado" value={item.Impuesto == null ? null : `${numberFormatter.format(item.Impuesto)} %`} />
-                <DetailField label="Peso por unidad" value={item.Peso == null ? null : numberFormatter.format(item.Peso)} />
-              </dl>
-            </section>
-
-            <section className="rounded-lg border bg-card p-4 shadow-sm sm:p-6" aria-labelledby="stock-title">
-              <h2 id="stock-title" className="mb-4 text-lg font-semibold">Inventario</h2>
-              <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <DetailField label="Cantidad disponible" value={item.CantidadDisponible} />
-                <DetailField label="Ubicación en bodega" value={item.Ubicacion} />
-              </dl>
-            </section>
           </>
         )}
       </div>
