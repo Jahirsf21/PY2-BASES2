@@ -1,5 +1,6 @@
 import { Router } from 'express'
-import { listCustomers, listBillToCustomers, listCustomerCategories, listBuyingGroups, getCustomerById, getCustomerEditById, getCustomerContactsById, getCustomerAddressById, addCustomer, removeCustomer, editCustomer } from '../controllers/customersController.js'
+// import { listCustomers, listBillToCustomers, listCustomerCategories, listBuyingGroups, getCustomerById, getCustomerEditById, getCustomerContactsById, getCustomerAddressById, addCustomer, removeCustomer, editCustomer } from '../controllers/customersController.js'
+import { listCustomers, listBillToCustomers, listCustomerCategories, getCustomerById, getCustomerContactsById, getCustomerAddressById } from '../controllers/customersController.js'
 import { requireRole } from '../middleware/auth.js'
 
 // Rutas de Clientes.
@@ -12,12 +13,12 @@ const router = Router()
  */
 router.get('/customers', requireRole('Administrador'), listCustomers)
 
-/**
- * POST /customers
- * Crea un cliente y devuelve su identificador.
- * Body: datos del cliente requeridos por Sales.InsertCustomer.
- */
-router.post('/customers', requireRole('Administrador'), addCustomer)
+// /**
+//  * POST /customers
+//  * Crea un cliente y devuelve su identificador.
+//  * Body: datos del cliente requeridos por Sales.InsertCustomer.
+//  */
+// router.post('/customers', requireRole('Administrador'), addCustomer)
 
 /**
  * GET /customers/bill-to
@@ -32,11 +33,11 @@ router.get('/customers/bill-to', requireRole('Administrador'), listBillToCustome
  */
 router.get('/customers/categories', requireRole('Administrador'), listCustomerCategories)
 
-/**
- * GET /customers/buying-groups
- * Devuelve todas las agrupaciones de compra para el combo del formulario.
- */
-router.get('/customers/buying-groups', requireRole('Administrador'), listBuyingGroups)
+// /**
+//  * GET /customers/buying-groups
+//  * Devuelve todas las agrupaciones de compra para el combo del formulario.
+//  */
+// router.get('/customers/buying-groups', requireRole('Administrador'), listBuyingGroups)
 
 /**
  * GET /customers/:customerID
@@ -45,24 +46,24 @@ router.get('/customers/buying-groups', requireRole('Administrador'), listBuyingG
  */
 router.get('/customers/:customerID', requireRole('Administrador'), getCustomerById)
 
-/**
- * GET /customers/:customerID/edit
- * Obtiene los datos editables y referencias del cliente.
- */
-router.get('/customers/:customerID/edit', requireRole('Administrador'), getCustomerEditById)
-/**
- * PUT /customers/:customerID
- * Actualiza todos los datos editables de un cliente.
- * Path param: customerID. Body: campos requeridos por Sales.UpdateCustomer.
- */
-router.put('/customers/:customerID', requireRole('Administrador'), editCustomer)
-
-/**
- * DELETE /customers/:customerID
- * Elimina un cliente si no tiene registros asociados.
- * Path param: customerID
- */
-router.delete('/customers/:customerID', requireRole('Administrador'), removeCustomer)
+// /**
+//  * GET /customers/:customerID/edit
+//  * Obtiene los datos editables y referencias del cliente.
+//  */
+// router.get('/customers/:customerID/edit', requireRole('Administrador'), getCustomerEditById)
+// /**
+//  * PUT /customers/:customerID
+//  * Actualiza todos los datos editables de un cliente.
+//  * Path param: customerID. Body: campos requeridos por Sales.UpdateCustomer.
+//  */
+// router.put('/customers/:customerID', requireRole('Administrador'), editCustomer)
+//
+// /**
+//  * DELETE /customers/:customerID
+//  * Elimina un cliente si no tiene registros asociados.
+//  * Path param: customerID
+//  */
+// router.delete('/customers/:customerID', requireRole('Administrador'), removeCustomer)
 
 /**
  * GET /customers/:customerID/contacts

@@ -1,6 +1,7 @@
 import { paginatedResponse } from '../helpers/paginatedResponse.js'
-import { validateSupplier } from '../helpers/entityValidation.js'
-import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupplierDetail, getSupplierForEdit, getSuppliers, insertSupplier, updateSupplier, deleteSupplier } from '../services/suppliers.js'
+// import { validateSupplier } from '../helpers/entityValidation.js'
+// import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupplierDetail, getSupplierForEdit, getSuppliers, insertSupplier, updateSupplier, deleteSupplier } from '../services/suppliers.js'
+import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupplierDetail, getSuppliers } from '../services/suppliers.js'
 
 /**
  * Obtiene una página de proveedores.
@@ -76,25 +77,25 @@ export async function getSupplierById(req, res, next) {
     }
 }
 
-/**
- * Obtiene los datos editables de un proveedor.
- *
- * @param {import('express').Request} req Petición con supplierID en la ruta.
- * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Datos del formulario o 404.
- */
-export async function getSupplierEditById(req, res, next) {
-    try {
-        const supplierID = parseInt(req.params.supplierID, 10)
-        const suppliers = await getSupplierForEdit(supplierID, req.user.userID, req.user.node)
-        if (suppliers.length === 0) {
-            return res.status(404).json({message: 'Proveedor no encontrado'})
-        }
-        return res.json(suppliers[0])
-    } catch (error) {
-        return next(error)
-    }
-}
+// /**
+//  * Obtiene los datos editables de un proveedor.
+//  *
+//  * @param {import('express').Request} req Petición con supplierID en la ruta.
+//  * @param {import('express').Response} res Respuesta HTTP.
+//  * @returns {Promise<import('express').Response>} Datos del formulario o 404.
+//  */
+// export async function getSupplierEditById(req, res, next) {
+//     try {
+//         const supplierID = parseInt(req.params.supplierID, 10)
+//         const suppliers = await getSupplierForEdit(supplierID, req.user.userID, req.user.node)
+//         if (suppliers.length === 0) {
+//             return res.status(404).json({message: 'Proveedor no encontrado'})
+//         }
+//         return res.json(suppliers[0])
+//     } catch (error) {
+//         return next(error)
+//     }
+// }
 
 /**
  * Obtiene los contactos (principal y alternativo) de un proveedor por su identificador.
@@ -138,86 +139,86 @@ export async function getSupplierAddressById(req, res, next) {
     }
 }
 
-/**
- * Elimina un proveedor por su identificador.
- * Devuelve 404 si no existe y 409 si tiene registros asociados.
- *
- * @param {import('express').Request} req Petición HTTP con supplierID en req.params.
- * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta sin contenido al eliminarlo.
- */
-export async function removeSupplier(req, res, next) {
-    const supplierID = Number(req.params.supplierID)
-    try {
-        await deleteSupplier(supplierID, req.user.userID, req.user.node)
-        return res.status(204).send()
-    } catch (error) {
-        const sqlErrorCode = Number(error.number)
-        if (sqlErrorCode === 52001) {
-            return res.status(404).json({message: 'El proveedor indicado no existe.'})
-        }
-        if (sqlErrorCode === 52002) {
-            return res.status(409).json({message: 'No se puede eliminar el proveedor porque tiene productos, órdenes de compra u otros registros asociados.'})
-        }
-        return next(error)
-    }
-}
-
-/**
- * Crea un proveedor con los datos de req.body.
- *
- * @param {import('express').Request} req Petición HTTP con los datos del proveedor.
- * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Identificador del proveedor creado.
- */
-export async function addSupplier(req, res, next) {
-    const supplier = req.body
-    if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) {
-        return res.status(400).json({message: 'El cuerpo de la solicitud debe contener los datos del proveedor'})
-    }
-    const {fields, errors} = validateSupplier(supplier)
-    if (fields.length > 0) {
-        return res.status(400).json({message: `Datos inválidos del proveedor: ${errors[fields[0]]}`, fields, errors})
-    }
-    try {
-        const supplierID = await insertSupplier(supplier, req.user.userID, req.user.node)
-        return res.status(201).json({supplierID})
-    } catch (error) {
-        if (Number(error.number) === 52003) {
-            return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
-        }
-        return next(error)
-    }
-}
-
-/**
- * Actualiza completamente los datos editables de un proveedor.
- *
- * @param {import('express').Request} req Petición con supplierID en la ruta y datos en req.body.
- * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Confirmación de la actualización.
- */
-export async function editSupplier(req, res, next) {
-    const supplierID = Number(req.params.supplierID)
-    const supplier = req.body
-    if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) {
-        return res.status(400).json({message: 'El cuerpo de la solicitud debe contener los datos del proveedor'})
-    }
-    const {fields, errors} = validateSupplier(supplier)
-    if (fields.length > 0) {
-        return res.status(400).json({message: `Datos inválidos del proveedor: ${errors[fields[0]]}`, fields, errors})
-    }
-    try {
-        await updateSupplier(supplierID, supplier, req.user.userID, req.user.node)
-        return res.status(200).json({supplierID})
-    } catch (error) {
-        const sqlErrorCode = Number(error.number)
-        if (sqlErrorCode === 52000) {
-            return res.status(404).json({message: 'El proveedor indicado no existe.'})
-        }
-        if (sqlErrorCode === 52003) {
-            return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
-        }
-        return next(error)
-    }
-}
+// /**
+//  * Elimina un proveedor por su identificador.
+//  * Devuelve 404 si no existe y 409 si tiene registros asociados.
+//  *
+//  * @param {import('express').Request} req Petición HTTP con supplierID en req.params.
+//  * @param {import('express').Response} res Respuesta HTTP.
+//  * @returns {Promise<import('express').Response>} Respuesta sin contenido al eliminarlo.
+//  */
+// export async function removeSupplier(req, res, next) {
+//     const supplierID = Number(req.params.supplierID)
+//     try {
+//         await deleteSupplier(supplierID, req.user.userID, req.user.node)
+//         return res.status(204).send()
+//     } catch (error) {
+//         const sqlErrorCode = Number(error.number)
+//         if (sqlErrorCode === 52001) {
+//             return res.status(404).json({message: 'El proveedor indicado no existe.'})
+//         }
+//         if (sqlErrorCode === 52002) {
+//             return res.status(409).json({message: 'No se puede eliminar el proveedor porque tiene productos, órdenes de compra u otros registros asociados.'})
+//         }
+//         return next(error)
+//     }
+// }
+//
+// /**
+//  * Crea un proveedor con los datos de req.body.
+//  *
+//  * @param {import('express').Request} req Petición HTTP con los datos del proveedor.
+//  * @param {import('express').Response} res Respuesta HTTP.
+//  * @returns {Promise<import('express').Response>} Identificador del proveedor creado.
+//  */
+// export async function addSupplier(req, res, next) {
+//     const supplier = req.body
+//     if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) {
+//         return res.status(400).json({message: 'El cuerpo de la solicitud debe contener los datos del proveedor'})
+//     }
+//     const {fields, errors} = validateSupplier(supplier)
+//     if (fields.length > 0) {
+//         return res.status(400).json({message: `Datos inválidos del proveedor: ${errors[fields[0]]}`, fields, errors})
+//     }
+//     try {
+//         const supplierID = await insertSupplier(supplier, req.user.userID, req.user.node)
+//         return res.status(201).json({supplierID})
+//     } catch (error) {
+//         if (Number(error.number) === 52003) {
+//             return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
+//         }
+//         return next(error)
+//     }
+// }
+//
+// /**
+//  * Actualiza completamente los datos editables de un proveedor.
+//  *
+//  * @param {import('express').Request} req Petición con supplierID en la ruta y datos en req.body.
+//  * @param {import('express').Response} res Respuesta HTTP.
+//  * @returns {Promise<import('express').Response>} Confirmación de la actualización.
+//  */
+// export async function editSupplier(req, res, next) {
+//     const supplierID = Number(req.params.supplierID)
+//     const supplier = req.body
+//     if (!supplier || typeof supplier !== 'object' || Array.isArray(supplier)) {
+//         return res.status(400).json({message: 'El cuerpo de la solicitud debe contener los datos del proveedor'})
+//     }
+//     const {fields, errors} = validateSupplier(supplier)
+//     if (fields.length > 0) {
+//         return res.status(400).json({message: `Datos inválidos del proveedor: ${errors[fields[0]]}`, fields, errors})
+//     }
+//     try {
+//         await updateSupplier(supplierID, supplier, req.user.userID, req.user.node)
+//         return res.status(200).json({supplierID})
+//     } catch (error) {
+//         const sqlErrorCode = Number(error.number)
+//         if (sqlErrorCode === 52000) {
+//             return res.status(404).json({message: 'El proveedor indicado no existe.'})
+//         }
+//         if (sqlErrorCode === 52003) {
+//             return res.status(400).json({message: 'LastEditedBy no corresponde a un empleado válido.'})
+//         }
+//         return next(error)
+//     }
+// }

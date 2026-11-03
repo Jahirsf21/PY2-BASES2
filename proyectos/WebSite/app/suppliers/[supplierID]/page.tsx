@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+// import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { CalendarClockIcon, GlobeIcon, LandmarkIcon, MapPinIcon, PencilIcon, PhoneIcon, PrinterIcon, TagIcon, TruckIcon, UsersIcon } from 'lucide-react'
+import { CalendarClockIcon, GlobeIcon, LandmarkIcon, MapPinIcon, PhoneIcon, PrinterIcon, TagIcon, TruckIcon, UsersIcon } from 'lucide-react'
 import { AddressBlock, BackLink, ContactBlock, DetailError, DetailHero, DetailItem, DetailSkeleton, MapCard, SectionCard, osmEmbedUrl } from '@/components/detail-kit'
 import { initials } from '@/components/list-kit'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+// import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useSession } from '@/components/auth-session'
 import { getSupplierAddressByID, getSupplierByID, getSupplierContactsByID } from '@/app/api/suppliers'
@@ -106,7 +106,7 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
                 <Badge variant="secondary"><TagIcon aria-hidden="true" />{supplier.NombreCategoriaProveedor}</Badge>
                 <Badge variant="outline"><TruckIcon aria-hidden="true" />{supplier.NombreMetodoEntrega ?? 'Sin método de entrega'}</Badge>
               </>}
-              action={<Button nativeButton={false} render={<Link href={`/suppliers/${supplier.SupplierID}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar proveedor</Button>}
+              // action={<Button nativeButton={false} render={<Link href={`/suppliers/${supplier.SupplierID}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar proveedor</Button>}
               stats={[
                 { icon: CalendarClockIcon, label: 'Días para pagar', value: String(supplier.DiasGraciaPago) },
                 { icon: PhoneIcon, label: 'Teléfono', value: supplier.Telefono },

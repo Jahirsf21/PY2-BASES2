@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+// import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { CalendarClockIcon, GlobeIcon, MapPinIcon, PencilIcon, PhoneIcon, ReceiptTextIcon, TagIcon, TruckIcon, UsersIcon, UsersRoundIcon } from 'lucide-react'
+import { CalendarClockIcon, GlobeIcon, MapPinIcon, PhoneIcon, ReceiptTextIcon, TagIcon, TruckIcon, UsersIcon, UsersRoundIcon } from 'lucide-react'
 import { AddressBlock, BackLink, ContactBlock, DetailError, DetailHero, DetailSkeleton, MapCard, SectionCard, osmEmbedUrl } from '@/components/detail-kit'
 import { initials } from '@/components/list-kit'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+// import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { getCustomerAddressByID, getCustomerByID, getCustomerContactsByID } from '@/app/api/customers'
 import { useSession } from '@/components/auth-session'
@@ -124,7 +124,7 @@ function CustomerDetailContent({ customerID }: { customerID: string }) {
                 <Badge variant="outline"><TruckIcon aria-hidden="true" />{customer.NombreMetodoEntrega}</Badge>
                 {customer.NombreGrupoCompra && <Badge variant="outline"><UsersRoundIcon aria-hidden="true" />{customer.NombreGrupoCompra}</Badge>}
               </>}
-              action={<Button nativeButton={false} render={<Link href={`/customers/${customer.CustomerID}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar cliente</Button>}
+              // action={<Button nativeButton={false} render={<Link href={`/customers/${customer.CustomerID}/edit`} />} className="shrink-0"><PencilIcon data-icon="inline-start" />Editar cliente</Button>}
               stats={[
                 { icon: CalendarClockIcon, label: 'Días para pagar', value: String(customer.DiasGraciaPago) },
                 { icon: ReceiptTextIcon, label: 'Se factura a', value: customer.NombreClientePorFacturar, title: customer.NombreClientePorFacturar },

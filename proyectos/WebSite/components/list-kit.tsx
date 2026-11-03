@@ -222,8 +222,18 @@ export function EmptyState({ message, onReset }: { message: string; onReset?: ()
   )
 }
 
-/** Acciones por fila: detalle directo y menú con edición. */
-export function RowMenu({ detailHref, editHref, name }: { detailHref: string; editHref: string; name: string }) {
+/**
+ * Acciones por fila: detalle directo y menú con edición.
+ * Sin editHref (módulos de solo consulta), queda únicamente el acceso al detalle.
+ */
+export function RowMenu({ detailHref, editHref, name }: { detailHref: string; editHref?: string; name: string }) {
+  if (!editHref) {
+    return (
+      <Button nativeButton={false} render={<Link href={detailHref} />} variant="ghost" size="icon-sm" aria-label={`Ver detalle de ${name}`}>
+        <EyeIcon />
+      </Button>
+    )
+  }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`Más acciones para ${name}`} />}>
@@ -237,11 +247,11 @@ export function RowMenu({ detailHref, editHref, name }: { detailHref: string; ed
   )
 }
 
-export function RowActions({ detailHref, editHref, name }: { detailHref: string; editHref: string; name: string }) {
+export function RowActions({ detailHref, editHref, name }: { detailHref: string; editHref?: string; name: string }) {
   return (
     <div className="flex items-center justify-end gap-1">
       <Button nativeButton={false} render={<Link href={detailHref} />} variant="outline" size="sm"><EyeIcon data-icon="inline-start" />Ver detalle</Button>
-      <RowMenu detailHref={detailHref} editHref={editHref} name={name} />
+      {editHref && <RowMenu detailHref={detailHref} editHref={editHref} name={name} />}
     </div>
   )
 }

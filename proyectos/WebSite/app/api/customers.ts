@@ -1,4 +1,5 @@
-import type { BillToCustomersResponse, BuyingGroup, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerEdit, CustomersResponse, NewCustomer } from '@/lib/types/customers'
+// import type { BillToCustomersResponse, BuyingGroup, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerEdit, CustomersResponse, NewCustomer } from '@/lib/types/customers'
+import type { BillToCustomersResponse, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomersResponse } from '@/lib/types/customers'
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -77,23 +78,23 @@ export async function getCustomerCategories(): Promise<CustomerCategory[]> {
   return res.json()
 }
 
-/**
- * Obtiene todos los grupos de compra disponibles.
- *
- * @returns Listado de grupos de compra.
- */
-export async function getBuyingGroups(): Promise<BuyingGroup[]> {
-  const token = readSession()?.token
-  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/customers/buying-groups`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de compra', { cause: res.status })
-  }
-  return res.json()
-}
+// /**
+//  * Obtiene todos los grupos de compra disponibles.
+//  *
+//  * @returns Listado de grupos de compra.
+//  */
+// export async function getBuyingGroups(): Promise<BuyingGroup[]> {
+//   const token = readSession()?.token
+//   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+//   const res = await fetch(`${API_URL}/api/customers/buying-groups`, {
+//     headers: { Authorization: `Bearer ${token}` },
+//   })
+//   if (!res.ok) {
+//     const body = await res.json().catch(() => null)
+//     throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de compra', { cause: res.status })
+//   }
+//   return res.json()
+// }
 
 /**
  * Obtiene la información general de un cliente.
@@ -153,95 +154,95 @@ export async function getCustomerAddressByID(customerID: number): Promise<Custom
   return res.json()
 }
 
-/**
- * Obtiene los valores necesarios para editar un cliente.
- *
- * @param customerID Identificador del cliente.
- * @returns Datos para precargar su edición.
- */
-export async function getCustomerForEdit(customerID: number): Promise<CustomerEdit> {
-  const token = readSession()?.token
-  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/customers/${customerID}/edit`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const fallbackMessage = res.status === 404 ? 'Cliente no encontrado' : 'No fue posible cargar el cliente para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
-  }
-  return res.json()
-}
+// /**
+//  * Obtiene los valores necesarios para editar un cliente.
+//  *
+//  * @param customerID Identificador del cliente.
+//  * @returns Datos para precargar su edición.
+//  */
+// export async function getCustomerForEdit(customerID: number): Promise<CustomerEdit> {
+//   const token = readSession()?.token
+//   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+//   const res = await fetch(`${API_URL}/api/customers/${customerID}/edit`, {
+//     headers: { Authorization: `Bearer ${token}` },
+//   })
+//   if (!res.ok) {
+//     const body = await res.json().catch(() => null)
+//     const fallbackMessage = res.status === 404 ? 'Cliente no encontrado' : 'No fue posible cargar el cliente para editar'
+//     throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+//   }
+//   return res.json()
+// }
 
-/**
- * Crea un cliente y devuelve el identificador asignado.
- *
- * @param customer Datos del cliente.
- * @returns Identificador del cliente creado.
- */
-export async function createCustomer(customer: NewCustomer): Promise<number> {
-  const token = readSession()?.token
-  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/customers`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(customer),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el cliente', { cause: res.status })
-    if (res.status === 400) {
-      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
-      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
-      Object.assign(error, { fields, errors })
-    }
-    throw error
-  }
-  return res.json()
-}
+// /**
+//  * Crea un cliente y devuelve el identificador asignado.
+//  *
+//  * @param customer Datos del cliente.
+//  * @returns Identificador del cliente creado.
+//  */
+// export async function createCustomer(customer: NewCustomer): Promise<number> {
+//   const token = readSession()?.token
+//   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+//   const res = await fetch(`${API_URL}/api/customers`, {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+//     body: JSON.stringify(customer),
+//   })
+//   if (!res.ok) {
+//     const body = await res.json().catch(() => null)
+//     const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el cliente', { cause: res.status })
+//     if (res.status === 400) {
+//       const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+//       const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+//       Object.assign(error, { fields, errors })
+//     }
+//     throw error
+//   }
+//   return res.json()
+// }
 
-/**
- * Actualiza todos los campos editables de un cliente.
- *
- * @param customerID Identificador del cliente.
- * @param customer Datos actualizados del cliente.
- * @returns Promesa que se resuelve al actualizarlo.
- */
-export async function updateCustomerByID(customerID: number, customer: NewCustomer): Promise<void> {
-  const token = readSession()?.token
-  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(customer),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el cliente', { cause: res.status })
-    if (res.status === 400) {
-      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
-      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
-      Object.assign(error, { fields, errors })
-    }
-    throw error
-  }
-}
+// /**
+//  * Actualiza todos los campos editables de un cliente.
+//  *
+//  * @param customerID Identificador del cliente.
+//  * @param customer Datos actualizados del cliente.
+//  * @returns Promesa que se resuelve al actualizarlo.
+//  */
+// export async function updateCustomerByID(customerID: number, customer: NewCustomer): Promise<void> {
+//   const token = readSession()?.token
+//   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+//   const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
+//     method: 'PUT',
+//     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+//     body: JSON.stringify(customer),
+//   })
+//   if (!res.ok) {
+//     const body = await res.json().catch(() => null)
+//     const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el cliente', { cause: res.status })
+//     if (res.status === 400) {
+//       const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
+//       const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
+//       Object.assign(error, { fields, errors })
+//     }
+//     throw error
+//   }
+// }
 
-/**
- * Elimina un cliente que no tenga facturas u otros registros asociados.
- *
- * @param customerID Identificador del cliente a eliminar.
- * @returns Promesa que se resuelve cuando el cliente se elimina.
- */
-export async function deleteCustomerByID(customerID: number): Promise<void> {
-  const token = readSession()?.token
-  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el cliente', { cause: res.status })
-  }
-}
+// /**
+//  * Elimina un cliente que no tenga facturas u otros registros asociados.
+//  *
+//  * @param customerID Identificador del cliente a eliminar.
+//  * @returns Promesa que se resuelve cuando el cliente se elimina.
+//  */
+// export async function deleteCustomerByID(customerID: number): Promise<void> {
+//   const token = readSession()?.token
+//   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+//   const res = await fetch(`${API_URL}/api/customers/${customerID}`, {
+//     method: 'DELETE',
+//     headers: { Authorization: `Bearer ${token}` },
+//   })
+//   if (!res.ok) {
+//     const body = await res.json().catch(() => null)
+//     throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el cliente', { cause: res.status })
+//   }
+// }

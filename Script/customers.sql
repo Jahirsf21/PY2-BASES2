@@ -119,59 +119,62 @@ as
     end
 go
 
-/*
-    Devuelve los valores editables del cliente y los nombres de sus referencias. La ciudad y el código postal
-    de ambas direcciones se comparten y solo se devuelven una vez.
-    Requiere un usuario activo con rol Administrador en San José o Limón.
-*/
-create or alter procedure Sales.GetCustomerForEdit
-    @CustomerID int,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
-
-        select
-            cs.CustomerID,
-            cs.CustomerName as NombreCliente,
-            cs.CustomerCategoryID,
-            cs.BillToCustomerID,
-            bill.CustomerName as NombreClientePorFacturar,
-            cs.LastEditedBy,
-            cs.StandardDiscountPercentage as PorcentajeDescuentoEstandar,
-            cs.CreditLimit as LimiteCredito,
-            cs.IsStatementSent as EnviarEstadoCuenta,
-            cs.IsOnCreditHold as CreditoSuspendido,
-            cs.BuyingGroupID,
-            cs.PrimaryContactPersonID,
-            pp.FullName as NombreContactoPrincipal,
-            cs.AlternateContactPersonID,
-            pa.FullName as NombreContactoAlternativo,
-            cs.DeliveryMethodID,
-            cs.PaymentDays as DiasGraciaPago,
-            cs.PhoneNumber as Telefono,
-            cs.FaxNumber as Fax,
-            cs.WebsiteURL as SitioWeb,
-            cs.DeliveryAddressLine1 as DireccionEntrega1,
-            cs.DeliveryAddressLine2 as DireccionEntrega2,
-            cs.DeliveryCityID,
-            concat(ci.CityName, ', ', sp.StateProvinceName, ', ', co.CountryName) as CiudadEntrega,
-            cs.DeliveryPostalCode as CodigoPostalEntrega,
-            cs.PostalAddressLine1 as DireccionPostal1,
-            cs.PostalAddressLine2 as DireccionPostal2,
-            cs.DeliveryLocation.Lat as Latitud,
-            cs.DeliveryLocation.Long as Longitud
-        from dbo.Customers cs
-        inner join dbo.Customers bill on bill.CustomerID = cs.BillToCustomerID
-        inner join dbo.People pp on pp.PersonID = cs.PrimaryContactPersonID
-        left join dbo.People pa on pa.PersonID = cs.AlternateContactPersonID
-        inner join dbo.Cities ci on ci.CityID = cs.DeliveryCityID
-        inner join dbo.StateProvinces sp on sp.StateProvinceID = ci.StateProvinceID
-        inner join dbo.Countries co on co.CountryID = sp.CountryID
-        where cs.CustomerID = @CustomerID
-    end
+drop procedure if exists Sales.GetCustomerForEdit;
 go
+
+-- /*
+--     Devuelve los valores editables del cliente y los nombres de sus referencias. La ciudad y el código postal
+--     de ambas direcciones se comparten y solo se devuelven una vez.
+--     Requiere un usuario activo con rol Administrador en San José o Limón.
+-- */
+-- create or alter procedure Sales.GetCustomerForEdit
+--     @CustomerID int,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         select
+--             cs.CustomerID,
+--             cs.CustomerName as NombreCliente,
+--             cs.CustomerCategoryID,
+--             cs.BillToCustomerID,
+--             bill.CustomerName as NombreClientePorFacturar,
+--             cs.LastEditedBy,
+--             cs.StandardDiscountPercentage as PorcentajeDescuentoEstandar,
+--             cs.CreditLimit as LimiteCredito,
+--             cs.IsStatementSent as EnviarEstadoCuenta,
+--             cs.IsOnCreditHold as CreditoSuspendido,
+--             cs.BuyingGroupID,
+--             cs.PrimaryContactPersonID,
+--             pp.FullName as NombreContactoPrincipal,
+--             cs.AlternateContactPersonID,
+--             pa.FullName as NombreContactoAlternativo,
+--             cs.DeliveryMethodID,
+--             cs.PaymentDays as DiasGraciaPago,
+--             cs.PhoneNumber as Telefono,
+--             cs.FaxNumber as Fax,
+--             cs.WebsiteURL as SitioWeb,
+--             cs.DeliveryAddressLine1 as DireccionEntrega1,
+--             cs.DeliveryAddressLine2 as DireccionEntrega2,
+--             cs.DeliveryCityID,
+--             concat(ci.CityName, ', ', sp.StateProvinceName, ', ', co.CountryName) as CiudadEntrega,
+--             cs.DeliveryPostalCode as CodigoPostalEntrega,
+--             cs.PostalAddressLine1 as DireccionPostal1,
+--             cs.PostalAddressLine2 as DireccionPostal2,
+--             cs.DeliveryLocation.Lat as Latitud,
+--             cs.DeliveryLocation.Long as Longitud
+--         from dbo.Customers cs
+--         inner join dbo.Customers bill on bill.CustomerID = cs.BillToCustomerID
+--         inner join dbo.People pp on pp.PersonID = cs.PrimaryContactPersonID
+--         left join dbo.People pa on pa.PersonID = cs.AlternateContactPersonID
+--         inner join dbo.Cities ci on ci.CityID = cs.DeliveryCityID
+--         inner join dbo.StateProvinces sp on sp.StateProvinceID = ci.StateProvinceID
+--         inner join dbo.Countries co on co.CountryID = sp.CountryID
+--         where cs.CustomerID = @CustomerID
+--     end
+-- go
 
 /*
     Obtiene los contactos (principal y alternativo) de un cliente específico.
@@ -262,235 +265,247 @@ as
     end
 go
 
-/*
-    Obtiene todas las agrupaciones de compra (buying groups)
-    ordenadas por su identificador.
-    Requiere un usuario activo con rol Administrador en San José o Limón.
-    Devuelve: BuyingGroupID, NombreGrupoCompra
-*/
-create or alter procedure Sales.GetBuyingGroups
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
-
-        select
-            BuyingGroupID,
-            BuyingGroupName as NombreGrupoCompra
-        from dbo.BuyingGroups
-        order by BuyingGroupID
-    end
+drop procedure if exists Sales.GetBuyingGroups;
 go
 
-/*
-    Inserta un nuevo cliente en la tabla Customers. Recibe todos los datos obligatorios y opcionales del cliente,
-    maneja valores por defecto (fax, web, ubicación geográfica), valida que @LastEditedBy corresponda a un
-    empleado existente, y devuelve el CustomerID generado a través del parámetro de salida @NewCustomerID.
-    Si @BillToCustomerID es null, el cliente nuevo se factura a sí mismo.
-    La ciudad y el código postal de entrega también se guardan en la dirección postal.
-    Requiere un usuario activo con rol Administrador en San José o Limón.
-*/
-create or alter procedure Sales.InsertCustomer
-    @CustomerName nvarchar(100),
-    @CustomerCategoryID int,
-    @BillToCustomerID int = null,
-    @LastEditedBy int,
-    @StandardDiscountPercentage decimal(18,3) = 0,
-    @CreditLimit decimal(18,2) = null,
-    @IsStatementSent bit = 0,
-    @IsOnCreditHold bit = 0,
-    @BuyingGroupID int = null,
-    @PrimaryContactPersonID int,
-    @AlternateContactPersonID int = null,
-    @DeliveryMethodID int,
-    @PaymentDays int,
-    @PhoneNumber nvarchar(20),
-    @FaxNumber nvarchar(20) = null,
-    @WebsiteURL nvarchar(256) = null,
-    @DeliveryAddressLine1 nvarchar(60),
-    @DeliveryAddressLine2 nvarchar(60) = null,
-    @DeliveryCityID int,
-    @DeliveryPostalCode nvarchar(10),
-    @PostalAddressLine1 nvarchar(60),
-    @PostalAddressLine2 nvarchar(60) = null,
-    @Latitude float = null,
-    @Longitude float = null,
-    @NewCustomerID int output,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+-- /*
+--     Obtiene todas las agrupaciones de compra (buying groups)
+--     ordenadas por su identificador.
+--     Requiere un usuario activo con rol Administrador en San José o Limón.
+--     Devuelve: BuyingGroupID, NombreGrupoCompra
+-- */
+-- create or alter procedure Sales.GetBuyingGroups
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         select
+--             BuyingGroupID,
+--             BuyingGroupName as NombreGrupoCompra
+--         from dbo.BuyingGroups
+--         order by BuyingGroupID
+--     end
+-- go
 
-        begin try
-            if not exists (
-                select 1 from dbo.People
-                where PersonID = @LastEditedBy and IsEmployee = 1
-            )
-                throw 51002, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
-
-            begin transaction
-                set @NewCustomerID = next value for Sequences.CustomerID
-
-                insert into dbo.Customers (
-                    CustomerID, CustomerName, BillToCustomerID, CustomerCategoryID, BuyingGroupID,
-                    PrimaryContactPersonID, AlternateContactPersonID, DeliveryMethodID,
-                    AccountOpenedDate, StandardDiscountPercentage, CreditLimit, IsStatementSent, IsOnCreditHold,
-                    PaymentDays, PhoneNumber, FaxNumber, WebsiteURL,
-                    DeliveryAddressLine1, DeliveryAddressLine2, DeliveryCityID, DeliveryPostalCode,
-                    PostalAddressLine1, PostalAddressLine2, PostalCityID, PostalPostalCode,
-                    DeliveryLocation, LastEditedBy
-                )
-                values (
-                    @NewCustomerID, @CustomerName, coalesce(@BillToCustomerID, @NewCustomerID), @CustomerCategoryID, @BuyingGroupID,
-                    @PrimaryContactPersonID, @AlternateContactPersonID, @DeliveryMethodID,
-                    convert(date, getdate()),
-                    @StandardDiscountPercentage, @CreditLimit, @IsStatementSent, @IsOnCreditHold,
-                    @PaymentDays, @PhoneNumber, coalesce(@FaxNumber,N''), coalesce(@WebsiteURL,N''),
-                    @DeliveryAddressLine1, @DeliveryAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
-                    @PostalAddressLine1, @PostalAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
-                    case when @Latitude is not null and @Longitude is not null
-                         then geography::Point(@Latitude, @Longitude, 4326)
-                         else null end, @LastEditedBy
-                )
-
-            commit transaction
-            print 'Cliente insertado correctamente. Nuevo CustomerID = '  + cast(@NewCustomerID as varchar(20)) + ' (' + @CustomerName + ')';
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction;
-            ;throw;
-        end catch
-    end
+drop procedure if exists Sales.InsertCustomer;
 go
 
-/*
-    Actualiza la información de un cliente existente. Recibe el @CustomerID y todos los campos editables.
-    Valida que @LastEditedBy corresponda a un empleado existente antes de aplicar cualquier cambio.
-    Si el cliente no existe, lanza un error personalizado (51000). La columna DeliveryLocation solo se actualiza
-    si se envían latitud y longitud; de lo contrario, conserva el valor previo. AccountOpenedDate nunca se toca
-    aquí, ya que es un dato histórico fijado solo al crear el cliente.
-    La ciudad y el código postal de entrega también actualizan los valores postales.
-    Requiere un usuario activo con rol Administrador en San José o Limón.
-*/
-create or alter procedure Sales.UpdateCustomer
-    @CustomerID int,
-    @CustomerName nvarchar(100),
-    @CustomerCategoryID int,
-    @BillToCustomerID int,
-    @LastEditedBy int,
-    @StandardDiscountPercentage decimal(18,3) = 0,
-    @CreditLimit decimal(18,2) = null,
-    @IsStatementSent bit = 0,
-    @IsOnCreditHold bit = 0,
-    @BuyingGroupID int = null,
-    @PrimaryContactPersonID int,
-    @AlternateContactPersonID int = null,
-    @DeliveryMethodID int,
-    @PaymentDays int,
-    @PhoneNumber nvarchar(20),
-    @FaxNumber nvarchar(20) = null,
-    @WebsiteURL nvarchar(256) = null,
-    @DeliveryAddressLine1 nvarchar(60),
-    @DeliveryAddressLine2 nvarchar(60) = null,
-    @DeliveryCityID int,
-    @DeliveryPostalCode nvarchar(10),
-    @PostalAddressLine1 nvarchar(60),
-    @PostalAddressLine2 nvarchar(60) = null,
-    @Latitude float = null,
-    @Longitude float = null,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+-- /*
+--     Inserta un nuevo cliente en la tabla Customers. Recibe todos los datos obligatorios y opcionales del cliente,
+--     maneja valores por defecto (fax, web, ubicación geográfica), valida que @LastEditedBy corresponda a un
+--     empleado existente, y devuelve el CustomerID generado a través del parámetro de salida @NewCustomerID.
+--     Si @BillToCustomerID es null, el cliente nuevo se factura a sí mismo.
+--     La ciudad y el código postal de entrega también se guardan en la dirección postal.
+--     Requiere un usuario activo con rol Administrador en San José o Limón.
+-- */
+-- create or alter procedure Sales.InsertCustomer
+--     @CustomerName nvarchar(100),
+--     @CustomerCategoryID int,
+--     @BillToCustomerID int = null,
+--     @LastEditedBy int,
+--     @StandardDiscountPercentage decimal(18,3) = 0,
+--     @CreditLimit decimal(18,2) = null,
+--     @IsStatementSent bit = 0,
+--     @IsOnCreditHold bit = 0,
+--     @BuyingGroupID int = null,
+--     @PrimaryContactPersonID int,
+--     @AlternateContactPersonID int = null,
+--     @DeliveryMethodID int,
+--     @PaymentDays int,
+--     @PhoneNumber nvarchar(20),
+--     @FaxNumber nvarchar(20) = null,
+--     @WebsiteURL nvarchar(256) = null,
+--     @DeliveryAddressLine1 nvarchar(60),
+--     @DeliveryAddressLine2 nvarchar(60) = null,
+--     @DeliveryCityID int,
+--     @DeliveryPostalCode nvarchar(10),
+--     @PostalAddressLine1 nvarchar(60),
+--     @PostalAddressLine2 nvarchar(60) = null,
+--     @Latitude float = null,
+--     @Longitude float = null,
+--     @NewCustomerID int output,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             if not exists (
+--                 select 1 from dbo.People
+--                 where PersonID = @LastEditedBy and IsEmployee = 1
+--             )
+--                 throw 51002, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
+--
+--             begin transaction
+--                 set @NewCustomerID = next value for Sequences.CustomerID
+--
+--                 insert into dbo.Customers (
+--                     CustomerID, CustomerName, BillToCustomerID, CustomerCategoryID, BuyingGroupID,
+--                     PrimaryContactPersonID, AlternateContactPersonID, DeliveryMethodID,
+--                     AccountOpenedDate, StandardDiscountPercentage, CreditLimit, IsStatementSent, IsOnCreditHold,
+--                     PaymentDays, PhoneNumber, FaxNumber, WebsiteURL,
+--                     DeliveryAddressLine1, DeliveryAddressLine2, DeliveryCityID, DeliveryPostalCode,
+--                     PostalAddressLine1, PostalAddressLine2, PostalCityID, PostalPostalCode,
+--                     DeliveryLocation, LastEditedBy
+--                 )
+--                 values (
+--                     @NewCustomerID, @CustomerName, coalesce(@BillToCustomerID, @NewCustomerID), @CustomerCategoryID, @BuyingGroupID,
+--                     @PrimaryContactPersonID, @AlternateContactPersonID, @DeliveryMethodID,
+--                     convert(date, getdate()),
+--                     @StandardDiscountPercentage, @CreditLimit, @IsStatementSent, @IsOnCreditHold,
+--                     @PaymentDays, @PhoneNumber, coalesce(@FaxNumber,N''), coalesce(@WebsiteURL,N''),
+--                     @DeliveryAddressLine1, @DeliveryAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
+--                     @PostalAddressLine1, @PostalAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
+--                     case when @Latitude is not null and @Longitude is not null
+--                          then geography::Point(@Latitude, @Longitude, 4326)
+--                          else null end, @LastEditedBy
+--                 )
+--
+--             commit transaction
+--             print 'Cliente insertado correctamente. Nuevo CustomerID = '  + cast(@NewCustomerID as varchar(20)) + ' (' + @CustomerName + ')';
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction;
+--             ;throw;
+--         end catch
+--     end
+-- go
 
-        begin try
-            if not exists (
-                select 1 from dbo.People
-                where PersonID = @LastEditedBy and IsEmployee = 1
-            )
-                throw 51002, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
-
-            begin transaction
-                update dbo.Customers
-                set
-                    CustomerName = @CustomerName,
-                    BillToCustomerID = @BillToCustomerID,
-                    LastEditedBy = @LastEditedBy,
-                    CustomerCategoryID = @CustomerCategoryID,
-                    StandardDiscountPercentage = @StandardDiscountPercentage,
-                    CreditLimit = @CreditLimit,
-                    IsStatementSent = @IsStatementSent,
-                    IsOnCreditHold = @IsOnCreditHold,
-                    BuyingGroupID = @BuyingGroupID,
-                    PrimaryContactPersonID = @PrimaryContactPersonID,
-                    AlternateContactPersonID = @AlternateContactPersonID,
-                    DeliveryMethodID = @DeliveryMethodID,
-                    PaymentDays = @PaymentDays,
-                    PhoneNumber = @PhoneNumber,
-                    FaxNumber = coalesce(@FaxNumber,N''),
-                    WebsiteURL = coalesce(@WebsiteURL,N''),
-                    DeliveryAddressLine1 = @DeliveryAddressLine1,
-                    DeliveryAddressLine2 = @DeliveryAddressLine2,
-                    DeliveryCityID = @DeliveryCityID,
-                    DeliveryPostalCode = @DeliveryPostalCode,
-                    PostalAddressLine1 = @PostalAddressLine1,
-                    PostalAddressLine2 = @PostalAddressLine2,
-                    PostalCityID = @DeliveryCityID,
-                    PostalPostalCode = @DeliveryPostalCode,
-                    DeliveryLocation = case when @Latitude is not null and @Longitude is not null
-                                             then geography::Point(@Latitude, @Longitude, 4326)
-                                             else DeliveryLocation end
-                where CustomerID = @CustomerID
-
-                if @@rowcount = 0
-                    throw 51000, 'El cliente indicado no existe.', 1
-            commit transaction
-            print 'Cliente actualizado correctamente. CustomerID = ' + cast(@CustomerID as varchar(20)) + ' (' + @CustomerName + ')';
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction;
-            ;throw;
-        end catch
-    end
+drop procedure if exists Sales.UpdateCustomer;
 go
 
-/*
-    Elimina un cliente por su CustomerID. Solo permite la eliminación si el cliente no tiene facturas ni otros registros
-    relacionados (FK). Si no existe, lanza error 51000; si hay violación de integridad referencial (error 547), lanza error
-    51001 con un mensaje más claro.
-    Requiere un usuario activo con rol Administrador en San José o Limón.
-*/
-create or alter procedure Sales.DeleteCustomer
-    @CustomerID int,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+-- /*
+--     Actualiza la información de un cliente existente. Recibe el @CustomerID y todos los campos editables.
+--     Valida que @LastEditedBy corresponda a un empleado existente antes de aplicar cualquier cambio.
+--     Si el cliente no existe, lanza un error personalizado (51000). La columna DeliveryLocation solo se actualiza
+--     si se envían latitud y longitud; de lo contrario, conserva el valor previo. AccountOpenedDate nunca se toca
+--     aquí, ya que es un dato histórico fijado solo al crear el cliente.
+--     La ciudad y el código postal de entrega también actualizan los valores postales.
+--     Requiere un usuario activo con rol Administrador en San José o Limón.
+-- */
+-- create or alter procedure Sales.UpdateCustomer
+--     @CustomerID int,
+--     @CustomerName nvarchar(100),
+--     @CustomerCategoryID int,
+--     @BillToCustomerID int,
+--     @LastEditedBy int,
+--     @StandardDiscountPercentage decimal(18,3) = 0,
+--     @CreditLimit decimal(18,2) = null,
+--     @IsStatementSent bit = 0,
+--     @IsOnCreditHold bit = 0,
+--     @BuyingGroupID int = null,
+--     @PrimaryContactPersonID int,
+--     @AlternateContactPersonID int = null,
+--     @DeliveryMethodID int,
+--     @PaymentDays int,
+--     @PhoneNumber nvarchar(20),
+--     @FaxNumber nvarchar(20) = null,
+--     @WebsiteURL nvarchar(256) = null,
+--     @DeliveryAddressLine1 nvarchar(60),
+--     @DeliveryAddressLine2 nvarchar(60) = null,
+--     @DeliveryCityID int,
+--     @DeliveryPostalCode nvarchar(10),
+--     @PostalAddressLine1 nvarchar(60),
+--     @PostalAddressLine2 nvarchar(60) = null,
+--     @Latitude float = null,
+--     @Longitude float = null,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             if not exists (
+--                 select 1 from dbo.People
+--                 where PersonID = @LastEditedBy and IsEmployee = 1
+--             )
+--                 throw 51002, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
+--
+--             begin transaction
+--                 update dbo.Customers
+--                 set
+--                     CustomerName = @CustomerName,
+--                     BillToCustomerID = @BillToCustomerID,
+--                     LastEditedBy = @LastEditedBy,
+--                     CustomerCategoryID = @CustomerCategoryID,
+--                     StandardDiscountPercentage = @StandardDiscountPercentage,
+--                     CreditLimit = @CreditLimit,
+--                     IsStatementSent = @IsStatementSent,
+--                     IsOnCreditHold = @IsOnCreditHold,
+--                     BuyingGroupID = @BuyingGroupID,
+--                     PrimaryContactPersonID = @PrimaryContactPersonID,
+--                     AlternateContactPersonID = @AlternateContactPersonID,
+--                     DeliveryMethodID = @DeliveryMethodID,
+--                     PaymentDays = @PaymentDays,
+--                     PhoneNumber = @PhoneNumber,
+--                     FaxNumber = coalesce(@FaxNumber,N''),
+--                     WebsiteURL = coalesce(@WebsiteURL,N''),
+--                     DeliveryAddressLine1 = @DeliveryAddressLine1,
+--                     DeliveryAddressLine2 = @DeliveryAddressLine2,
+--                     DeliveryCityID = @DeliveryCityID,
+--                     DeliveryPostalCode = @DeliveryPostalCode,
+--                     PostalAddressLine1 = @PostalAddressLine1,
+--                     PostalAddressLine2 = @PostalAddressLine2,
+--                     PostalCityID = @DeliveryCityID,
+--                     PostalPostalCode = @DeliveryPostalCode,
+--                     DeliveryLocation = case when @Latitude is not null and @Longitude is not null
+--                                              then geography::Point(@Latitude, @Longitude, 4326)
+--                                              else DeliveryLocation end
+--                 where CustomerID = @CustomerID
+--
+--                 if @@rowcount = 0
+--                     throw 51000, 'El cliente indicado no existe.', 1
+--             commit transaction
+--             print 'Cliente actualizado correctamente. CustomerID = ' + cast(@CustomerID as varchar(20)) + ' (' + @CustomerName + ')';
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction;
+--             ;throw;
+--         end catch
+--     end
+-- go
 
-        begin try
-            begin transaction
-                delete from dbo.Customers
-                where CustomerID = @CustomerID
-
-                if @@rowcount = 0
-                    throw 51000, 'El cliente indicado no existe.', 1
-            commit transaction
-            print 'Cliente eliminado correctamente. CustomerID = ' + cast(@CustomerID as varchar(20));
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction
-
-            if error_number() = 547
-                throw 51001, 'No se puede eliminar el cliente porque tiene facturas u otros registros asociados.', 1
-            else
-                throw
-        end catch
-    end
+drop procedure if exists Sales.DeleteCustomer;
 go
+
+-- /*
+--     Elimina un cliente por su CustomerID. Solo permite la eliminación si el cliente no tiene facturas ni otros registros
+--     relacionados (FK). Si no existe, lanza error 51000; si hay violación de integridad referencial (error 547), lanza error
+--     51001 con un mensaje más claro.
+--     Requiere un usuario activo con rol Administrador en San José o Limón.
+-- */
+-- create or alter procedure Sales.DeleteCustomer
+--     @CustomerID int,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             begin transaction
+--                 delete from dbo.Customers
+--                 where CustomerID = @CustomerID
+--
+--                 if @@rowcount = 0
+--                     throw 51000, 'El cliente indicado no existe.', 1
+--             commit transaction
+--             print 'Cliente eliminado correctamente. CustomerID = ' + cast(@CustomerID as varchar(20));
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction
+--
+--             if error_number() = 547
+--                 throw 51001, 'No se puede eliminar el cliente porque tiene facturas u otros registros asociados.', 1
+--             else
+--                 throw
+--         end catch
+--     end
+-- go

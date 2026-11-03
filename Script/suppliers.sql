@@ -107,58 +107,61 @@ as
     end
 go
 
-/*
-    Obtiene todos los campos editables de un proveedor y las etiquetas de sus referencias
-    para precargar la actualización sin inferir identificadores de nombres.
-    La ciudad y el código postal se comparten entre las dos direcciones.
-*/
-create or alter procedure Purchasing.GetSupplierForEdit
-    @SupplierID int,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
-
-        select
-            sp.SupplierID,
-            sp.SupplierName as NombreProveedor,
-            sp.SupplierCategoryID,
-            sp.LastEditedBy,
-            sp.SupplierReference as CodigoProveedor,
-            sp.PrimaryContactPersonID,
-            pp.FullName as NombreContactoPrincipal,
-            sp.AlternateContactPersonID,
-            pa.FullName as NombreContactoAlternativo,
-            sp.DeliveryMethodID,
-            sp.PaymentDays as DiasGraciaPago,
-            sp.PhoneNumber as Telefono,
-            sp.FaxNumber as Fax,
-            sp.WebsiteURL as SitioWeb,
-            sp.BankAccountName as NombreBanco,
-            sp.BankAccountBranch as SucursalBanco,
-            sp.BankAccountCode as CodigoCuentaBancaria,
-            sp.BankAccountNumber as NumeroCuentaBancaria,
-            sp.BankInternationalCode as CodigoSwift,
-            sp.DeliveryAddressLine1 as DireccionEntrega1,
-            sp.DeliveryAddressLine2 as DireccionEntrega2,
-            sp.DeliveryCityID,
-            concat(ci.CityName, ', ', spv.StateProvinceName, ', ', co.CountryName) as CiudadEntrega,
-            sp.DeliveryPostalCode as CodigoPostalEntrega,
-            sp.PostalAddressLine1 as DireccionPostal1,
-            sp.PostalAddressLine2 as DireccionPostal2,
-            sp.InternalComments as ComentariosInternos,
-            sp.DeliveryLocation.Lat as Latitud,
-            sp.DeliveryLocation.Long as Longitud
-        from dbo.Suppliers sp
-        inner join dbo.People pp on pp.PersonID = sp.PrimaryContactPersonID
-        inner join dbo.People pa on pa.PersonID = sp.AlternateContactPersonID
-        inner join dbo.Cities ci on ci.CityID = sp.DeliveryCityID
-        inner join dbo.StateProvinces spv on spv.StateProvinceID = ci.StateProvinceID
-        inner join dbo.Countries co on co.CountryID = spv.CountryID
-        where sp.SupplierID = @SupplierID
-    end
+drop procedure if exists Purchasing.GetSupplierForEdit;
 go
+
+-- /*
+--     Obtiene todos los campos editables de un proveedor y las etiquetas de sus referencias
+--     para precargar la actualización sin inferir identificadores de nombres.
+--     La ciudad y el código postal se comparten entre las dos direcciones.
+-- */
+-- create or alter procedure Purchasing.GetSupplierForEdit
+--     @SupplierID int,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         select
+--             sp.SupplierID,
+--             sp.SupplierName as NombreProveedor,
+--             sp.SupplierCategoryID,
+--             sp.LastEditedBy,
+--             sp.SupplierReference as CodigoProveedor,
+--             sp.PrimaryContactPersonID,
+--             pp.FullName as NombreContactoPrincipal,
+--             sp.AlternateContactPersonID,
+--             pa.FullName as NombreContactoAlternativo,
+--             sp.DeliveryMethodID,
+--             sp.PaymentDays as DiasGraciaPago,
+--             sp.PhoneNumber as Telefono,
+--             sp.FaxNumber as Fax,
+--             sp.WebsiteURL as SitioWeb,
+--             sp.BankAccountName as NombreBanco,
+--             sp.BankAccountBranch as SucursalBanco,
+--             sp.BankAccountCode as CodigoCuentaBancaria,
+--             sp.BankAccountNumber as NumeroCuentaBancaria,
+--             sp.BankInternationalCode as CodigoSwift,
+--             sp.DeliveryAddressLine1 as DireccionEntrega1,
+--             sp.DeliveryAddressLine2 as DireccionEntrega2,
+--             sp.DeliveryCityID,
+--             concat(ci.CityName, ', ', spv.StateProvinceName, ', ', co.CountryName) as CiudadEntrega,
+--             sp.DeliveryPostalCode as CodigoPostalEntrega,
+--             sp.PostalAddressLine1 as DireccionPostal1,
+--             sp.PostalAddressLine2 as DireccionPostal2,
+--             sp.InternalComments as ComentariosInternos,
+--             sp.DeliveryLocation.Lat as Latitud,
+--             sp.DeliveryLocation.Long as Longitud
+--         from dbo.Suppliers sp
+--         inner join dbo.People pp on pp.PersonID = sp.PrimaryContactPersonID
+--         inner join dbo.People pa on pa.PersonID = sp.AlternateContactPersonID
+--         inner join dbo.Cities ci on ci.CityID = sp.DeliveryCityID
+--         inner join dbo.StateProvinces spv on spv.StateProvinceID = ci.StateProvinceID
+--         inner join dbo.Countries co on co.CountryID = spv.CountryID
+--         where sp.SupplierID = @SupplierID
+--     end
+-- go
 
 /*
     Obtiene los contactos (principal y alternativo) de un proveedor específico.
@@ -244,217 +247,226 @@ as
 	end
 go
 
-/*
-   Inserta un nuevo proveedor en la tabla Suppliers. Recibe todos los datos obligatorios
-   y opcionales del proveedor, maneja valores por defecto (fax, web, ubicación geográfica),
-   valida que @LastEditedBy corresponda a un empleado existente, y devuelve el SupplierID
-   generado a través del parámetro de salida @NewSupplierID.
-   La ciudad y el código postal de entrega también se guardan en la dirección postal.
-*/
-create or alter procedure Purchasing.InsertSupplier
-    @SupplierName nvarchar(100),
-    @SupplierCategoryID int,
-    @LastEditedBy int,
-    @SupplierReference nvarchar(20) = null,
-    @PrimaryContactPersonID int,
-    @AlternateContactPersonID int,
-    @DeliveryMethodID int,
-    @PaymentDays int,
-    @PhoneNumber nvarchar(20),
-    @FaxNumber nvarchar(20) = null,
-    @WebsiteURL nvarchar(256) = null,
-    @BankAccountName nvarchar(50) = null,
-    @BankAccountBranch nvarchar(50) = null,
-    @BankAccountCode nvarchar(20) = null,
-    @BankAccountNumber nvarchar(20) = null,
-    @BankInternationalCode nvarchar(20) = null,
-    @DeliveryAddressLine1 nvarchar(60),
-    @DeliveryAddressLine2 nvarchar(60) = null,
-    @DeliveryCityID int,
-    @DeliveryPostalCode nvarchar(10),
-    @PostalAddressLine1 nvarchar(60),
-    @PostalAddressLine2 nvarchar(60) = null,
-    @InternalComments nvarchar(max) = null,
-    @Latitude float = null,
-    @Longitude float = null,
-    @NewSupplierID int output,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
-
-        begin try
-            if not exists (
-                select 1 from dbo.People
-                where PersonID = @LastEditedBy and IsEmployee = 1
-            )
-                throw 52003, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
-
-            begin transaction
-                declare @InsertedIDs table (SupplierID int)
-
-                insert into dbo.Suppliers (
-                    SupplierName, SupplierCategoryID, SupplierReference,
-                    PrimaryContactPersonID, AlternateContactPersonID, DeliveryMethodID,
-                    PaymentDays, PhoneNumber, FaxNumber, WebsiteURL,
-                    BankAccountName, BankAccountBranch, BankAccountCode,
-                    BankAccountNumber, BankInternationalCode,
-                    DeliveryAddressLine1, DeliveryAddressLine2, DeliveryCityID, DeliveryPostalCode,
-                    PostalAddressLine1, PostalAddressLine2, PostalCityID, PostalPostalCode,
-                    InternalComments, DeliveryLocation, LastEditedBy
-                )
-                output inserted.SupplierID into @InsertedIDs
-                values (
-                    @SupplierName, @SupplierCategoryID, @SupplierReference,
-                    @PrimaryContactPersonID, @AlternateContactPersonID, @DeliveryMethodID,
-                    @PaymentDays, @PhoneNumber, coalesce(@FaxNumber,N''), coalesce(@WebsiteURL,N''),
-                    @BankAccountName, @BankAccountBranch, @BankAccountCode,
-                    @BankAccountNumber, @BankInternationalCode,
-                    @DeliveryAddressLine1, @DeliveryAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
-                    @PostalAddressLine1, @PostalAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
-                    @InternalComments,
-                    case when @Latitude is not null and @Longitude is not null
-                         then geography::Point(@Latitude, @Longitude, 4326)
-                         else null end, @LastEditedBy
-                )
-
-                select @NewSupplierID = SupplierID from @InsertedIDs
-            commit transaction
-            print 'Proveedor insertado correctamente. Nuevo SupplierID = ' + cast(@NewSupplierID as varchar(20)) + ' (' + @SupplierName + ')';
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction;
-            ;throw;
-        end catch
-    end
+drop procedure if exists Purchasing.InsertSupplier;
 go
 
-/*
-   Actualiza la información de un proveedor existente. Recibe el @SupplierID y todos los
-   campos editables. Valida que @LastEditedBy corresponda a un empleado existente antes de
-   aplicar cualquier cambio. Si el proveedor no existe, lanza un error personalizado (52000).
-   La columna DeliveryLocation solo se actualiza si se envían latitud y longitud; de lo
-   contrario, conserva el valor previo. La ciudad y el código postal de entrega tambien actualizan los valores postales
-*/
-create or alter procedure Purchasing.UpdateSupplier
-    @SupplierID int,
-    @SupplierName nvarchar(100),
-    @SupplierCategoryID int,
-    @LastEditedBy int,
-    @SupplierReference nvarchar(20) = null,
-    @PrimaryContactPersonID int,
-    @AlternateContactPersonID int,
-    @DeliveryMethodID int,
-    @PaymentDays int,
-    @PhoneNumber nvarchar(20),
-    @FaxNumber nvarchar(20) = null,
-    @WebsiteURL nvarchar(256) = null,
-    @BankAccountName nvarchar(50) = null,
-    @BankAccountBranch nvarchar(50) = null,
-    @BankAccountCode nvarchar(20) = null,
-    @BankAccountNumber nvarchar(20) = null,
-    @BankInternationalCode nvarchar(20) = null,
-    @DeliveryAddressLine1 nvarchar(60),
-    @DeliveryAddressLine2 nvarchar(60) = null,
-    @DeliveryCityID int,
-    @DeliveryPostalCode nvarchar(10),
-    @PostalAddressLine1 nvarchar(60),
-    @PostalAddressLine2 nvarchar(60) = null,
-    @InternalComments nvarchar(max) = null,
-    @Latitude float = null,
-    @Longitude float = null,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+-- /*
+--    Inserta un nuevo proveedor en la tabla Suppliers. Recibe todos los datos obligatorios
+--    y opcionales del proveedor, maneja valores por defecto (fax, web, ubicación geográfica),
+--    valida que @LastEditedBy corresponda a un empleado existente, y devuelve el SupplierID
+--    generado a través del parámetro de salida @NewSupplierID.
+--    La ciudad y el código postal de entrega también se guardan en la dirección postal.
+-- */
+-- create or alter procedure Purchasing.InsertSupplier
+--     @SupplierName nvarchar(100),
+--     @SupplierCategoryID int,
+--     @LastEditedBy int,
+--     @SupplierReference nvarchar(20) = null,
+--     @PrimaryContactPersonID int,
+--     @AlternateContactPersonID int,
+--     @DeliveryMethodID int,
+--     @PaymentDays int,
+--     @PhoneNumber nvarchar(20),
+--     @FaxNumber nvarchar(20) = null,
+--     @WebsiteURL nvarchar(256) = null,
+--     @BankAccountName nvarchar(50) = null,
+--     @BankAccountBranch nvarchar(50) = null,
+--     @BankAccountCode nvarchar(20) = null,
+--     @BankAccountNumber nvarchar(20) = null,
+--     @BankInternationalCode nvarchar(20) = null,
+--     @DeliveryAddressLine1 nvarchar(60),
+--     @DeliveryAddressLine2 nvarchar(60) = null,
+--     @DeliveryCityID int,
+--     @DeliveryPostalCode nvarchar(10),
+--     @PostalAddressLine1 nvarchar(60),
+--     @PostalAddressLine2 nvarchar(60) = null,
+--     @InternalComments nvarchar(max) = null,
+--     @Latitude float = null,
+--     @Longitude float = null,
+--     @NewSupplierID int output,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             if not exists (
+--                 select 1 from dbo.People
+--                 where PersonID = @LastEditedBy and IsEmployee = 1
+--             )
+--                 throw 52003, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
+--
+--             begin transaction
+--                 declare @InsertedIDs table (SupplierID int)
+--
+--                 insert into dbo.Suppliers (
+--                     SupplierName, SupplierCategoryID, SupplierReference,
+--                     PrimaryContactPersonID, AlternateContactPersonID, DeliveryMethodID,
+--                     PaymentDays, PhoneNumber, FaxNumber, WebsiteURL,
+--                     BankAccountName, BankAccountBranch, BankAccountCode,
+--                     BankAccountNumber, BankInternationalCode,
+--                     DeliveryAddressLine1, DeliveryAddressLine2, DeliveryCityID, DeliveryPostalCode,
+--                     PostalAddressLine1, PostalAddressLine2, PostalCityID, PostalPostalCode,
+--                     InternalComments, DeliveryLocation, LastEditedBy
+--                 )
+--                 output inserted.SupplierID into @InsertedIDs
+--                 values (
+--                     @SupplierName, @SupplierCategoryID, @SupplierReference,
+--                     @PrimaryContactPersonID, @AlternateContactPersonID, @DeliveryMethodID,
+--                     @PaymentDays, @PhoneNumber, coalesce(@FaxNumber,N''), coalesce(@WebsiteURL,N''),
+--                     @BankAccountName, @BankAccountBranch, @BankAccountCode,
+--                     @BankAccountNumber, @BankInternationalCode,
+--                     @DeliveryAddressLine1, @DeliveryAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
+--                     @PostalAddressLine1, @PostalAddressLine2, @DeliveryCityID, @DeliveryPostalCode,
+--                     @InternalComments,
+--                     case when @Latitude is not null and @Longitude is not null
+--                          then geography::Point(@Latitude, @Longitude, 4326)
+--                          else null end, @LastEditedBy
+--                 )
+--
+--                 select @NewSupplierID = SupplierID from @InsertedIDs
+--             commit transaction
+--             print 'Proveedor insertado correctamente. Nuevo SupplierID = ' + cast(@NewSupplierID as varchar(20)) + ' (' + @SupplierName + ')';
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction;
+--             ;throw;
+--         end catch
+--     end
+-- go
 
-        begin try
-            if not exists (
-                select 1 from dbo.People
-                where PersonID = @LastEditedBy and IsEmployee = 1
-            )
-                throw 52003, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
-
-            begin transaction
-                update dbo.Suppliers
-                set
-                    SupplierName = @SupplierName,
-                    LastEditedBy = @LastEditedBy,
-                    SupplierCategoryID = @SupplierCategoryID,
-                    SupplierReference = @SupplierReference,
-                    PrimaryContactPersonID = @PrimaryContactPersonID,
-                    AlternateContactPersonID = @AlternateContactPersonID,
-                    DeliveryMethodID = @DeliveryMethodID,
-                    PaymentDays = @PaymentDays,
-                    PhoneNumber = @PhoneNumber,
-                    FaxNumber = coalesce(@FaxNumber,N''),
-                    WebsiteURL = coalesce(@WebsiteURL,N''),
-                    BankAccountName = @BankAccountName,
-                    BankAccountBranch = @BankAccountBranch,
-                    BankAccountCode = @BankAccountCode,
-                    BankAccountNumber = @BankAccountNumber,
-                    BankInternationalCode = @BankInternationalCode,
-                    DeliveryAddressLine1 = @DeliveryAddressLine1,
-                    DeliveryAddressLine2 = @DeliveryAddressLine2,
-                    DeliveryCityID = @DeliveryCityID,
-                    DeliveryPostalCode = @DeliveryPostalCode,
-                    PostalAddressLine1 = @PostalAddressLine1,
-                    PostalAddressLine2 = @PostalAddressLine2,
-                    PostalCityID = @DeliveryCityID,
-                    PostalPostalCode = @DeliveryPostalCode,
-                    InternalComments = @InternalComments,
-                    DeliveryLocation = case when @Latitude is not null and @Longitude is not null
-                                             then geography::Point(@Latitude, @Longitude, 4326)
-                                             else DeliveryLocation end
-                where SupplierID = @SupplierID
-
-                if @@rowcount = 0
-                    throw 52000, 'El proveedor indicado no existe.', 1
-            commit transaction
-            print 'Proveedor actualizado correctamente. SupplierID = ' + cast(@SupplierID as varchar(20)) + ' (' + @SupplierName + ')';
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction;
-            ;throw;
-        end catch
-    end
+drop procedure if exists Purchasing.UpdateSupplier;
 go
 
-/*
-   Elimina un proveedor por su SupplierID. Solo permite la eliminación si el proveedor
-   no tiene productos, órdenes de compra ni otros registros relacionados (FK). Si no
-   existe, lanza error 52001; si hay violación de integridad referencial (error 547),
-   lanza error 52002 con un mensaje más claro.
-*/
-create or alter procedure Purchasing.DeleteSupplier
-    @SupplierID int,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+-- /*
+--    Actualiza la información de un proveedor existente. Recibe el @SupplierID y todos los
+--    campos editables. Valida que @LastEditedBy corresponda a un empleado existente antes de
+--    aplicar cualquier cambio. Si el proveedor no existe, lanza un error personalizado (52000).
+--    La columna DeliveryLocation solo se actualiza si se envían latitud y longitud; de lo
+--    contrario, conserva el valor previo. La ciudad y el código postal de entrega tambien actualizan los valores postales
+-- */
+-- create or alter procedure Purchasing.UpdateSupplier
+--     @SupplierID int,
+--     @SupplierName nvarchar(100),
+--     @SupplierCategoryID int,
+--     @LastEditedBy int,
+--     @SupplierReference nvarchar(20) = null,
+--     @PrimaryContactPersonID int,
+--     @AlternateContactPersonID int,
+--     @DeliveryMethodID int,
+--     @PaymentDays int,
+--     @PhoneNumber nvarchar(20),
+--     @FaxNumber nvarchar(20) = null,
+--     @WebsiteURL nvarchar(256) = null,
+--     @BankAccountName nvarchar(50) = null,
+--     @BankAccountBranch nvarchar(50) = null,
+--     @BankAccountCode nvarchar(20) = null,
+--     @BankAccountNumber nvarchar(20) = null,
+--     @BankInternationalCode nvarchar(20) = null,
+--     @DeliveryAddressLine1 nvarchar(60),
+--     @DeliveryAddressLine2 nvarchar(60) = null,
+--     @DeliveryCityID int,
+--     @DeliveryPostalCode nvarchar(10),
+--     @PostalAddressLine1 nvarchar(60),
+--     @PostalAddressLine2 nvarchar(60) = null,
+--     @InternalComments nvarchar(max) = null,
+--     @Latitude float = null,
+--     @Longitude float = null,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             if not exists (
+--                 select 1 from dbo.People
+--                 where PersonID = @LastEditedBy and IsEmployee = 1
+--             )
+--                 throw 52003, 'El LastEditedBy indicado no corresponde a un empleado válido.', 1
+--
+--             begin transaction
+--                 update dbo.Suppliers
+--                 set
+--                     SupplierName = @SupplierName,
+--                     LastEditedBy = @LastEditedBy,
+--                     SupplierCategoryID = @SupplierCategoryID,
+--                     SupplierReference = @SupplierReference,
+--                     PrimaryContactPersonID = @PrimaryContactPersonID,
+--                     AlternateContactPersonID = @AlternateContactPersonID,
+--                     DeliveryMethodID = @DeliveryMethodID,
+--                     PaymentDays = @PaymentDays,
+--                     PhoneNumber = @PhoneNumber,
+--                     FaxNumber = coalesce(@FaxNumber,N''),
+--                     WebsiteURL = coalesce(@WebsiteURL,N''),
+--                     BankAccountName = @BankAccountName,
+--                     BankAccountBranch = @BankAccountBranch,
+--                     BankAccountCode = @BankAccountCode,
+--                     BankAccountNumber = @BankAccountNumber,
+--                     BankInternationalCode = @BankInternationalCode,
+--                     DeliveryAddressLine1 = @DeliveryAddressLine1,
+--                     DeliveryAddressLine2 = @DeliveryAddressLine2,
+--                     DeliveryCityID = @DeliveryCityID,
+--                     DeliveryPostalCode = @DeliveryPostalCode,
+--                     PostalAddressLine1 = @PostalAddressLine1,
+--                     PostalAddressLine2 = @PostalAddressLine2,
+--                     PostalCityID = @DeliveryCityID,
+--                     PostalPostalCode = @DeliveryPostalCode,
+--                     InternalComments = @InternalComments,
+--                     DeliveryLocation = case when @Latitude is not null and @Longitude is not null
+--                                              then geography::Point(@Latitude, @Longitude, 4326)
+--                                              else DeliveryLocation end
+--                 where SupplierID = @SupplierID
+--
+--                 if @@rowcount = 0
+--                     throw 52000, 'El proveedor indicado no existe.', 1
+--             commit transaction
+--             print 'Proveedor actualizado correctamente. SupplierID = ' + cast(@SupplierID as varchar(20)) + ' (' + @SupplierName + ')';
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction;
+--             ;throw;
+--         end catch
+--     end
+-- go
 
-        begin try
-            begin transaction
-                delete from dbo.Suppliers
-                where SupplierID = @SupplierID
-
-                if @@rowcount = 0
-                    throw 52001, 'El proveedor indicado no existe.', 1
-            commit transaction
-            print 'Proveedor eliminado correctamente. SupplierID = ' + cast(@SupplierID as varchar(20));
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction
-            if error_number() = 547
-                throw 52002, 'No se puede eliminar el proveedor porque tiene productos, órdenes de compra u otros registros asociados.', 1
-            else
-                throw
-        end catch
-    end
+drop procedure if exists Purchasing.DeleteSupplier;
 go
+
+-- /*
+--    Elimina un proveedor por su SupplierID. Solo permite la eliminación si el proveedor
+--    no tiene productos, órdenes de compra ni otros registros relacionados (FK). Si no
+--    existe, lanza error 52001; si hay violación de integridad referencial (error 547),
+--    lanza error 52002 con un mensaje más claro.
+-- */
+-- create or alter procedure Purchasing.DeleteSupplier
+--     @SupplierID int,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             begin transaction
+--                 delete from dbo.Suppliers
+--                 where SupplierID = @SupplierID
+--
+--                 if @@rowcount = 0
+--                     throw 52001, 'El proveedor indicado no existe.', 1
+--             commit transaction
+--             print 'Proveedor eliminado correctamente. SupplierID = ' + cast(@SupplierID as varchar(20));
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction
+--             if error_number() = 547
+--                 throw 52002, 'No se puede eliminar el proveedor porque tiene productos, órdenes de compra u otros registros asociados.', 1
+--             else
+--                 throw
+--         end catch
+--     end
+-- go
