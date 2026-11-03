@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type SubmitEvent } from 'react'
-import { AlertCircleIcon, Building2Icon, ChartNoAxesCombinedIcon, CheckCircle2Icon, EyeIcon, EyeOffIcon, Loader2Icon, LockIcon, LogInIcon, UserIcon, type LucideIcon } from 'lucide-react'
+import { AlertCircleIcon, Building2Icon, ChartNoAxesCombinedIcon, CheckCircle2Icon, EyeIcon, EyeOffIcon, Loader2Icon, LockIcon, LogInIcon, ShieldAlertIcon, UserIcon, type LucideIcon } from 'lucide-react'
 import { login } from '@/app/api/auth'
 import { useSession } from '@/components/auth-session'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +21,8 @@ export default function LoginPage() {
   const { checking, error: sessionError, startSession } = useSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Rechazo del servidor al autenticar; se presenta en un diálogo de alerta. */
+  const [authError, setAuthError] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
   const [showPassword, setShowPassword] = useState(false)
@@ -69,6 +73,7 @@ export default function LoginPage() {
     request.current = controller
     setSubmitting(true)
     setError(null)
+    setAuthError(null)
     try {
       const result = await login({
         userName: String(data.get('userName') ?? '').trim(),
@@ -80,13 +85,10 @@ export default function LoginPage() {
       form.reset()
     } catch (reason) {
       if (!controller.signal.aborted && request.current === controller) {
-        setError(reason instanceof Error ? reason.message : 'No fue posible iniciar sesión.')
+        setAuthError(reason instanceof Error ? reason.message : 'No fue posible iniciar sesión.')
         // No conserva la contraseña rechazada; el usuario y la sucursal se mantienen.
-        const password = passwordRef.current
-        if (password) {
-          password.value = ''
-          requestAnimationFrame(() => password.focus())
-        }
+        // El foco vuelve a la contraseña al cerrar el diálogo (finalFocus).
+        if (passwordRef.current) passwordRef.current.value = ''
       }
     } finally {
       if (request.current === controller) {
@@ -97,6 +99,7 @@ export default function LoginPage() {
   }
 
   const message = error ?? (submitting ? null : sessionError)
+  const invalidCredentials = authError === 'Credenciales inválidas'
 
   return (
     <main lang="es" className="grid min-w-0 flex-1 bg-muted/40">
@@ -109,10 +112,29 @@ export default function LoginPage() {
             </div>
 
             {message && (
-              <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{message}
-              </div>
+              <Alert variant="destructive">
+                <AlertCircleIcon />
+                <AlertTitle>{error ? 'Revise los datos' : 'Sesión no disponible'}</AlertTitle>
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
             )}
+
+            <AlertDialog open={authError !== null} onOpenChange={(open) => { if (!open) setAuthError(null) }}>
+              <AlertDialogContent size="sm" finalFocus={passwordRef}>
+                <AlertDialogHeader>
+                  <AlertDialogMedia className="bg-destructive/10 text-destructive"><ShieldAlertIcon /></AlertDialogMedia>
+                  <AlertDialogTitle>{invalidCredentials ? 'Credenciales inválidas' : 'No fue posible iniciar sesión'}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {invalidCredentials
+                      ? 'El usuario o la contraseña no son correctos, o el usuario no tiene acceso a la sucursal seleccionada. Verifique los datos e intente de nuevo.'
+                      : authError}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel variant="default" className="col-span-2 w-full">Intentar de nuevo</AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <form noValidate onSubmit={event => void submit(event)} aria-busy={submitting}>
               <fieldset disabled={submitting} className="space-y-5">
