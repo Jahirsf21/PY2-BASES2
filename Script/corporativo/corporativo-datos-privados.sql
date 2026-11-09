@@ -1,10 +1,9 @@
 use WideWorldImporters;
 
-if db_name() <> N'WideWorldImporters'
-    throw 57000, N'Base incorrecta', 1;
+if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 
 -- ======================================================================================
--- FRAGMENTACIÓN VERTICAL (DATOS SENSIBLES)
+-- (DATOS SENSIBLES)
 -- ======================================================================================
 
 /*
@@ -16,21 +15,16 @@ if db_name() <> N'WideWorldImporters'
 set nocount on;
 
 if coalesce(convert(nvarchar(128), serverproperty('MachineName')), N'') <> N'corporativo'
-    throw 57001, N'Este script solo se ejecuta en el nodo corporativo.', 1;
+    throw 57001, 'El nodo indicado no corresponde a Corporativo.', 1;
 
 if object_id(N'Application.PeoplePrivate') is not null
     or object_id(N'Sales.CustomerPrivate') is not null
     or object_id(N'Purchasing.SupplierPrivate') is not null
-    throw 57003, N'Ya existe alguna de las tablas de datos sensibles. No se puede repetir la carga inicial.', 1;
-
-set xact_abort on;
+    throw 57003, 'Una o más tablas privadas ya existen.', 1;
 
 begin try
-    begin transaction;
-
     /*
         Crea la tabla con los datos sensibles de las personas.
-        Calcula OtherLanguages a partir de CustomFields, como en la tabla original.
     */
     create table Application.PeoplePrivate (
         PersonID int not null,
@@ -50,7 +44,6 @@ begin try
 
     /*
         Crea la tabla con los datos sensibles de los clientes.
-        Relaciona los contactos con las personas y la dirección postal con su ciudad.
     */
     create table Sales.CustomerPrivate (
         CustomerID int not null,
@@ -81,7 +74,6 @@ begin try
 
     /*
         Crea la tabla con los datos sensibles de los proveedores.
-        Conserva las máscaras de las columnas bancarias originales.
     */
     create table Purchasing.SupplierPrivate (
         SupplierID int not null,
@@ -120,6 +112,9 @@ begin try
         Copia los datos sensibles actuales conservando sus identificadores.
         Inserta primero las personas para mantener las referencias de clientes y proveedores.
     */
+    set xact_abort on;
+    begin transaction;
+
     insert into Application.PeoplePrivate (
         PersonID, PhoneNumber, FaxNumber, EmailAddress, LogonName,
         HashedPassword, Photo, UserPreferences, CustomFields
@@ -159,5 +154,5 @@ end try
 begin catch
     if @@trancount > 0
         rollback transaction;
-    throw;
+    ;throw;
 end catch;
