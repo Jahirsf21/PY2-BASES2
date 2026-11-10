@@ -1,7 +1,7 @@
 import { paginatedResponse } from '../helpers/paginatedResponse.js'
 // import { validateCustomer } from '../helpers/entityValidation.js'
 // import { getBillToCustomers, getBuyingGroups, getCustomerAddress, getCustomerCategories, getCustomerContacts, getCustomerDetail, getCustomerForEdit, getCustomers, insertCustomer, deleteCustomer, updateCustomer } from '../services/customers.js'
-import { getBillToCustomers, getCustomerAddress, getCustomerCategories, getCustomerContacts, getCustomerDetail, getCustomers } from '../services/customers.js'
+import { getBillToCustomers, getCustomerAddress, getCustomerCategories, getCustomerContacts, getCustomerDetail, getCustomerPrivateDetail, getCustomers } from '../services/customers.js'
 
 /**
  * Obtiene una página de clientes.
@@ -30,10 +30,10 @@ export async function listCustomers(req, res, next) {
     } catch (error) {
         const sqlErrorCode = Number(error.number)
         if (sqlErrorCode === 51003) {
-            return res.status(400).json({message: 'La categoría de cliente indicada no existe.'})
+            return res.status(400).json({message: 'La categoría de cliente indicada no existe'})
         }
         if (sqlErrorCode === 51004) {
-            return res.status(400).json({message: 'El método de entrega indicado no existe.'})
+            return res.status(400).json({message: 'El método de entrega indicado no existe'})
         }
         return next(error)
     }
@@ -105,11 +105,12 @@ export async function listCustomerCategories(req, res, next) {
 /**
  * Obtiene el detalle general de un cliente por su identificador.
  * Incluye nombre, categoría, grupo de compra, nombre del cliente por facturar,
- * método de entrega, días de gracia y sitio web.
+ * método de entrega y días de gracia.
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con el detalle del cliente.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con el detalle del cliente.
  */
 export async function getCustomerById(req, res, next) {
     try {
@@ -119,6 +120,27 @@ export async function getCustomerById(req, res, next) {
             return res.status(404).json({message: 'Cliente no encontrado'})
         }
         return res.json(customer)
+    } catch (error) {
+        return next(error)
+    }
+}
+
+/**
+ * Obtiene el sitio web privado de un cliente por su identificador.
+ *
+ * @param {import('express').Request} req Petición HTTP. Espera customerID en req.params; usa identidad y sucursal del JWT en req.user.
+ * @param {import('express').Response} res Respuesta HTTP.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los datos privados del cliente.
+ */
+export async function getCustomerPrivateById(req, res, next) {
+    try {
+        const customerID = parseInt(req.params.customerID, 10)
+        const details = await getCustomerPrivateDetail(customerID, req.user.userID, req.user.node)
+        if (details.length === 0) {
+            return res.status(404).json({message: 'Datos privados del cliente no encontrados'})
+        }
+        return res.json(details)
     } catch (error) {
         return next(error)
     }
@@ -150,7 +172,8 @@ export async function getCustomerById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los contactos del cliente.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los contactos del cliente.
  */
 export async function getCustomerContactsById(req, res, next) {
     try {
@@ -171,7 +194,8 @@ export async function getCustomerContactsById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con las direcciones del cliente.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con las direcciones del cliente.
  */
 export async function getCustomerAddressById(req, res, next) {
     try {

@@ -38,9 +38,30 @@ export function DetailError({ message, onRetry }: { message: string; onRetry?: (
   )
 }
 
+export interface DetailLoadState {
+  loading: boolean
+  error: string | null
+}
+
+/** Muestra la carga o el error de una sección sin ocultar el resto del detalle. */
+export function DetailSectionFeedback({ state, label, onRetry, children }: { state: DetailLoadState; label: string; onRetry?: () => void; children?: ReactNode }) {
+  if (state.loading) {
+    return <div role="status" className="space-y-2"><Skeleton className="h-5 w-40" /><p className="text-sm text-muted-foreground">{label}</p></div>
+  }
+  if (state.error) {
+    return (
+      <div className="space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+        <p role="alert" className="text-sm text-destructive">{state.error}</p>
+        {onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry}><RotateCcwIcon data-icon="inline-start" />Reintentar datos privados</Button>}
+      </div>
+    )
+  }
+  return <>{children}</>
+}
+
 export interface StatItem { icon: LucideIcon; label: string; value: ReactNode; href?: string; title?: string }
 
-/** Encabezado del detalle: identidad, etiquetas, acción y franja de datos clave. */
+
 export function DetailHero({ badge, eyebrow, title, tags, action, stats }: { badge: ReactNode; eyebrow: string; title: string; tags?: ReactNode; action?: ReactNode; stats?: StatItem[] }) {
   return (
     <Card className="gap-0 py-0 shadow-sm">
@@ -140,17 +161,19 @@ export function ContactBlock({ role, name, phone, fax, email }: { role: string; 
   )
 }
 
-export function MapCard({ url, title, emptyMessage }: { url: string | null; title: string; emptyMessage: string }) {
+export function MapCard({ url, title, emptyMessage, state, onRetry }: { url: string | null; title: string; emptyMessage: string; state?: DetailLoadState; onRetry?: () => void }) {
   return (
     <SectionCard icon={MapIcon} title="Ubicación de entrega">
-      {url ? (
-        <iframe title={title} src={url} loading="lazy" className="h-72 w-full rounded-lg border sm:h-96" referrerPolicy="no-referrer" />
-      ) : (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center">
-          <MapIcon className="size-6 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
-        </div>
-      )}
+      <DetailSectionFeedback state={state ?? { loading: false, error: null }} label="Consultando ubicación en Corporativo..." onRetry={onRetry}>
+        {url ? (
+          <iframe title={title} src={url} loading="lazy" className="h-72 w-full rounded-lg border sm:h-96" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center">
+            <MapIcon className="size-6 text-muted-foreground" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          </div>
+        )}
+      </DetailSectionFeedback>
     </SectionCard>
   )
 }

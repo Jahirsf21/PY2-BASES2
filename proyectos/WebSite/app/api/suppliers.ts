@@ -1,5 +1,5 @@
 // import type { NewSupplier, SupplierAddress, SupplierCategory, SupplierContact, SupplierDetail, SupplierEdit, SuppliersResponse } from '@/lib/types/suppliers'
-import type { SupplierAddress, SupplierCategory, SupplierContact, SupplierDetail, SuppliersResponse } from '@/lib/types/suppliers'
+import type { SupplierAddress, SupplierCategory, SupplierContact, SupplierDetail, SupplierPrivateDetail, SuppliersResponse } from '@/lib/types/suppliers'
 
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -49,7 +49,7 @@ export async function getSupplierCategories(): Promise<SupplierCategory[]> {
 }
 
 /**
- * Obtiene la información general y bancaria de un proveedor.
+ * Obtiene la información general de un proveedor desde la sucursal.
  *
  * @param supplierID Identificador del proveedor.
  * @returns Arreglo con el detalle del proveedor solicitado.
@@ -67,6 +67,25 @@ export async function getSupplierByID(supplierID: number): Promise<SupplierDetai
 }
 
 /**
+ * Obtiene los datos privados de un proveedor consultados en Corporativo.
+ *
+ * @param supplierID Identificador del proveedor.
+ * @returns Arreglo con la referencia, los datos de contacto y la banca del proveedor.
+ */
+export async function getSupplierPrivateByID(supplierID: number): Promise<SupplierPrivateDetail[]> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/private`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los datos privados del proveedor', { cause: res.status })
+  }
+  return res.json()
+}
+
+/**
  * Obtiene los contactos principal y alternativo de un proveedor.
  *
  * @param supplierID Identificador del proveedor.
@@ -75,7 +94,9 @@ export async function getSupplierByID(supplierID: number): Promise<SupplierDetai
 export async function getSupplierContactsByID(supplierID: number): Promise<SupplierContact[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/contacts`, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/contacts`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los contactos del proveedor', { cause: res.status })
@@ -92,7 +113,9 @@ export async function getSupplierContactsByID(supplierID: number): Promise<Suppl
 export async function getSupplierAddressByID(supplierID: number): Promise<SupplierAddress[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/address`, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(`${API_URL}/api/suppliers/${supplierID}/address`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener la dirección del proveedor', { cause: res.status })

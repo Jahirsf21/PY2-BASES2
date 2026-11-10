@@ -1,7 +1,7 @@
 import { paginatedResponse } from '../helpers/paginatedResponse.js'
 // import { validateSupplier } from '../helpers/entityValidation.js'
 // import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupplierDetail, getSupplierForEdit, getSuppliers, insertSupplier, updateSupplier, deleteSupplier } from '../services/suppliers.js'
-import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupplierDetail, getSuppliers } from '../services/suppliers.js'
+import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupplierDetail, getSupplierPrivateDetail, getSuppliers } from '../services/suppliers.js'
 
 /**
  * Obtiene una página de proveedores.
@@ -9,7 +9,8 @@ import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupp
  *
  * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, supplierName, supplierCategoryID y deliveryMethodID en req.query.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de proveedores.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de proveedores.
  */
 export async function listSuppliers(req, res, next) {
     try {
@@ -29,10 +30,10 @@ export async function listSuppliers(req, res, next) {
     } catch (error) {
         const sqlErrorCode = Number(error.number)
         if (sqlErrorCode === 52004) {
-            return res.status(400).json({message: 'La categoría de proveedor indicada no existe.'})
+            return res.status(400).json({message: 'La categoría de proveedor indicada no existe'})
         }
         if (sqlErrorCode === 52005) {
-            return res.status(400).json({message: 'El método de entrega indicado no existe.'})
+            return res.status(400).json({message: 'El método de entrega indicado no existe'})
         }
         return next(error)
     }
@@ -44,7 +45,8 @@ export async function listSuppliers(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con las categorías de proveedor.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con las categorías de proveedor.
  */
 export async function listSupplierCategories(req, res, next) {
     try {
@@ -57,12 +59,12 @@ export async function listSupplierCategories(req, res, next) {
 
 /**
  * Obtiene el detalle general de un proveedor por su identificador.
- * Incluye código de referencia, nombre, categoría, método de entrega,
- * días de gracia, teléfono, fax, sitio web y datos bancarios.
+ * Incluye nombre, categoría, método de entrega y días de gracia.
  *
  * @param {import('express').Request} req Petición HTTP. Espera supplierID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con el detalle del proveedor.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con el detalle del proveedor.
  */
 export async function getSupplierById(req, res, next) {
     try {
@@ -72,6 +74,27 @@ export async function getSupplierById(req, res, next) {
             return res.status(404).json({message: 'Proveedor no encontrado'})
         }
         return res.json(supplier)
+    } catch (error) {
+        return next(error)
+    }
+}
+
+/**
+ * Obtiene la referencia, los datos de contacto y la banca de un proveedor por su identificador.
+ *
+ * @param {import('express').Request} req Petición HTTP. Espera supplierID en req.params; usa identidad y sucursal del JWT en req.user.
+ * @param {import('express').Response} res Respuesta HTTP.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los datos privados del proveedor.
+ */
+export async function getSupplierPrivateById(req, res, next) {
+    try {
+        const supplierID = parseInt(req.params.supplierID, 10)
+        const details = await getSupplierPrivateDetail(supplierID, req.user.userID, req.user.node)
+        if (details.length === 0) {
+            return res.status(404).json({message: 'Datos privados del proveedor no encontrados'})
+        }
+        return res.json(details)
     } catch (error) {
         return next(error)
     }
@@ -103,7 +126,8 @@ export async function getSupplierById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera supplierID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los contactos del proveedor.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los contactos del proveedor.
  */
 export async function getSupplierContactsById(req, res, next) {
     try {
@@ -124,7 +148,8 @@ export async function getSupplierContactsById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera supplierID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con las direcciones del proveedor.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con las direcciones del proveedor.
  */
 export async function getSupplierAddressById(req, res, next) {
     try {

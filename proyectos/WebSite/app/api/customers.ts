@@ -1,5 +1,5 @@
 // import type { BillToCustomersResponse, BuyingGroup, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerEdit, CustomersResponse, NewCustomer } from '@/lib/types/customers'
-import type { BillToCustomersResponse, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomersResponse } from '@/lib/types/customers'
+import type { BillToCustomersResponse, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerPrivateDetail, CustomersResponse } from '@/lib/types/customers'
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -112,6 +112,25 @@ export async function getCustomerByID(customerID: number): Promise<CustomerDetai
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Cliente no encontrado' : 'No fue posible obtener el cliente'
     throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+  }
+  return res.json()
+}
+
+/**
+ * Obtiene los datos privados de un cliente consultados en Corporativo.
+ *
+ * @param customerID Identificador del cliente.
+ * @returns Arreglo con el sitio web del cliente solicitado.
+ */
+export async function getCustomerPrivateByID(customerID: number): Promise<CustomerPrivateDetail[]> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/customers/${customerID}/private`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los datos privados del cliente', { cause: res.status })
   }
   return res.json()
 }

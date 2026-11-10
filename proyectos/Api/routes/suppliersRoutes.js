@@ -1,6 +1,6 @@
 import { Router } from 'express'
 // import { listSuppliers, listSupplierCategories, getSupplierById, getSupplierEditById, getSupplierContactsById, getSupplierAddressById, removeSupplier, addSupplier, editSupplier } from '../controllers/suppliersController.js'
-import { listSuppliers, listSupplierCategories, getSupplierById, getSupplierContactsById, getSupplierAddressById } from '../controllers/suppliersController.js'
+import { listSuppliers, listSupplierCategories, getSupplierById, getSupplierPrivateById, getSupplierContactsById, getSupplierAddressById } from '../controllers/suppliersController.js'
 import { requireRole } from '../middleware/auth.js'
 
 // Rutas de Proveedores.
@@ -33,6 +33,13 @@ router.get('/suppliers/categories', requireRole('Administrador'), listSupplierCa
  */
 router.get('/suppliers/:supplierID', requireRole('Administrador'), getSupplierById)
 
+/**
+ * GET /suppliers/:supplierID/private
+ * Devuelve la referencia, los datos de contacto y la banca del proveedor desde Corporativo.
+ * Path param: supplierID
+ */
+router.get('/suppliers/:supplierID/private', requireRole('Administrador'), getSupplierPrivateById)
+
 // /** GET /suppliers/:supplierID/edit: precarga todos los datos editables. */
 // router.get('/suppliers/:supplierID/edit', requireRole('Administrador'), getSupplierEditById)
 //
@@ -52,14 +59,14 @@ router.get('/suppliers/:supplierID', requireRole('Administrador'), getSupplierBy
 
 /**
  * GET /suppliers/:supplierID/contacts
- * Devuelve los contactos (principal y alternativo) de un proveedor.
+ * Devuelve los contactos (principal y alternativo) de un proveedor, con datos privados de Corporativo.
  * Path param: supplierID
  */
 router.get('/suppliers/:supplierID/contacts', requireRole('Administrador'), getSupplierContactsById)
 
 /**
  * GET /suppliers/:supplierID/address
- * Devuelve las direcciones de entrega y postal de un proveedor, con latitud/longitud.
+ * Devuelve las direcciones de entrega y postal de un proveedor desde Corporativo, con latitud/longitud.
  * Path param: supplierID
  */
 router.get('/suppliers/:supplierID/address', requireRole('Administrador'), getSupplierAddressById)

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 // import { listCustomers, listBillToCustomers, listCustomerCategories, listBuyingGroups, getCustomerById, getCustomerEditById, getCustomerContactsById, getCustomerAddressById, addCustomer, removeCustomer, editCustomer } from '../controllers/customersController.js'
-import { listCustomers, listBillToCustomers, listCustomerCategories, getCustomerById, getCustomerContactsById, getCustomerAddressById } from '../controllers/customersController.js'
+import { listCustomers, listBillToCustomers, listCustomerCategories, getCustomerById, getCustomerPrivateById, getCustomerContactsById, getCustomerAddressById } from '../controllers/customersController.js'
 import { requireRole } from '../middleware/auth.js'
 
 // Rutas de Clientes.
@@ -46,6 +46,13 @@ router.get('/customers/categories', requireRole('Administrador'), listCustomerCa
  */
 router.get('/customers/:customerID', requireRole('Administrador'), getCustomerById)
 
+/**
+ * GET /customers/:customerID/private
+ * Devuelve el sitio web privado del cliente consultado en Corporativo.
+ * Path param: customerID
+ */
+router.get('/customers/:customerID/private', requireRole('Administrador'), getCustomerPrivateById)
+
 // /**
 //  * GET /customers/:customerID/edit
 //  * Obtiene los datos editables y referencias del cliente.
@@ -67,14 +74,14 @@ router.get('/customers/:customerID', requireRole('Administrador'), getCustomerBy
 
 /**
  * GET /customers/:customerID/contacts
- * Devuelve los contactos (principal y alternativo) de un cliente.
+ * Devuelve los contactos (principal y alternativo) de un cliente, con datos privados de Corporativo.
  * Path param: customerID
  */
 router.get('/customers/:customerID/contacts', requireRole('Administrador'), getCustomerContactsById)
 
 /**
  * GET /customers/:customerID/address
- * Devuelve las direcciones de entrega y postal de un cliente, con latitud/longitud.
+ * Devuelve las direcciones de entrega y postal de un cliente desde Corporativo, con latitud/longitud.
  * Path param: customerID
  */
 router.get('/customers/:customerID/address', requireRole('Administrador'), getCustomerAddressById)

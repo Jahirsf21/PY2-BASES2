@@ -6,7 +6,8 @@ import { getPeople, getCities, getDeliveryMethods, getEmployees, getSalespeople 
  *
  * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize y fullName en req.query.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de personas.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de personas.
  */
 export async function listPeople(req, res, next) {
     try {
@@ -31,7 +32,8 @@ export async function listPeople(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, cityName, provinceName y countryName en req.query.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de ciudades.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de ciudades.
  */
 export async function listCities(req, res, next) {
     try {
@@ -59,7 +61,8 @@ export async function listCities(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los métodos de entrega.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los métodos de entrega.
  */
 export async function listDeliveryMethods(req, res, next) {
     try {
@@ -75,7 +78,8 @@ export async function listDeliveryMethods(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los empleados.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los empleados.
  */
 export async function listEmployees(req, res, next) {
     try {
@@ -91,7 +95,8 @@ export async function listEmployees(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los vendedores.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los vendedores.
  */
 export async function listSalespeople(req, res, next) {
     try {

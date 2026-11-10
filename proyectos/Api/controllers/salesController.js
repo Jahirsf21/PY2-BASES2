@@ -8,7 +8,8 @@ import { getInvoices, getInvoiceHeader, getInvoiceForEdit, getInvoiceLines, inse
  *
  * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount y maxInvoiceAmount en req.query.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de facturas.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de facturas.
  */
 export async function listInvoices(req, res, next) {
     try {
@@ -32,13 +33,13 @@ export async function listInvoices(req, res, next) {
     } catch (error) {
         const sqlErrorCode = Number(error.number)
         if (sqlErrorCode === 54004) {
-            return res.status(400).json({message: 'La fecha inicial no puede ser mayor que la fecha final.'})
+            return res.status(400).json({message: 'La fecha inicial no puede ser mayor que la fecha final'})
         }
         if (sqlErrorCode === 54005) {
-            return res.status(400).json({message: 'Los montos no pueden ser negativos.'})
+            return res.status(400).json({message: 'Los montos no pueden ser negativos'})
         }
         if (sqlErrorCode === 54006) {
-            return res.status(400).json({message: 'El monto mínimo no puede ser mayor que el monto máximo.'})
+            return res.status(400).json({message: 'El monto mínimo no puede ser mayor que el monto máximo'})
         }
         return next(error)
     }
@@ -49,7 +50,8 @@ export async function listInvoices(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con invoiceID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Encabezado de la factura o 404.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Encabezado de la factura o 404.
  */
 export async function getInvoiceById(req, res, next) {
     try {
@@ -69,7 +71,8 @@ export async function getInvoiceById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con invoiceID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Datos del formulario o 404.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Datos del formulario o 404.
  */
 export async function getInvoiceEditById(req, res, next) {
     try {
@@ -89,7 +92,8 @@ export async function getInvoiceEditById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con invoiceID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Líneas de la factura o 404.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Líneas de la factura o 404.
  */
 export async function getInvoiceLinesById(req, res, next) {
     try {
@@ -109,7 +113,8 @@ export async function getInvoiceLinesById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con los datos de la factura en req.body.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Identificador de la factura creada.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Identificador de la factura creada.
  */
 export async function addInvoice(req, res, next) {
     const invoice = req.body
@@ -136,7 +141,8 @@ export async function addInvoice(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con invoiceID en la ruta y datos en req.body.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Confirmación de la actualización.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Confirmación de la actualización.
  */
 export async function editInvoice(req, res, next) {
     const invoiceID = Number(req.params.invoiceID)

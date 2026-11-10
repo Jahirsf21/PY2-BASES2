@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken'
-import {env} from '../config/env.js'
+import { env } from '../config/env.js'
 import { isRoleAllowedInNode } from '../helpers/entityValidation.js'
 
 const JWT_SECRET = env.JWT_SECRET
@@ -79,7 +79,7 @@ export const requireRole = (...roles) => (req, res, next) => {
  * @param {string|number} [expiresIn] Vigencia del token como texto de duración o número de segundos.
  * @returns {string} Token JWT firmado.
  */
-export const generate_token = (userData, expiresIn = '24h') => {
+export const generateToken = (userData, expiresIn = '24h') => {
     if (!isValidSession(userData)) {
         throw new Error('Datos de sesión inválidos')
     }

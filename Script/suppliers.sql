@@ -74,9 +74,8 @@ as
 go
 
 /*
-    Obtiene el detalle general de un proveedor: código de referencia, nombre, categoría, método de entrega, días de gracia y datos bancarios.
-    Devuelve: SupplierID, CodigoProveedor, NombreProveedor, NombreCategoriaProveedor, NombreMetodoEntrega, DiasGraciaPago, SitioWeb,
-    NombreBanco, SucursalBanco, NumeroCuentaBancaria, CodigoSwift
+    Obtiene el detalle general de un proveedor: nombre, categoría, método de entrega y días de gracia.
+    Devuelve: SupplierID, NombreProveedor, NombreCategoriaProveedor, NombreMetodoEntrega, DiasGraciaPago
 */
 create or alter procedure Purchasing.GetSupplierDetail
     @SupplierID int,
@@ -88,22 +87,44 @@ as
 
         select
             sp.SupplierID,
-            sp.SupplierReference as CodigoProveedor,
             sp.SupplierName as NombreProveedor,
             sg.SupplierCategoryName as NombreCategoriaProveedor,
             dv.DeliveryMethodName as NombreMetodoEntrega,
-            sp.PaymentDays as DiasGraciaPago,
-            sp.PhoneNumber as Telefono,
-            sp.FaxNumber as Fax,
-            sp.WebSiteURL as SitioWeb,
-            sp.BankAccountName as NombreBanco,
-            sp.BankAccountBranch as SucursalBanco,
-            sp.BankAccountNumber as NumeroCuentaBancaria,
-            sp.BankInternationalCode as CodigoSwift
+            sp.PaymentDays as DiasGraciaPago
         from dbo.Suppliers sp
         inner join dbo.SupplierCategories sg on sp.SupplierCategoryID = sg.SupplierCategoryID
         left join dbo.DeliveryMethods dv on sp.DeliveryMethodID = dv.DeliveryMethodID
         where sp.SupplierID = @SupplierID
+    end
+go
+
+/*
+    Obtiene la referencia, los datos de contacto y la información bancaria del proveedor en Corporativo.
+    Devuelve: SupplierID, CodigoProveedor, Telefono, Fax, SitioWeb, NombreBanco, SucursalBanco, NumeroCuentaBancaria, CodigoSwift
+*/
+create or alter procedure Purchasing.GetSupplierPrivateDetail
+    @SupplierID int,
+    @UserID int
+as
+    begin
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
+        if not exists (select 1 from dbo.Suppliers where SupplierID = @SupplierID)
+            return;
+
+        select
+            sp.SupplierID,
+            sp.SupplierReference as CodigoProveedor,
+            sp.PhoneNumber as Telefono,
+            sp.FaxNumber as Fax,
+            sp.WebsiteURL as SitioWeb,
+            sp.BankAccountName as NombreBanco,
+            sp.BankAccountBranch as SucursalBanco,
+            sp.BankAccountNumber as NumeroCuentaBancaria,
+            sp.BankInternationalCode as CodigoSwift
+        from CORPORATIVO.WideWorldImporters.Purchasing.v_SupplierPrivate sp
+        where sp.SupplierID = @SupplierID;
     end
 go
 
@@ -175,19 +196,24 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        if not exists (select 1 from dbo.Suppliers where SupplierID = @SupplierID)
+            return;
+
         select
             pp.FullName as NombreContactoPrincipal,
-            pp.PhoneNumber as TelefonoPrincipal,
-            pp.FaxNumber as FaxPrincipal,
-            pp.EmailAddress as CorreoPrincipal,
+            ppc.PhoneNumber as TelefonoPrincipal,
+            ppc.FaxNumber as FaxPrincipal,
+            ppc.EmailAddress as CorreoPrincipal,
             pa.FullName as NombreContactoAlternativo,
-            pa.PhoneNumber as TelefonoAlternativo,
-            pa.FaxNumber as FaxAlternativo,
-            pa.EmailAddress as CorreoAlternativo
-        from dbo.Suppliers sp
+            pac.PhoneNumber as TelefonoAlternativo,
+            pac.FaxNumber as FaxAlternativo,
+            pac.EmailAddress as CorreoAlternativo
+        from CORPORATIVO.WideWorldImporters.Purchasing.v_SupplierPrivate sp
         inner join dbo.People pp on sp.PrimaryContactPersonID = pp.PersonID
+        inner join CORPORATIVO.WideWorldImporters.Application.v_PeoplePrivate ppc on sp.PrimaryContactPersonID = ppc.PersonID
         inner join dbo.People pa on sp.AlternateContactPersonID = pa.PersonID
-        where sp.SupplierID = @SupplierID
+        inner join CORPORATIVO.WideWorldImporters.Application.v_PeoplePrivate pac on sp.AlternateContactPersonID = pac.PersonID
+        where sp.SupplierID = @SupplierID;
     end
 go
 
@@ -204,6 +230,9 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        if not exists (select 1 from dbo.Suppliers where SupplierID = @SupplierID)
+            return;
+
         select
             sp.DeliveryAddressLine1 as DireccionEntrega1,
             sp.DeliveryAddressLine2 as DireccionEntrega2,
@@ -217,16 +246,17 @@ as
             spv2.StateProvinceName as ProvinciaPostal,
             co2.CountryName as PaisPostal,
             sp.PostalPostalCode as CodigoPostalPostal,
-            sp.DeliveryLocation.Lat as Latitud,
-            sp.DeliveryLocation.Long as Longitud
-        from dbo.Suppliers sp
-        inner join dbo.Cities ci on sp.DeliveryCityID = ci.CityID
+            sp.Latitud,
+            sp.Longitud
+        from CORPORATIVO.WideWorldImporters.Purchasing.v_SupplierPrivate sp
+        inner join dbo.Suppliers ls on sp.SupplierID = ls.SupplierID
+        inner join dbo.Cities ci on ls.DeliveryCityID = ci.CityID
         inner join dbo.StateProvinces spv on ci.StateProvinceID = spv.StateProvinceID
         inner join dbo.Countries co on spv.CountryID = co.CountryID
         inner join dbo.Cities ci2 on sp.PostalCityID = ci2.CityID
         inner join dbo.StateProvinces spv2 on ci2.StateProvinceID = spv2.StateProvinceID
         inner join dbo.Countries co2 on spv2.CountryID = co2.CountryID
-        where sp.SupplierID = @SupplierID
+        where sp.SupplierID = @SupplierID;
     end
 go
 

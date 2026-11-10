@@ -1,5 +1,5 @@
-import {getPool} from '../config/database.js'
-import sql from "mssql"
+import { getPool } from '../config/database.js'
+import sql from 'mssql'
 
 /**
  * Obtiene una página de productos junto con el total de registros.

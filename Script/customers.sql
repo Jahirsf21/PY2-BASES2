@@ -89,9 +89,9 @@ go
 
 /*
     Obtiene el detalle general de un cliente:
-    nombre, categoría, buying group, cliente por facturar, método de entrega, días de gracia, sitio web.
+    nombre, categoría, buying group, cliente por facturar, método de entrega y días de gracia.
     Requiere un usuario activo con rol Administrador en San José o Limón.
-    Devuelve: CustomerID, NombreCliente, NombreCategoriaCliente, NombreGrupoCompra, NombreClientePorFacturar, NombreMetodoEntrega, DiasGraciaPago, SitioWeb
+    Devuelve: CustomerID, NombreCliente, NombreCategoriaCliente, NombreGrupoCompra, NombreClientePorFacturar, NombreMetodoEntrega, DiasGraciaPago
 */
 create or alter procedure Sales.GetCustomerDetail
     @CustomerID int,
@@ -108,14 +108,37 @@ as
             bg.BuyingGroupName as NombreGrupoCompra,
             bill.CustomerName as NombreClientePorFacturar,
             dv.DeliveryMethodName as NombreMetodoEntrega,
-            cs.PaymentDays as DiasGraciaPago,
-            cs.WebSiteURL as SitioWeb
+            cs.PaymentDays as DiasGraciaPago
         from dbo.Customers cs
         inner join dbo.CustomerCategories cg on cs.CustomerCategoryID = cg.CustomerCategoryID
         left join dbo.BuyingGroups bg on cs.BuyingGroupID = bg.BuyingGroupID
         inner join dbo.DeliveryMethods dv on cs.DeliveryMethodID = dv.DeliveryMethodID
         inner join dbo.Customers bill on bill.CustomerID = cs.BillToCustomerID
         where cs.CustomerID = @CustomerID
+    end
+go
+
+/*
+    Obtiene el sitio web del cliente almacenado en Corporativo.
+    Requiere un usuario activo con rol Administrador en San José o Limón.
+    Devuelve: CustomerID, SitioWeb
+*/
+create or alter procedure Sales.GetCustomerPrivateDetail
+    @CustomerID int,
+    @UserID int
+as
+    begin
+        set nocount on;
+        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+
+        if not exists (select 1 from dbo.Customers where CustomerID = @CustomerID)
+            return;
+
+        select
+            cs.CustomerID,
+            cs.WebsiteURL as SitioWeb
+        from CORPORATIVO.WideWorldImporters.Sales.v_CustomerPrivate cs
+        where cs.CustomerID = @CustomerID;
     end
 go
 
@@ -189,19 +212,24 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        if not exists (select 1 from dbo.Customers where CustomerID = @CustomerID)
+            return;
+
         select
             pp.FullName as NombreContactoPrincipal,
-            pp.PhoneNumber as TelefonoPrincipal,
-            pp.FaxNumber AS FaxPrincipal,
-            pp.EmailAddress as CorreoPrincipal,
+            ppc.PhoneNumber as TelefonoPrincipal,
+            ppc.FaxNumber as FaxPrincipal,
+            ppc.EmailAddress as CorreoPrincipal,
             pa.FullName as NombreContactoAlternativo,
-            pa.PhoneNumber as TelefonoAlternativo,
-            pa.FaxNumber as FaxAlternativo,
-            pa.EmailAddress as CorreoAlternativo
-        from dbo.Customers cs
+            pac.PhoneNumber as TelefonoAlternativo,
+            pac.FaxNumber as FaxAlternativo,
+            pac.EmailAddress as CorreoAlternativo
+        from CORPORATIVO.WideWorldImporters.Sales.v_CustomerPrivate cs
         inner join dbo.People pp on cs.PrimaryContactPersonID = pp.PersonID
+        inner join CORPORATIVO.WideWorldImporters.Application.v_PeoplePrivate ppc on cs.PrimaryContactPersonID = ppc.PersonID
         left join dbo.People pa on cs.AlternateContactPersonID = pa.PersonID
-        where cs.CustomerID = @CustomerID
+        left join CORPORATIVO.WideWorldImporters.Application.v_PeoplePrivate pac on cs.AlternateContactPersonID = pac.PersonID
+        where cs.CustomerID = @CustomerID;
     end
 go
 
@@ -219,6 +247,9 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        if not exists (select 1 from dbo.Customers where CustomerID = @CustomerID)
+            return;
+
         select
             cs.DeliveryAddressLine1 as DireccionEntrega1,
             cs.DeliveryAddressLine2 as DireccionEntrega2,
@@ -232,16 +263,17 @@ as
             sp2.StateProvinceName as ProvinciaPostal,
             co2.CountryName as PaisPostal,
             cs.PostalPostalCode as CodigoPostalPostal,
-            cs.DeliveryLocation.Lat as Latitud,
-            cs.DeliveryLocation.Long as Longitud
-        from dbo.Customers cs
-        inner join dbo.Cities ci on cs.DeliveryCityID = ci.CityID
+            cs.Latitud,
+            cs.Longitud
+        from CORPORATIVO.WideWorldImporters.Sales.v_CustomerPrivate cs
+        inner join dbo.Customers lc on cs.CustomerID = lc.CustomerID
+        inner join dbo.Cities ci on lc.DeliveryCityID = ci.CityID
         inner join dbo.StateProvinces sp on ci.StateProvinceID = sp.StateProvinceID
         inner join dbo.Countries co on sp.CountryID = co.CountryID
         inner join dbo.Cities ci2 on cs.PostalCityID = ci2.CityID
         inner join dbo.StateProvinces sp2 on ci2.StateProvinceID = sp2.StateProvinceID
         inner join dbo.Countries co2 on sp2.CountryID = co2.CountryID
-        where cs.CustomerID = @CustomerID
+        where cs.CustomerID = @CustomerID;
     end
 go
 

@@ -8,7 +8,8 @@ import { getStockItems, getStockGroups, getColors, getPackageTypes, getStockItem
  *
  * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, stockItemName y stockGroupIDsJson en req.query. El arreglo JSON null o [] incluye todos los grupos.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con la página de productos.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de productos.
  */
 export async function listStockItems(req, res, next) {
     try {
@@ -27,13 +28,13 @@ export async function listStockItems(req, res, next) {
     } catch (error) {
         const sqlErrorCode = Number(error.number)
         if (sqlErrorCode === 50003) {
-            return res.status(400).json({message: 'StockGroupIDsJson debe ser un arreglo JSON de IDs de categorías.'})
+            return res.status(400).json({message: 'StockGroupIDsJson debe ser un arreglo JSON de IDs de categorías'})
         }
         if (sqlErrorCode === 50004) {
-            return res.status(400).json({message: 'Los IDs de categorías deben ser números enteros positivos.'})
+            return res.status(400).json({message: 'Los IDs de categorías deben ser números enteros positivos'})
         }
         if (sqlErrorCode === 50005) {
-            return res.status(400).json({message: 'Una o más categorías indicadas no existen en la base de datos.'})
+            return res.status(400).json({message: 'Una o más categorías indicadas no existen en la base de datos'})
         }
         return next(error)
     }
@@ -45,7 +46,8 @@ export async function listStockItems(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los grupos de productos.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los grupos de productos.
  */
 export async function listStockGroups(req, res, next) {
     try {
@@ -61,7 +63,8 @@ export async function listStockGroups(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los colores.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los colores.
  */
 export async function listColors(req, res, next) {
     try {
@@ -77,7 +80,8 @@ export async function listColors(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta JSON con los tipos de empaque.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta JSON con los tipos de empaque.
  */
 export async function listPackageTypes(req, res, next) {
     try {
@@ -93,7 +97,8 @@ export async function listPackageTypes(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con stockItemID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Detalle del producto o 404.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Detalle del producto o 404.
  */
 export async function getStockItemById(req, res, next) {
     try {
@@ -113,7 +118,8 @@ export async function getStockItemById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con stockItemID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Datos del formulario o 404.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Datos del formulario o 404.
  */
 export async function getStockItemEditById(req, res, next) {
     try {
@@ -133,7 +139,8 @@ export async function getStockItemEditById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con stockItemID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Grupos del producto o 404.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Grupos del producto o 404.
  */
 export async function getStockItemGroupsById(req, res, next) {
     try {
@@ -153,7 +160,8 @@ export async function getStockItemGroupsById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con los datos del producto en req.body.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Identificador del producto creado.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Identificador del producto creado.
  */
 export async function addStockItem(req, res, next) {
     const item = req.body
@@ -169,7 +177,7 @@ export async function addStockItem(req, res, next) {
         return res.status(201).json({stockItemID})
     } catch (error) {
         if (Number(error.number) === 547) {
-            return res.status(400).json({message: 'Alguna referencia del producto (proveedor, color, empaque o grupo) no existe.'})
+            return res.status(400).json({message: 'Alguna referencia del producto (proveedor, color, empaque o grupo) no existe'})
         }
         return next(error)
     }
@@ -180,7 +188,8 @@ export async function addStockItem(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con stockItemID en la ruta y datos en req.body.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Confirmación de la actualización.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Confirmación de la actualización.
  */
 export async function editStockItem(req, res, next) {
     const stockItemID = Number(req.params.stockItemID)
@@ -201,7 +210,7 @@ export async function editStockItem(req, res, next) {
             return res.status(404).json({message: 'Producto no encontrado'})
         }
         if (sqlErrorCode === 547) {
-            return res.status(400).json({message: 'Alguna referencia del producto (proveedor, color, empaque o grupo) no existe.'})
+            return res.status(400).json({message: 'Alguna referencia del producto (proveedor, color, empaque o grupo) no existe'})
         }
         return next(error)
     }
@@ -212,7 +221,8 @@ export async function editStockItem(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con stockItemID en req.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @returns {Promise<import('express').Response>} Respuesta sin contenido al eliminarlo.
+ * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
+ * @returns {Promise<import('express').Response|void>} Respuesta sin contenido al eliminarlo.
  */
 export async function removeStockItem(req, res, next) {
     const stockItemID = Number(req.params.stockItemID)

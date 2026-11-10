@@ -1,5 +1,6 @@
-import {getPool} from '../config/database.js'
-import sql from "mssql"
+import { getPool } from '../config/database.js'
+import sql from 'mssql'
+import { executeCorporateProcedure } from '../helpers/corporateQuery.js'
 
 /**
  * Obtiene una página de clientes junto con el total de registros.
@@ -58,7 +59,7 @@ export async function getBillToCustomers(customerName, pageNumber, pageSize, use
 /**
  * Obtiene el detalle general de un cliente por su identificador.
  * Incluye nombre, categoría, grupo de compra, nombre del cliente por facturar,
- * método de entrega, días de gracia y sitio web.
+ * método de entrega y días de gracia.
  *
  * @param {number} customerID Identificador del cliente.
  * @param {number} userID Identificador del usuario autenticado.
@@ -71,6 +72,23 @@ export async function getCustomerDetail(customerID, userID, node) {
     connection.input('CustomerID', sql.Int, customerID)
     const result = await connection.execute('Sales.GetCustomerDetail')
     return result.recordset
+}
+
+/**
+ * Obtiene el detalle privado de un cliente por su identificador.
+ * Ejecuta Sales.GetCustomerPrivateDetail en la sucursal, que consulta Sales.v_CustomerPrivate en Corporativo.
+ * Devuelve únicamente CustomerID y SitioWeb; los contactos y las direcciones se consultan por separado.
+ *
+ * @param {number} customerID Identificador del cliente.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
+ * @returns {Promise<object[]>} Una fila con CustomerID y SitioWeb, o un arreglo vacío si no hay datos.
+ */
+export async function getCustomerPrivateDetail(customerID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
+    connection.input('CustomerID', sql.Int, customerID)
+    return executeCorporateProcedure(connection, 'Sales.GetCustomerPrivateDetail')
 }
 
 // /**
@@ -93,6 +111,7 @@ export async function getCustomerDetail(customerID, userID, node) {
 /**
  * Obtiene los contactos (principal y alternativo) de un cliente por su identificador.
  * Devuelve nombre, teléfono, fax y correo de ambos contactos en una sola fila.
+ * Los nombres se resuelven localmente; las referencias y los datos de contacto provienen de Corporativo.
  *
  * @param {number} customerID Identificador del cliente.
  * @param {number} userID Identificador del usuario autenticado.
@@ -103,13 +122,13 @@ export async function getCustomerContacts(customerID, userID, node) {
     const connection = (await getPool(node)).request()
     connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
-    const result = await connection.execute('Sales.GetCustomerContacts')
-    return result.recordset
+    return executeCorporateProcedure(connection, 'Sales.GetCustomerContacts')
 }
 
 /**
  * Obtiene las direcciones de entrega y postal de un cliente,
  * junto con su ubicación geográfica (latitud/longitud).
+ * Consulta los datos privados en Corporativo y resuelve los nombres geográficos en la sucursal.
  *
  * @param {number} customerID Identificador del cliente.
  * @param {number} userID Identificador del usuario autenticado.
@@ -120,8 +139,7 @@ export async function getCustomerAddress(customerID, userID, node) {
     const connection = (await getPool(node)).request()
     connection.input('UserID', sql.Int, userID)
     connection.input('CustomerID', sql.Int, customerID)
-    const result = await connection.execute('Sales.GetCustomerAddress')
-    return result.recordset
+    return executeCorporateProcedure(connection, 'Sales.GetCustomerAddress')
 }
 
 /**

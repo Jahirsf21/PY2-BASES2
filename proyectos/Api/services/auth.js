@@ -1,5 +1,5 @@
-import {getPool} from '../config/database.js'
-import sql from "mssql"
+import { getPool } from '../config/database.js'
+import sql from 'mssql'
 
 /**
  * Obtiene los datos de un usuario activo mediante dbo.LoginUser.

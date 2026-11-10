@@ -1,5 +1,5 @@
-import {getPool} from '../config/database.js'
-import sql from "mssql"
+import { getPool } from '../config/database.js'
+import sql from 'mssql'
 
 /**
  * Obtiene una página de personas que no son empleados ni vendedores, excluyendo la persona con ID 1.

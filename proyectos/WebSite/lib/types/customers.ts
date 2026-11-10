@@ -35,6 +35,11 @@ export interface CustomerDetail {
   NombreClientePorFacturar: string
   NombreMetodoEntrega: string
   DiasGraciaPago: number
+}
+
+/** Sitio web privado del cliente consultado en Corporativo. */
+export interface CustomerPrivateDetail {
+  CustomerID: number
   SitioWeb: string | null
 }
 

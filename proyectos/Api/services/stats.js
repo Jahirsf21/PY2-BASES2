@@ -1,5 +1,5 @@
-import {getPool} from '../config/database.js'
-import sql from "mssql"
+import { getPool } from '../config/database.js'
+import sql from 'mssql'
 
 /**
  * Obtiene los años distintos en los que se registraron órdenes de compra.

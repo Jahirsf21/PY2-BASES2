@@ -1,8 +1,9 @@
 import express from 'express'
 import cors from 'cors'
-import {env} from './config/env.js'
+import { env } from './config/env.js'
 
 import { verifyToken } from './middleware/auth.js'
+import { isCorporateConnectionError } from './helpers/corporateQuery.js'
 import authRoutes from './routes/authRoutes.js'
 import customersRoutes from './routes/customersRoutes.js'
 import supplierRoutes from './routes/suppliersRoutes.js'
@@ -14,12 +15,12 @@ import statsRoutes from './routes/statsRoutes.js'
 const app = express()
 
 // Habilita CORS para permitir peticiones desde el frontend
-app.use(cors({origin:`http://localhost:${env.APP_PORT}`}))
+app.use(cors({origin: `http://localhost:${env.APP_PORT}`}))
 
 // Parsea el cuerpo de las peticiones entrantes en formato JSON
 app.use(express.json())
 
-// Rutas de la API
+// Ruta pública de autenticación y verificación del JWT para el resto de /api
 app.use('/api', authRoutes)
 app.use('/api', verifyToken)
 
@@ -32,7 +33,7 @@ app.use('/api', applicationRoutes)
 app.use('/api', statsRoutes)
 
 // Middleware para rutas no encontradas
-app.use((req, res)=> {
+app.use((req, res) => {
     res.status(404).json({message: 'Ruta no encontrada'})
 })
 
@@ -48,13 +49,16 @@ app.use((error, req, res, next) => {
     if (sqlErrorCode === 56001) {
         return res.status(403).json({message: 'El rol no tiene permisos para realizar esta operación'})
     }
-    if (['ESOCKET', 'ETIMEOUT', 'ECONNCLOSED', 'ENOTOPEN', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(error.code)) {
+    if (isCorporateConnectionError(error)) {
+        return res.status(503).json({message: 'No fue posible consultar los datos sensibles de Corporativo. Intente nuevamente'})
+    }
+    if (['ESOCKET', 'ETIMEOUT', 'ECONNCLOSED', 'ENOTOPEN'].includes(error.code)) {
         return res.status(503).json({message: 'La sucursal seleccionada no está disponible. Intente nuevamente'})
     }
-    res.status(500).json({message: 'Error interno del servidor.'})
+    res.status(500).json({message: 'Error interno del servidor'})
 })
 
 // Arranca el servidor en el puerto configurado
-app.listen(env.API_PORT, ()=>{
-    console.log(`servidor corriendo en http://localhost:${env.API_PORT}`)
+app.listen(env.API_PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${env.API_PORT}`)
 })

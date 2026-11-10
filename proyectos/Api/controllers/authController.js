@@ -1,5 +1,5 @@
 import { isRoleAllowedInNode, validateLogin } from '../helpers/entityValidation.js'
-import { generate_token } from '../middleware/auth.js'
+import { generateToken } from '../middleware/auth.js'
 import { loginUser } from '../services/auth.js'
 
 /**
@@ -27,7 +27,7 @@ export async function login(req, res) {
         if (!isRoleAllowedInNode(user.Rol, credentials.node)) {
             return res.status(403).json({message: 'El rol no tiene acceso a la sucursal seleccionada'})
         }
-        const token = generate_token({
+        const token = generateToken({
             userID: user.UserID,
             userName: user.UserName,
             rol: user.Rol,

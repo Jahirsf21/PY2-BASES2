@@ -1,5 +1,6 @@
-import {getPool} from '../config/database.js'
-import sql from "mssql"
+import { getPool } from '../config/database.js'
+import sql from 'mssql'
+import { executeCorporateProcedure } from '../helpers/corporateQuery.js'
 
 /**
  * Obtiene una página de proveedores junto con el total de registros.
@@ -47,8 +48,7 @@ export async function getSupplierCategories(userID, node) {
 
 /**
  * Obtiene el detalle general de un proveedor por su identificador.
- * Incluye código de referencia, nombre, categoría, método de entrega,
- * días de gracia, teléfono, fax, sitio web y datos bancarios.
+ * Incluye nombre, categoría, método de entrega y días de gracia.
  *
  * @param {number} supplierID Identificador del proveedor.
  * @param {number} userID Identificador del usuario autenticado.
@@ -64,8 +64,28 @@ export async function getSupplierDetail(supplierID, userID, node) {
 }
 
 /**
+ * Obtiene el detalle privado de un proveedor por su identificador.
+ * Ejecuta Purchasing.GetSupplierPrivateDetail en la sucursal, que consulta Purchasing.v_SupplierPrivate en Corporativo.
+ * Devuelve: SupplierID, CodigoProveedor, Telefono, Fax, SitioWeb, NombreBanco,
+ * SucursalBanco, NumeroCuentaBancaria, CodigoSwift.
+ * Los contactos y las direcciones se consultan por separado.
+ *
+ * @param {number} supplierID Identificador del proveedor.
+ * @param {number} userID Identificador del usuario autenticado.
+ * @param {string} node Sucursal del JWT verificado.
+ * @returns {Promise<object[]>} Datos privados del proveedor en una fila, o un arreglo vacío si no se encuentran.
+ */
+export async function getSupplierPrivateDetail(supplierID, userID, node) {
+    const connection = (await getPool(node)).request()
+    connection.input('UserID', sql.Int, userID)
+    connection.input('SupplierID', sql.Int, supplierID)
+    return executeCorporateProcedure(connection, 'Purchasing.GetSupplierPrivateDetail')
+}
+
+/**
  * Obtiene los contactos (principal y alternativo) de un proveedor por su identificador.
  * Devuelve nombre, teléfono, fax y correo de ambos contactos en una sola fila.
+ * Los nombres se resuelven localmente; las referencias y los datos de contacto provienen de Corporativo.
  *
  * @param {number} supplierID Identificador del proveedor.
  * @param {number} userID Identificador del usuario autenticado.
@@ -76,13 +96,13 @@ export async function getSupplierContacts(supplierID, userID, node) {
     const connection = (await getPool(node)).request()
     connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
-    const result = await connection.execute('Purchasing.GetSupplierContacts')
-    return result.recordset
+    return executeCorporateProcedure(connection, 'Purchasing.GetSupplierContacts')
 }
 
 /**
  * Obtiene las direcciones de entrega y postal de un proveedor,
  * junto con su ubicación geográfica (latitud/longitud).
+ * Consulta los datos privados en Corporativo y resuelve los nombres geográficos en la sucursal.
  *
  * @param {number} supplierID Identificador del proveedor.
  * @param {number} userID Identificador del usuario autenticado.
@@ -93,8 +113,7 @@ export async function getSupplierAddress(supplierID, userID, node) {
     const connection = (await getPool(node)).request()
     connection.input('UserID', sql.Int, userID)
     connection.input('SupplierID', sql.Int, supplierID)
-    const result = await connection.execute('Purchasing.GetSupplierAddress')
-    return result.recordset
+    return executeCorporateProcedure(connection, 'Purchasing.GetSupplierAddress')
 }
 
 // /**

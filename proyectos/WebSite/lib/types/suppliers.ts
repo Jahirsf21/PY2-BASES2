@@ -76,14 +76,19 @@ export interface SupplierEdit {
   Longitud: number | null
 }
 
-/** Información general y bancaria de un proveedor. */
+/** Información general del proveedor disponible en la sucursal. */
 export interface SupplierDetail {
   SupplierID: number
-  CodigoProveedor: string | null
   NombreProveedor: string
   NombreCategoriaProveedor: string
   NombreMetodoEntrega: string | null
   DiasGraciaPago: number
+}
+
+/** Referencia, datos de contacto y banca del proveedor consultados en Corporativo. */
+export interface SupplierPrivateDetail {
+  SupplierID: number
+  CodigoProveedor: string | null
   Telefono: string
   Fax: string | null
   SitioWeb: string | null
