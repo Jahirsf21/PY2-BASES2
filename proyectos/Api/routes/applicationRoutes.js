@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { listPeople, listCities, listDeliveryMethods, listEmployees, listSalespeople } from '../controllers/applicationController.js'
 import { requireRole } from '../middleware/auth.js'
+import { validatePagination } from '../middleware/validation.js'
 
 // Rutas de Application (referencias de formularios para Administrador).
 const router = Router()
@@ -10,7 +11,7 @@ const router = Router()
  * Devuelve una página de personas paginada.
  * Query params: pageNumber, pageSize, fullName
  */
-router.get('/people', requireRole('Administrador'), listPeople)
+router.get('/people', requireRole('Administrador'), validatePagination, listPeople)
 
 /**
  * GET /employees
@@ -29,7 +30,7 @@ router.get('/salespeople', requireRole('Administrador'), listSalespeople)
  * Devuelve una página de ciudades paginada.
  * Query params: pageNumber, pageSize, cityName, provinceName, countryName
  */
-router.get('/cities', requireRole('Administrador'), listCities)
+router.get('/cities', requireRole('Administrador'), validatePagination, listCities)
 
 /**
  * GET /delivery-methods

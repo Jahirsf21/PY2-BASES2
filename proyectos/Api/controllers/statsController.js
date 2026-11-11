@@ -64,14 +64,7 @@ export async function listSupplierPurchaseSummary(req, res, next) {
  */
 export async function listCustomerSalesSummary(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const customerName = req.query.customerName
         const customerCategoryName = req.query.customerCategoryName
         const result = await getCustomerSalesSummary(customerName, customerCategoryName, pageNumber, pageSize, req.user.userID, req.user.node)
@@ -188,14 +181,7 @@ export async function listProductCategorySalesByYear(req, res, next) {
  */
 export async function listCustomerSalesTracking(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const year = req.query.year
         const month = req.query.month
         const stockGroupIDsJson = req.query.stockGroupIDsJson
@@ -233,14 +219,7 @@ export async function listCustomerSalesTracking(req, res, next) {
  */
 export async function listSupplierPurchaseTracking(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const year = req.query.year
         const month = req.query.month
         const stockGroupIDsJson = req.query.stockGroupIDsJson

@@ -1,5 +1,6 @@
 'use client'
 
+import { pageNumberSchema } from '@/lib/schemas/pagination'
 import type { SubmitEvent } from 'react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -233,9 +234,9 @@ export default function Home() {
 
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    const page = Number(new FormData(event.currentTarget).get('pageNumber'))
-    if (!isLoading && Number.isInteger(page) && page >= 1 && page <= totalPages) {
-      changePage(page)
+    const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))
+    if (!isLoading && page.success) {
+      changePage(page.data)
     }
   }
 

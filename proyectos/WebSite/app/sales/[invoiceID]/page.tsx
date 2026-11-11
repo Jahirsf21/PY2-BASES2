@@ -12,6 +12,7 @@ import { useSession } from '@/components/auth-session'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getInvoiceByID, getInvoiceLinesByID } from '@/app/api/sales'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
+import { rowWithIdSchema } from '@/lib/schemas/responses'
 import type { InvoiceDetail } from '@/lib/types/sales'
 
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -49,7 +50,7 @@ function InvoiceDetailContent({ invoiceID }: { invoiceID: string }) {
       if (id === null) { setError('Factura no encontrada'); return }
       Promise.all([getInvoiceByID(id).catch(reason => failed(reason, 'Factura')), getInvoiceLinesByID(id).catch(reason => failed(reason, 'Líneas'))]).then(([headers, lines]) => {
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (!headers[0] || headers[0].NumeroFactura !== id) { setError('Factura no encontrada'); return }
+        if (!rowWithIdSchema('NumeroFactura', id).safeParse(headers[0]).success) { setError('Factura no encontrada'); return }
         setInvoice({header: headers[0], lines})
       })
         .catch(() => { if (!cancelled && isSessionCurrent(requestRevision)) setError(previous => previous ?? 'No fue posible obtener la factura. Intente nuevamente.') })

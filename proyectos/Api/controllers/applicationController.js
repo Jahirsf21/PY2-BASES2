@@ -11,14 +11,7 @@ import { getPeople, getCities, getDeliveryMethods, getEmployees, getSalespeople 
  */
 export async function listPeople(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const fullName = req.query.fullName
         const result = await getPeople(fullName, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
@@ -37,14 +30,7 @@ export async function listPeople(req, res, next) {
  */
 export async function listCities(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const cityName = req.query.cityName
         const provinceName = req.query.provinceName
         const countryName = req.query.countryName

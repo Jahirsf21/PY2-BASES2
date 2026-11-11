@@ -1,6 +1,7 @@
 import type { CustomerSalesSummaryResponse, CustomerSalesTrackingResponse, ProductCategorySalesByYear, ReportYear, SupplierPurchaseSummary, SupplierPurchaseTrackingResponse, TopCustomerByYear, TopProductByYear, TopSupplierByYear } from '@/lib/types/stats'
 
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
+import { apiMessage } from '@/lib/helpers/apiErrors'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -14,7 +15,7 @@ export async function getPurchaseYears(): Promise<ReportYear[]> {
   const res = await fetch(`${API_URL}/api/stats/purchase-years`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los años de compras', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los años de compras'), { cause: res.status })
   }
   return res.json()
 }
@@ -30,7 +31,7 @@ export async function getInvoiceYears(): Promise<ReportYear[]> {
   const res = await fetch(`${API_URL}/api/stats/invoice-years`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los años de facturación', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los años de facturación'), { cause: res.status })
   }
   return res.json()
 }
@@ -49,7 +50,7 @@ export async function getSupplierPurchaseSummary(supplierName: string, supplierC
   const res = await fetch(`${API_URL}/api/stats/supplier-purchase-summary?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el resumen de compras por proveedor', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el resumen de compras por proveedor'), { cause: res.status })
   }
   return res.json()
 }
@@ -70,7 +71,7 @@ export async function getCustomerSalesSummary(customerName: string, customerCate
   const res = await fetch(`${API_URL}/api/stats/customer-sales-summary?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el resumen de ventas por cliente', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el resumen de ventas por cliente'), { cause: res.status })
   }
   return res.json()
 }
@@ -95,7 +96,7 @@ export async function getTopCustomersByYear(invoiceYearFrom: number | null, invo
   const res = await fetch(`${API_URL}/api/stats/top-customers-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el ranking anual de clientes', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el ranking anual de clientes'), { cause: res.status })
   }
   return res.json()
 }
@@ -116,7 +117,7 @@ export async function getTopProductsByYear(year: number | null): Promise<TopProd
   const res = await fetch(`${API_URL}/api/stats/top-products-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el ranking anual de productos', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el ranking anual de productos'), { cause: res.status })
   }
   return res.json()
 }
@@ -141,7 +142,7 @@ export async function getTopSuppliersByYear(orderYearFrom: number | null, orderY
   const res = await fetch(`${API_URL}/api/stats/top-suppliers-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el ranking anual de proveedores', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el ranking anual de proveedores'), { cause: res.status })
   }
   return res.json()
 }
@@ -157,7 +158,7 @@ export async function getProductCategorySalesByYear(): Promise<ProductCategorySa
   const res = await fetch(`${API_URL}/api/stats/product-category-sales-by-year`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las ventas anuales por grupo de productos', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener las ventas anuales por grupo de productos'), { cause: res.status })
   }
   return res.json()
 }
@@ -185,7 +186,7 @@ export async function getCustomerSalesTracking(year: number | null, month: numbe
   const res = await fetch(`${API_URL}/api/stats/customer-sales-tracking?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el seguimiento de ventas por cliente', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el seguimiento de ventas por cliente'), { cause: res.status })
   }
   return res.json()
 }
@@ -213,7 +214,7 @@ export async function getSupplierPurchaseTracking(year: number | null, month: nu
   const res = await fetch(`${API_URL}/api/stats/supplier-purchase-tracking?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener el seguimiento de compras por proveedor', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener el seguimiento de compras por proveedor'), { cause: res.status })
   }
   return res.json()
 }

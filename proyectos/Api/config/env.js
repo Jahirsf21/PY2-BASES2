@@ -1,7 +1,13 @@
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'node:url'
+import { jwtSecretSchema } from '../schemas/config.js'
 
 dotenv.config({path: fileURLToPath(new URL('../.env.local', import.meta.url)), quiet: true})
+
+const jwtSecret = jwtSecretSchema.safeParse(process.env.JWT_SECRET)
+if (!jwtSecret.success) {
+    throw new Error(jwtSecret.error.issues[0].message)
+}
 
 export const env = {
     DB_NAME: process.env.DB_NAME,
@@ -17,9 +23,5 @@ export const env = {
     DB_PASSWORD_CORPORATIVO: process.env.DB_PASSWORD_CORPORATIVO,
     API_PORT: Number(process.env.API_PORT),
     APP_PORT: Number(process.env.APP_PORT),
-    JWT_SECRET: process.env.JWT_SECRET
-}
-
-if (!env.JWT_SECRET) {
-    throw new Error('JWT_SECRET no definido: configure la variable de entorno')
+    JWT_SECRET: jwtSecret.data
 }

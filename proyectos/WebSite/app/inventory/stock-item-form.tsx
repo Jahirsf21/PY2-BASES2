@@ -16,6 +16,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { toast } from '@/components/ui/toast'
 import { checkId, validateStockItem } from '@/lib/helpers/entityValidation'
+import { validateSchema } from '@/lib/helpers/validation'
+import { stockItemStepSchema } from '@/lib/schemas/forms'
+import { arrayResponseSchema } from '@/lib/schemas/responses'
 import { useSession } from '@/components/auth-session'
 import type { Employee } from '@/lib/types/application'
 import type { Color, NewStockItem, PackageType, StockGroup, StockItemEdit } from '@/lib/types/stockItems'
@@ -77,19 +80,9 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
     steps: STEPS,
     editing: Boolean(initial),
     stepOf: key => FIELD_STEP[key],
-    customErrors: (index) => {
-      const errors: Record<string, string> = {}
-      if (index === 0) {
-        if (!supplier) errors.supplier = 'Seleccione el proveedor.'
-        if (!lastEditedBy || !employees.some((person) => person.PersonID === lastEditedBy)) errors.lastEditedBy = 'Seleccione un empleado válido.'
-      }
-      if (index === 1) {
-        if (stockGroupIDs.length === 0 || stockGroupIDs.some((id) => !groups.some((group) => group.StockGroupID === id))) errors.stockGroupIDs = 'Seleccione al menos un grupo de productos.'
-        if (!unitPackageID) errors.unitPackageID = 'Seleccione el empaque unitario.'
-        if (!outerPackageID) errors.outerPackageID = 'Seleccione el empaque exterior.'
-      }
-      return errors
-    },
+    customErrors: index => validateSchema(stockItemStepSchema(index, { employees, groups }), {
+      supplier, lastEditedBy, stockGroupIDs, unitPackageID, outerPackageID,
+    }).errors,
   })
   const { fieldErrors, clearError } = form
 
@@ -105,7 +98,7 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
     /** Mantiene cada catálogo identificado y procesa sus 401 de forma independiente. */
     function catalog<T>(request: Promise<T[]>, label: string, required = true): Promise<T[]> {
       return request.then(items => {
-        if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+        if (!arrayResponseSchema.safeParse(items).success) throw new SyntaxError('Catálogo inesperado')
         if (required && !items.length) throw new Error(`No hay ${label} disponibles.`)
         return items
       }).catch(reason => {

@@ -1,6 +1,7 @@
 import type { Color, NewStockItem, PackageType, StockGroup, StockItemDetail, StockItemEdit, StockItemsResponse } from '@/lib/types/stockItems'
 
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
+import { apiFieldErrors, apiMessage } from '@/lib/helpers/apiErrors'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -30,7 +31,7 @@ export async function getStockItems(
   const res = await fetch(`${API_URL}/api/stock-items?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los productos', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los productos'), { cause: res.status })
   }
   return res.json()
 }
@@ -46,7 +47,7 @@ export async function getStockGroups(): Promise<StockGroup[]> {
   const res = await fetch(`${API_URL}/api/stock-items/groups`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos de productos', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los grupos de productos'), { cause: res.status })
   }
   return res.json()
 }
@@ -62,7 +63,7 @@ export async function getColors(): Promise<Color[]> {
   const res = await fetch(`${API_URL}/api/stock-items/colors`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los colores', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los colores'), { cause: res.status })
   }
   return res.json()
 }
@@ -78,7 +79,7 @@ export async function getPackageTypes(): Promise<PackageType[]> {
   const res = await fetch(`${API_URL}/api/stock-items/package-types`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los empaques', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los empaques'), { cause: res.status })
   }
   return res.json()
 }
@@ -96,7 +97,7 @@ export async function getStockItemByID(stockItemID: number): Promise<StockItemDe
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Producto no encontrado' : 'No fue posible obtener el producto'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+    throw new Error(apiMessage(body, fallbackMessage), { cause: res.status })
   }
   return res.json()
 }
@@ -116,7 +117,7 @@ export async function getStockItemGroupsByID(stockItemID: number): Promise<Stock
     if (res.status === 404 && body?.message === 'Grupos del producto no encontrados') {
       return []
     }
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los grupos del producto', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los grupos del producto'), { cause: res.status })
   }
   return res.json()
 }
@@ -134,7 +135,7 @@ export async function getStockItemForEdit(stockItemID: number): Promise<StockIte
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Producto no encontrado' : 'No fue posible cargar el producto para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+    throw new Error(apiMessage(body, fallbackMessage), { cause: res.status })
   }
   return res.json()
 }
@@ -155,11 +156,9 @@ export async function createStockItem(item: NewStockItem): Promise<number> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear el producto', { cause: res.status })
+    const error = new Error(apiMessage(body, 'No fue posible crear el producto'), { cause: res.status })
     if (res.status === 400) {
-      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
-      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
-      Object.assign(error, { fields, errors })
+      Object.assign(error, apiFieldErrors(body))
     }
     throw error
   }
@@ -184,11 +183,9 @@ export async function updateStockItemByID(stockItemID: number, item: NewStockIte
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar el producto', { cause: res.status })
+    const error = new Error(apiMessage(body, 'No fue posible actualizar el producto'), { cause: res.status })
     if (res.status === 400) {
-      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
-      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
-      Object.assign(error, { fields, errors })
+      Object.assign(error, apiFieldErrors(body))
     }
     throw error
   }
@@ -206,6 +203,6 @@ export async function deleteStockItemByID(stockItemID: number): Promise<void> {
   const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible eliminar el producto', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible eliminar el producto'), { cause: res.status })
   }
 }

@@ -13,6 +13,7 @@ import { getInvoiceYears, getPurchaseYears } from '@/app/api/stats'
 import type { MonthlyTrackingFilters, ReportYearSource, YearFilters, YearRangeFilters } from '@/lib/types/stats'
 import type { StockGroup } from '@/lib/types/stockItems'
 import { months } from '@/app/reports/report-view'
+import { arrayResponseSchema } from '@/lib/schemas/responses'
 
 /** Distingue fallos de permisos y transporte de un catálogo corporativo vacío. */
 function filterError(reason: unknown, label: string): string {
@@ -247,7 +248,7 @@ export function MonthlyTrackingReportFilters({ source, filters, setFilters }: { 
       try {
         const result = await getStockGroups()
         if (!cancelled && isSessionCurrent(requestRevision)) {
-          if (!Array.isArray(result)) throw new SyntaxError('Grupos inesperados')
+          if (!arrayResponseSchema.safeParse(result).success) throw new SyntaxError('Grupos inesperados')
           setStockGroups(result)
         }
       } catch (reason) {

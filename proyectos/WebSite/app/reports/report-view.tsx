@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useSession } from '@/components/auth-session'
 import type { PaginatedResponse } from '@/lib/types/paginatedResponse'
+import { pageNumberSchema } from '@/lib/schemas/pagination'
+import { reportResponseSchema } from '@/lib/schemas/responses'
 
 const PAGE_SIZE = 10
 
@@ -75,7 +77,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
       try {
         const result = await loadData(filters, pageNumber, PAGE_SIZE)
         if (!cancelled && isSessionCurrent(requestRevision)) {
-          if (!Array.isArray(result) && (!result || !Array.isArray(result.data))) throw new SyntaxError('Reporte inesperado')
+          if (!reportResponseSchema.safeParse(result).success) throw new SyntaxError('Reporte inesperado')
           setReportResponse(Array.isArray(result) ? {
             page: 1,
             size: result.length,
@@ -116,9 +118,9 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
 
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    const page = Number(new FormData(event.currentTarget).get('pageNumber'))
-    if (!isLoading && !error && Number.isInteger(page) && page >= 1 && page <= totalPages) {
-      setPageNumber(page)
+    const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))
+    if (!isLoading && !error && page.success) {
+      setPageNumber(page.data)
     }
   }
 

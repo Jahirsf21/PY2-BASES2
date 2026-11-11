@@ -1,6 +1,7 @@
 // import type { BillToCustomersResponse, BuyingGroup, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerEdit, CustomersResponse, NewCustomer } from '@/lib/types/customers'
 import type { BillToCustomersResponse, CustomerAddress, CustomerCategory, CustomerContact, CustomerDetail, CustomerPrivateDetail, CustomersResponse } from '@/lib/types/customers'
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
+import { apiMessage } from '@/lib/helpers/apiErrors'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -29,7 +30,7 @@ export async function getCustomers(customerName: string, customerCategoryID: num
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los datos de clientes', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los datos de clientes'), { cause: res.status })
   }
   return res.json()
 }
@@ -55,7 +56,7 @@ export async function getBillToCustomers(customerName: string, pageNumber: numbe
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los clientes por facturar', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los clientes por facturar'), { cause: res.status })
   }
   return res.json()
 }
@@ -73,7 +74,7 @@ export async function getCustomerCategories(): Promise<CustomerCategory[]> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las categorías de clientes', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener las categorías de clientes'), { cause: res.status })
   }
   return res.json()
 }
@@ -111,7 +112,7 @@ export async function getCustomerByID(customerID: number): Promise<CustomerDetai
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Cliente no encontrado' : 'No fue posible obtener el cliente'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+    throw new Error(apiMessage(body, fallbackMessage), { cause: res.status })
   }
   return res.json()
 }
@@ -130,7 +131,7 @@ export async function getCustomerPrivateByID(customerID: number): Promise<Custom
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los datos privados del cliente', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los datos privados del cliente'), { cause: res.status })
   }
   return res.json()
 }
@@ -149,7 +150,7 @@ export async function getCustomerContactsByID(customerID: number): Promise<Custo
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los contactos del cliente', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los contactos del cliente'), { cause: res.status })
   }
   return res.json()
 }
@@ -168,7 +169,7 @@ export async function getCustomerAddressByID(customerID: number): Promise<Custom
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener la dirección del cliente', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener la dirección del cliente'), { cause: res.status })
   }
   return res.json()
 }

@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { listStockItems, listStockGroups, listColors, listPackageTypes, getStockItemById, getStockItemEditById, getStockItemGroupsById, addStockItem, editStockItem, removeStockItem } from '../controllers/stockItemsController.js'
 import { requireRole } from '../middleware/auth.js'
+import { validateBody, validatePagination } from '../middleware/validation.js'
+import { stockItemSchema } from '../schemas/stockItems.js'
 
 // Rutas de Productos.
 const router = Router()
@@ -11,14 +13,14 @@ const router = Router()
  * Query params: pageNumber, pageSize, stockItemName, stockGroupIDsJson
  * stockGroupIDsJson: arreglo JSON de IDs de grupos; null o [] incluye todos.
  */
-router.get('/stock-items', requireRole('Administrador'), listStockItems)
+router.get('/stock-items', requireRole('Administrador'), validatePagination, listStockItems)
 
 /**
  * POST /stock-items
  * Crea un producto con sus existencias y grupos.
  * Body: datos requeridos por Warehouse.InsertStockItem.
  */
-router.post('/stock-items', requireRole('Administrador'), addStockItem)
+router.post('/stock-items', requireRole('Administrador'), validateBody(stockItemSchema), addStockItem)
 
 /**
  * GET /stock-items/groups
@@ -64,7 +66,7 @@ router.get('/stock-items/:stockItemID/groups', requireRole('Administrador'), get
  * Actualiza un producto, sus existencias y sus grupos.
  * Path param: stockItemID. Body: datos requeridos por Warehouse.UpdateStockItem.
  */
-router.put('/stock-items/:stockItemID', requireRole('Administrador'), editStockItem)
+router.put('/stock-items/:stockItemID', requireRole('Administrador'), validateBody(stockItemSchema), editStockItem)
 
 /**
  * DELETE /stock-items/:stockItemID

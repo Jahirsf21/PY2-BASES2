@@ -1,4 +1,4 @@
-import { isRoleAllowedInNode, validateLogin } from '../helpers/entityValidation.js'
+import { isRoleAllowedInNode } from '../helpers/entityValidation.js'
 import { generateToken } from '../middleware/auth.js'
 import { loginUser } from '../services/auth.js'
 
@@ -12,13 +12,6 @@ import { loginUser } from '../services/auth.js'
  */
 export async function login(req, res) {
     const credentials = req.body
-    if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) {
-        return res.status(400).json({message: 'Indique los datos de inicio de sesión'})
-    }
-    const {fields, errors} = validateLogin(credentials)
-    if (fields.length > 0) {
-        return res.status(400).json({message: errors[fields[0]], fields, errors})
-    }
     try {
         const [user] = await loginUser(credentials.userName, credentials.password, credentials.node)
         if (!user || user.Active !== true) {

@@ -19,6 +19,9 @@ import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from '@/components/ui/toast'
 import { checkId, validateInvoice } from '@/lib/helpers/entityValidation'
+import { validateSchema } from '@/lib/helpers/validation'
+import { invoiceStepSchema } from '@/lib/schemas/forms'
+import { arrayResponseSchema, productPriceSchema } from '@/lib/schemas/responses'
 import { useSession } from '@/components/auth-session'
 import type { Employee } from '@/lib/types/application'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
@@ -107,32 +110,9 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
     steps: STEPS,
     editing: Boolean(header),
     stepOf,
-    customErrors: (index) => {
-      const errors: Record<string, string> = {}
-      const isEmployee = (id: number | null) => id !== null && employees.some((person) => person.PersonID === id)
-      if (index === 0) {
-        if (!customer) errors.customer = 'Seleccione el cliente.'
-        if (!contact) errors.contact = 'Seleccione la persona de contacto.'
-      }
-      if (index === 1) {
-        if (!deliveryMethodID) errors.deliveryMethodID = 'Seleccione un método de entrega.'
-        if (!isEmployee(accountsPersonID)) errors.accountsPersonID = 'Seleccione un empleado válido.'
-        if (!isEmployee(packedByPersonID)) errors.packedByPersonID = 'Seleccione un empleado válido.'
-        if (!isEmployee(lastEditedBy)) errors.lastEditedBy = 'Seleccione un empleado válido.'
-        if (!salespersonPersonID || !salespeople.some((person) => person.PersonID === salespersonPersonID)) errors.salespersonPersonID = 'Seleccione un vendedor válido.'
-      }
-      if (index === 2) {
-        if (lines.length === 0) errors.lines = 'Agregue al menos un producto a la factura.'
-        if (priceLoading.length > 0) errors.lines = 'Espere a que termine la consulta de precios.'
-        for (const line of lines) {
-          const quantity = Number(line.quantity), price = Number(line.unitPrice)
-          if (!line.product) errors[`line:${line.key}:product`] = 'Seleccione un producto.'
-          if (!line.quantity.trim() || !Number.isInteger(quantity) || quantity < 1) errors[`line:${line.key}:quantity`] = 'Indique una cantidad entera mayor que 0.'
-          if (!line.unitPrice.trim() || !Number.isFinite(price) || price < 0) errors[`line:${line.key}:price`] = 'Indique un precio igual o mayor que 0.'
-        }
-      }
-      return errors
-    },
+    customErrors: index => lineErrors(validateSchema(invoiceStepSchema(index, { employees, salespeople }, priceLoading.length > 0), {
+      customer, contact, deliveryMethodID, accountsPersonID, packedByPersonID, lastEditedBy, salespersonPersonID, lines,
+    }).errors),
   })
   const { fieldErrors, clearError } = form
 
@@ -149,7 +129,7 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
     /** Cada referencia controla sus 401 aunque ya haya fallado otra petición del lote. */
     function catalog<T>(request: Promise<T[]>, label: string): Promise<T[]> {
       return request.then(items => {
-        if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+        if (!arrayResponseSchema.safeParse(items).success) throw new SyntaxError('Catálogo inesperado')
         if (!items.length) throw new Error(`No hay ${label} disponibles.`)
         return items
       }).catch(reason => {
@@ -211,7 +191,7 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
     try {
       const detail = await getStockItemByID(product.id)
       if (!screen.active || !isSessionCurrent(requestRevision) || priceRequests.current.get(key) !== request) return
-      if (!detail[0] || detail[0].StockItemID !== product.id || typeof detail[0].PrecioUnitario !== 'number' || !Number.isFinite(detail[0].PrecioUnitario)) throw new SyntaxError('Precio inesperado')
+      if (!productPriceSchema(product.id).safeParse(detail[0]).success) throw new SyntaxError('Precio inesperado')
       setLines((previous) => previous.map((line) => line.key === key && line.product?.id === product.id ? {...line, unitPrice: String(detail[0].PrecioUnitario)} : line))
       clearError(`line:${key}:price`)
     } catch (reason) {
@@ -228,7 +208,7 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
       const match = key.match(/^lines\[(\d+)\](?:\.(\w+))?$/)
       if (!match) return [key, message]
       const line = lines[Number(match[1])]
-      const field = match[2] === 'stockItemID' ? 'product' : match[2] === 'unitPrice' ? 'price' : match[2] === 'quantity' ? 'quantity' : null
+      const field = match[2] === 'stockItemID' || match[2] === 'product' ? 'product' : match[2] === 'unitPrice' ? 'price' : match[2] === 'quantity' ? 'quantity' : null
       return line && field ? [`line:${line.key}:${field}`, message] : ['lines', message]
     }))
   }

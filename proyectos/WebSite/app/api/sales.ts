@@ -1,6 +1,7 @@
 import type { InvoiceEdit, InvoiceFilters, InvoiceHeader, InvoiceLine, InvoicesResponse, NewInvoice } from '@/lib/types/sales'
 
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
+import { apiFieldErrors, apiMessage } from '@/lib/helpers/apiErrors'
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 /**
@@ -41,7 +42,7 @@ export async function getInvoices(filters: InvoiceFilters, pageNumber: number, p
   const res = await fetch(`${API_URL}/api/sales?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las facturas', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener las facturas'), { cause: res.status })
   }
   return res.json()
 }
@@ -59,7 +60,7 @@ export async function getInvoiceByID(invoiceID: number): Promise<InvoiceHeader[]
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Factura no encontrada' : 'No fue posible obtener la factura'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+    throw new Error(apiMessage(body, fallbackMessage), { cause: res.status })
   }
   return res.json()
 }
@@ -76,7 +77,7 @@ export async function getInvoiceLinesByID(invoiceID: number): Promise<InvoiceLin
   const res = await fetch(`${API_URL}/api/sales/${invoiceID}/lines`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las líneas de la factura', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener las líneas de la factura'), { cause: res.status })
   }
   return res.json()
 }
@@ -94,7 +95,7 @@ export async function getInvoiceForEdit(invoiceID: number): Promise<InvoiceEdit>
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const fallbackMessage = res.status === 404 ? 'Factura no encontrada' : 'No fue posible cargar la factura para editar'
-    throw new Error(typeof body?.message === 'string' ? body.message : fallbackMessage, { cause: res.status })
+    throw new Error(apiMessage(body, fallbackMessage), { cause: res.status })
   }
   return res.json()
 }
@@ -115,11 +116,9 @@ export async function createInvoice(invoice: NewInvoice): Promise<number> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible crear la factura', { cause: res.status })
+    const error = new Error(apiMessage(body, 'No fue posible crear la factura'), { cause: res.status })
     if (res.status === 400) {
-      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
-      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
-      Object.assign(error, { fields, errors })
+      Object.assign(error, apiFieldErrors(body))
     }
     throw error
   }
@@ -144,11 +143,9 @@ export async function updateInvoiceByID(invoiceID: number, invoice: NewInvoice):
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    const error = new Error(typeof body?.message === 'string' ? body.message : 'No fue posible actualizar la factura', { cause: res.status })
+    const error = new Error(apiMessage(body, 'No fue posible actualizar la factura'), { cause: res.status })
     if (res.status === 400) {
-      const fields: string[] = Array.isArray(body?.fields) ? body.fields.filter((field: unknown) => typeof field === 'string') : []
-      const errors = Object.fromEntries(fields.filter(field => Object.hasOwn(body?.errors ?? {}, field) && typeof body.errors[field] === 'string').map(field => [field, body.errors[field]]))
-      Object.assign(error, { fields, errors })
+      Object.assign(error, apiFieldErrors(body))
     }
     throw error
   }

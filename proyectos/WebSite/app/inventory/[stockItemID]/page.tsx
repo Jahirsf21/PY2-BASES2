@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { useSession } from '@/components/auth-session'
 import { getStockItemByID, getStockItemGroupsByID } from '@/app/api/stockItems'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
+import { rowWithIdSchema } from '@/lib/schemas/responses'
 import type { StockGroup, StockItemDetail } from '@/lib/types/stockItems'
 
 const numberFormatter = new Intl.NumberFormat('es-CR', { maximumFractionDigits: 3 })
@@ -49,7 +50,7 @@ function StockItemDetailContent({ stockItemID }: { stockItemID: string }) {
       if (id === null) { setError('Producto no encontrado'); return }
       Promise.all([getStockItemByID(id).catch(reason => failed(reason, 'Producto')), getStockItemGroupsByID(id).catch(reason => failed(reason, 'Grupos'))]).then(([items, stockGroups]) => {
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (!items[0] || items[0].StockItemID !== id) { setError('Producto no encontrado'); return }
+        if (!rowWithIdSchema('StockItemID', id).safeParse(items[0]).success) { setError('Producto no encontrado'); return }
           setItem(items[0])
           setGroups(stockGroups)
       })

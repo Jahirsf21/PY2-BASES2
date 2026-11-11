@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { login } from '../controllers/authController.js'
+import { validateBody } from '../middleware/validation.js'
+import { loginSchema } from '../schemas/auth.js'
 
 // Rutas de Autenticación.
 const router = Router()
@@ -10,6 +12,6 @@ const router = Router()
  * Ruta pública, sin token de autenticación.
  * Body: userName, password, node (san-jose, limon o corporativo).
  */
-router.post('/auth/login', login)
+router.post('/auth/login', validateBody(loginSchema), login)
 
 export default router

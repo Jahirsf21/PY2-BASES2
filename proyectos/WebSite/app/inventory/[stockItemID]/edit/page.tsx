@@ -9,6 +9,7 @@ import { StockItemForm } from '@/app/inventory/stock-item-form'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/components/auth-session'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
+import { arrayResponseSchema, rowWithIdSchema } from '@/lib/schemas/responses'
 import type { StockGroup, StockItemEdit } from '@/lib/types/stockItems'
 
 export default function EditStockItemPage() {
@@ -39,7 +40,7 @@ function EditStockItemContent({ stockItemID }: { stockItemID: string }) {
       try {
         const [detail, groups] = await Promise.all([getStockItemForEdit(id).catch(failed), getStockItemGroupsByID(id).catch(failed)])
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (!detail || detail.StockItemID !== id || !Array.isArray(groups)) throw new SyntaxError('Precarga inesperada')
+        if (!rowWithIdSchema('StockItemID', id).safeParse(detail).success || !arrayResponseSchema.safeParse(groups).success) throw new SyntaxError('Precarga inesperada')
         setItem({ detail, groups })
       } catch (reason) {
         if (cancelled || !isSessionCurrent(requestRevision)) return

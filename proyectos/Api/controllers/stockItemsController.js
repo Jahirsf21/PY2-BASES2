@@ -1,5 +1,4 @@
 import { paginatedResponse } from '../helpers/paginatedResponse.js'
-import { validateStockItem } from '../helpers/entityValidation.js'
 import { getStockItems, getStockGroups, getColors, getPackageTypes, getStockItemDetail, getStockItemForEdit, getStockItemGroups, insertStockItem, updateStockItem, deleteStockItem } from '../services/stockItems.js'
 
 /**
@@ -13,14 +12,7 @@ import { getStockItems, getStockGroups, getColors, getPackageTypes, getStockItem
  */
 export async function listStockItems(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const stockItemName = req.query.stockItemName
         const stockGroupIDsJson = req.query.stockGroupIDsJson
         const result = await getStockItems(stockItemName, stockGroupIDsJson, pageNumber, pageSize, req.user.userID, req.user.node)
@@ -165,13 +157,6 @@ export async function getStockItemGroupsById(req, res, next) {
  */
 export async function addStockItem(req, res, next) {
     const item = req.body
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        return res.status(400).json({message: 'Indique los datos del producto'})
-    }
-    const {fields, errors} = validateStockItem(item)
-    if (fields.length > 0) {
-        return res.status(400).json({message: errors[fields[0]], fields, errors})
-    }
     try {
         const stockItemID = await insertStockItem(item, req.user.userID, req.user.node)
         return res.status(201).json({stockItemID})
@@ -194,13 +179,6 @@ export async function addStockItem(req, res, next) {
 export async function editStockItem(req, res, next) {
     const stockItemID = Number(req.params.stockItemID)
     const item = req.body
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        return res.status(400).json({message: 'Indique los datos del producto'})
-    }
-    const {fields, errors} = validateStockItem(item)
-    if (fields.length > 0) {
-        return res.status(400).json({message: errors[fields[0]], fields, errors})
-    }
     try {
         await updateStockItem(stockItemID, item, req.user.userID, req.user.node)
         return res.json({stockItemID})

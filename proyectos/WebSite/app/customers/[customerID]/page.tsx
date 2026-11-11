@@ -12,10 +12,11 @@ import { Separator } from '@/components/ui/separator'
 import { getCustomerAddressByID, getCustomerByID, getCustomerContactsByID, getCustomerPrivateByID } from '@/app/api/customers'
 import { useSession } from '@/components/auth-session'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
+import { rowWithIdSchema, singleRowResponseSchema } from '@/lib/schemas/responses'
 import type { CustomerAddress, CustomerContact, CustomerDetail, CustomerPrivateDetail, CustomerRouteParams } from '@/lib/types/customers'
 
 function requireRow<T>(items: T[]): T {
-  if (!Array.isArray(items) || items.length !== 1 || !items[0] || typeof items[0] !== 'object' || Array.isArray(items[0])) throw new SyntaxError('Respuesta de detalle inesperada')
+  if (!singleRowResponseSchema.safeParse(items).success) throw new SyntaxError('Respuesta de detalle inesperada')
   return items[0]
 }
 
@@ -67,7 +68,7 @@ function CustomerDetailContent({ customerID }: { customerID: string }) {
       try {
         const details = requireRow(await getCustomerByID(id))
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (details.CustomerID !== id) throw new SyntaxError('El cliente no corresponde a la solicitud')
+        if (!rowWithIdSchema('CustomerID', id).safeParse(details).success) throw new SyntaxError('El cliente no corresponde a la solicitud')
         setCustomer(details)
       } catch (reason) {
         if (reason instanceof Error && reason.cause === 401) invalidateSession(requestRevision)
@@ -104,7 +105,7 @@ function CustomerDetailContent({ customerID }: { customerID: string }) {
       setAddressState({ loading: true, error: null })
 
       void getCustomerPrivateByID(id).then(requireRow).then(details => {
-        if (details.CustomerID !== id) throw new SyntaxError('Los datos privados no corresponden al cliente')
+        if (!rowWithIdSchema('CustomerID', id).safeParse(details).success) throw new SyntaxError('Los datos privados no corresponden al cliente')
         if (!isActive()) return
         setPrivateDetails(details)
         setPrivateState({ loading: false, error: null })

@@ -10,6 +10,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { extractServerFieldErrors } from '@/lib/helpers/apiErrors'
 
 /** Altura máxima de las listas desplegables; el desplazamiento lo gestiona ScrollArea. */
 export const SCROLL_LIST_CLASS = '[&>[data-slot=scroll-area-viewport]]:max-h-64'
@@ -246,6 +247,5 @@ export function useStepForm({ steps, editing, stepOf, customErrors }: {
 
 /** Extrae los errores de campo (400) que devuelve el servidor. */
 export function serverFieldErrors(reason: unknown): Record<string, string> {
-  if (!(reason instanceof Error) || reason.cause !== 400 || !('errors' in reason) || !reason.errors || typeof reason.errors !== 'object') return {}
-  return Object.fromEntries(Object.entries(reason.errors).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+  return extractServerFieldErrors(reason)
 }

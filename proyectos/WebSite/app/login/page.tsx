@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { branches } from '@/lib/helpers/session'
+import { loginFormSchema } from '@/lib/schemas/auth'
 import type { Node } from '@/lib/types/auth'
 
 /**
@@ -58,30 +59,25 @@ export default function LoginPage() {
     if (checking || request.current) return
     const form = event.currentTarget
     const data = new FormData(form)
-    const node = String(data.get('node') ?? '') as Node
-    if (!String(data.get('userName') ?? '').trim() || !String(data.get('password') ?? '')) {
-      setError('Ingrese su usuario y contraseña.')
-      form.querySelector<HTMLInputElement>(String(data.get('userName') ?? '').trim() ? '#password' : '#userName')?.focus()
+    const validation = loginFormSchema.safeParse({
+      userName: data.get('userName'), password: data.get('password'), node: data.get('node'),
+    })
+    if (!validation.success) {
+      const issue = validation.error.issues[0]
+      setError(issue.message)
+      form.querySelector<HTMLInputElement>(issue.path[0] === 'node' ? 'input[name="node"]' : `#${String(issue.path[0])}`)?.focus()
       return
     }
-    if (!branches.some(branch => branch.value === node)) {
-      setError('Seleccione la sucursal en la que desea iniciar sesión.')
-      form.querySelector<HTMLInputElement>('input[name="node"]')?.focus()
-      return
-    }
+    const input = validation.data
     const controller = new AbortController()
     request.current = controller
     setSubmitting(true)
     setError(null)
     setAuthError(null)
     try {
-      const result = await login({
-        userName: String(data.get('userName') ?? '').trim(),
-        password: String(data.get('password') ?? ''),
-        node,
-      }, controller.signal)
+      const result = await login(input, controller.signal)
       if (controller.signal.aborted || request.current !== controller) return
-      startSession(result, node)
+      startSession(result, input.node)
       form.reset()
     } catch (reason) {
       if (!controller.signal.aborted && request.current === controller) {

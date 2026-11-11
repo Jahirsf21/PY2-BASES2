@@ -2,6 +2,7 @@ import { Router } from 'express'
 // import { listCustomers, listBillToCustomers, listCustomerCategories, listBuyingGroups, getCustomerById, getCustomerEditById, getCustomerContactsById, getCustomerAddressById, addCustomer, removeCustomer, editCustomer } from '../controllers/customersController.js'
 import { listCustomers, listBillToCustomers, listCustomerCategories, getCustomerById, getCustomerPrivateById, getCustomerContactsById, getCustomerAddressById } from '../controllers/customersController.js'
 import { requireRole } from '../middleware/auth.js'
+import { validatePagination } from '../middleware/validation.js'
 
 // Rutas de Clientes.
 const router = Router()
@@ -11,7 +12,7 @@ const router = Router()
  * Devuelve una página de clientes paginada.
  * Query params: pageNumber, pageSize, customerName, customerCategoryID, deliveryMethodID
  */
-router.get('/customers', requireRole('Administrador'), listCustomers)
+router.get('/customers', requireRole('Administrador'), validatePagination, listCustomers)
 
 // /**
 //  * POST /customers
@@ -25,7 +26,7 @@ router.get('/customers', requireRole('Administrador'), listCustomers)
  * Devuelve una página de clientes (ID y nombre) para usar como "cliente por facturar" (BillToCustomerID).
  * Query params: pageNumber, pageSize, customerName
  */
-router.get('/customers/bill-to', requireRole('Administrador'), listBillToCustomers)
+router.get('/customers/bill-to', requireRole('Administrador'), validatePagination, listBillToCustomers)
 
 /**
  * GET /customers/categories

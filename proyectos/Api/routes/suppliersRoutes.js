@@ -2,6 +2,7 @@ import { Router } from 'express'
 // import { listSuppliers, listSupplierCategories, getSupplierById, getSupplierEditById, getSupplierContactsById, getSupplierAddressById, removeSupplier, addSupplier, editSupplier } from '../controllers/suppliersController.js'
 import { listSuppliers, listSupplierCategories, getSupplierById, getSupplierPrivateById, getSupplierContactsById, getSupplierAddressById } from '../controllers/suppliersController.js'
 import { requireRole } from '../middleware/auth.js'
+import { validatePagination } from '../middleware/validation.js'
 
 // Rutas de Proveedores.
 const router = Router()
@@ -11,7 +12,7 @@ const router = Router()
  * Devuelve una página de proveedores paginada.
  * Query params: pageNumber, pageSize, supplierName, supplierCategoryID, deliveryMethodID
  */
-router.get('/suppliers', requireRole('Administrador'), listSuppliers)
+router.get('/suppliers', requireRole('Administrador'), validatePagination, listSuppliers)
 
 // /**
 //  * POST /suppliers

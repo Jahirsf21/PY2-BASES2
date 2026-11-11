@@ -1,16 +1,8 @@
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
-import { isRoleAllowedInNode } from '../helpers/entityValidation.js'
+import { sessionSchema } from '../schemas/auth.js'
 
 const JWT_SECRET = env.JWT_SECRET
-
-/** Comprueba los campos de una sesión y la correspondencia entre rol y nodo. */
-function isValidSession(data) {
-    return data !== null && typeof data === 'object' && !Array.isArray(data) &&
-        Number.isInteger(data.userID) && data.userID > 0 && data.userID <= 2147483647 &&
-        typeof data.userName === 'string' && data.userName.trim().length > 0 && data.userName.length <= 50 &&
-        isRoleAllowedInNode(data.rol, data.node)
-}
 
 /**
  * Verifica la firma y el vencimiento del token de autenticación.
@@ -31,15 +23,11 @@ export const verifyToken = (req, res, next) => {
         }
         const token = authHeader.substring(7)
         const decoded = jwt.verify(token, JWT_SECRET)
-        if (!isValidSession(decoded)) {
+        const session = sessionSchema.safeParse(decoded)
+        if (!session.success) {
             return res.status(401).json({message: 'Token inválido. Inicie sesión nuevamente'})
         }
-        req.user = {
-            userID: decoded.userID,
-            userName: decoded.userName,
-            rol: decoded.rol,
-            node: decoded.node
-        }
+        req.user = session.data
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
             return res.status(401).json({
@@ -80,16 +68,12 @@ export const requireRole = (...roles) => (req, res, next) => {
  * @returns {string} Token JWT firmado.
  */
 export const generateToken = (userData, expiresIn = '24h') => {
-    if (!isValidSession(userData)) {
+    const session = sessionSchema.safeParse(userData)
+    if (!session.success) {
         throw new Error('Datos de sesión inválidos')
     }
     return jwt.sign(
-        {
-            userID: userData.userID,
-            userName: userData.userName,
-            rol: userData.rol,
-            node: userData.node
-        },
+        session.data,
         JWT_SECRET,
         {expiresIn}
     )

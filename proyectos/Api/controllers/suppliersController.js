@@ -14,14 +14,7 @@ import { getSupplierAddress, getSupplierCategories, getSupplierContacts, getSupp
  */
 export async function listSuppliers(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const supplierName = req.query.supplierName
         const supplierCategoryID = req.query.supplierCategoryID
         const deliveryMethodID = req.query.deliveryMethodID

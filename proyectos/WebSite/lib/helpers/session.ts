@@ -1,5 +1,5 @@
 import type { Node, Role, SessionInfo, StoredSession } from '../types/auth'
-import { checkId, checkText } from './entityValidation'
+import { loginSessionSchema, storedSessionSchema } from '../schemas/auth'
 
 export const SESSION_KEY = 'wwi.session'
 export const SESSION_EXPIRED_MESSAGE = 'La sesión terminó. Inicie sesión nuevamente.'
@@ -11,90 +11,6 @@ export const branches: { value: Node; label: string }[] = [
 ]
 
 /**
- * Comprueba que un valor sea un objeto distinto de null y no un arreglo.
- *
- * @param value Valor a comprobar.
- * @returns Verdadero si el valor es un objeto válido para consultar sus campos.
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-/**
- * Comprueba la correspondencia entre el rol y la sucursal de la sesión.
- *
- * @param rol Rol recibido en los datos de sesión.
- * @param node Identificador de la sucursal.
- * @returns Verdadero si la combinación de rol y sucursal está permitida.
- */
-function validRoleAndNode(rol: unknown, node: unknown): boolean {
-  return (rol === 'Administrador' && (node === 'san-jose' || node === 'limon')) ||
-    (rol === 'Corporativo' && node === 'corporativo')
-}
-
-/**
- * Decodifica un segmento del JWT y obtiene su contenido JSON.
- *
- * @param part Segmento del token codificado en Base64URL.
- * @returns Contenido JSON del segmento decodificado.
- */
-function decodePart(part: string): unknown {
-  const base64 = part.replace(/-/g, '+').replace(/_/g, '/')
-  const bytes = Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')), character => character.charCodeAt(0))
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
-}
-
-/**
- * Obtiene la identidad y el vencimiento del JWT para presentar la sesión.
- * No verifica la firma del token; esa validación corresponde a la API.
- *
- * @param token Token recibido del login o del almacenamiento de sesión.
- * @returns Datos del token con formato válido o null si no cumple las comprobaciones.
- */
-function tokenInfo(token: unknown): Omit<SessionInfo, 'fullName'> | null {
-  if (typeof token !== 'string' || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) return null
-  try {
-    const [headerPart, payloadPart] = token.split('.')
-    const header = decodePart(headerPart)
-    const payload = decodePart(payloadPart)
-    if (!isRecord(header) || header.alg !== 'HS256' || !isRecord(payload)) return null
-    const errors: Record<string, string> = {}
-    checkId(errors, 'userID', 'Usuario', payload.userID, true)
-    checkText(errors, 'userName', 'Nombre de usuario', payload.userName, 50, true)
-    if (Object.keys(errors).length > 0 ||
-      !validRoleAndNode(payload.rol, payload.node) || !Number.isSafeInteger(payload.exp) ||
-      !Number.isSafeInteger(payload.iat) || Number(payload.exp) <= Number(payload.iat) ||
-      Number(payload.exp) - Number(payload.iat) > 86400 || Number(payload.iat) > Math.floor(Date.now() / 1000) + 60 ||
-      !Number.isSafeInteger(Number(payload.exp) * 1000)) return null
-    return {
-      userID: payload.userID as number,
-      userName: payload.userName as string,
-      rol: payload.rol as Role,
-      node: payload.node as Node,
-      expiresAt: Number(payload.exp) * 1000,
-    }
-  } catch {
-    return null
-  }
-}
-
-/**
- * Comprueba la estructura de la sesión y su coherencia con los datos del JWT.
- *
- * @param value Datos de sesión a comprobar.
- * @returns Verdadero si los metadatos coinciden con la identidad y el vencimiento del token.
- */
-function isStoredSession(value: unknown): value is StoredSession {
-  if (!isRecord(value)) return false
-  const errors: Record<string, string> = {}
-  checkText(errors, 'fullName', 'Nombre completo', value.fullName, undefined, true)
-  const claims = tokenInfo(value.token)
-  return Object.keys(errors).length === 0 && claims !== null &&
-    value.userID === claims.userID && value.userName === claims.userName && value.rol === claims.rol &&
-    value.node === claims.node && value.expiresAt === claims.expiresAt
-}
-
-/**
  * Valida la respuesta del login y prepara los datos que se almacenarán.
  * Incluye únicamente el token y los metadatos necesarios para la sesión.
  *
@@ -103,16 +19,8 @@ function isStoredSession(value: unknown): value is StoredSession {
  * @returns Sesión normalizada con los datos del usuario y su vencimiento.
  */
 export function sessionFromLogin(value: unknown, requestedNode: Node): StoredSession {
-  if (isRecord(value) && isRecord(value.user)) {
-    const errors: Record<string, string> = {}
-    checkText(errors, 'fullName', 'Nombre completo', value.user.FullName, undefined, true)
-    const claims = tokenInfo(value.token)
-    if (Object.keys(errors).length === 0 && claims && claims.expiresAt > Date.now() && value.node === requestedNode && claims.node === requestedNode &&
-      value.user.Active === true && value.user.UserID === claims.userID && value.user.UserName === claims.userName &&
-      value.user.Rol === claims.rol) {
-      return { token: value.token as string, ...claims, fullName: value.user.FullName as string }
-    }
-  }
+  const result = loginSessionSchema(requestedNode).safeParse(value)
+  if (result.success) return result.data
   throw new Error('La respuesta de inicio de sesión no es válida.')
 }
 
@@ -147,15 +55,16 @@ export function readSession(): StoredSession | null {
   if (text === null) return null
   let value: unknown
   try { value = JSON.parse(text) } catch { value = null }
-  if (!isStoredSession(value)) {
+  const result = storedSessionSchema.safeParse(value)
+  if (!result.success) {
     clearSession()
     throw new Error('La sesión almacenada no es válida. Inicie sesión nuevamente.')
   }
-  if (value.expiresAt <= Date.now()) {
+  if (result.data.expiresAt <= Date.now()) {
     clearSession()
     throw new Error(SESSION_EXPIRED_MESSAGE)
   }
-  return { token: value.token, ...sessionInfo(value) }
+  return result.data
 }
 
 /**
@@ -165,10 +74,11 @@ export function readSession(): StoredSession | null {
  * @param session Sesión que se desea guardar.
  */
 export function saveSession(session: StoredSession): void {
-  if (!isStoredSession(session) || session.expiresAt <= Date.now()) {
+  const result = storedSessionSchema.safeParse(session)
+  if (!result.success || result.data.expiresAt <= Date.now()) {
     throw new Error('La sesión no es válida o ya venció. Inicie sesión nuevamente.')
   }
-  try { window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: session.token, ...sessionInfo(session) })) } catch {
+  try { window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.data)) } catch {
     throw new Error('No fue posible guardar la sesión. Revise los permisos del navegador e intente nuevamente.')
   }
 }

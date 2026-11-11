@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { listInvoices, getInvoiceById, getInvoiceEditById, getInvoiceLinesById, addInvoice, editInvoice } from '../controllers/salesController.js'
 import { requireRole } from '../middleware/auth.js'
+import { validateBody, validatePagination } from '../middleware/validation.js'
+import { invoiceSchema } from '../schemas/sales.js'
 
 // Rutas de Ventas (facturas).
 const router = Router()
@@ -10,14 +12,14 @@ const router = Router()
  * Devuelve una página de facturas (módulo de ventas) paginada.
  * Query params: pageNumber, pageSize, invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount
  */
-router.get('/sales', requireRole('Administrador'), listInvoices)
+router.get('/sales', requireRole('Administrador'), validatePagination, listInvoices)
 
 /**
  * POST /sales
  * Crea una factura con sus líneas de detalle.
  * Body: datos requeridos por Sales.InsertInvoice.
  */
-router.post('/sales', requireRole('Administrador'), addInvoice)
+router.post('/sales', requireRole('Administrador'), validateBody(invoiceSchema), addInvoice)
 
 /**
  * GET /sales/:invoiceID
@@ -45,6 +47,6 @@ router.get('/sales/:invoiceID/lines', requireRole('Administrador'), getInvoiceLi
  * Actualiza el encabezado y las líneas de una factura.
  * Path param: invoiceID. Body: datos requeridos por Sales.UpdateInvoice.
  */
-router.put('/sales/:invoiceID', requireRole('Administrador'), editInvoice)
+router.put('/sales/:invoiceID', requireRole('Administrador'), validateBody(invoiceSchema), editInvoice)
 
 export default router

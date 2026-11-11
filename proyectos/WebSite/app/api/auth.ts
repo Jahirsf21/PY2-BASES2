@@ -1,4 +1,6 @@
 import type { LoginInput, LoginResponse } from '@/lib/types/auth'
+import { loginResponseSchema } from '@/lib/schemas/auth'
+import { apiMessage } from '@/lib/helpers/apiErrors'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -25,7 +27,8 @@ export async function login(input: LoginInput, signal?: AbortSignal): Promise<Lo
     throw new Error('No fue posible conectar con la API. Intente nuevamente.')
   }
   const body = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible iniciar sesión.')
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('La respuesta de inicio de sesión no es válida.')
-  return body
+  if (!res.ok) throw new Error(apiMessage(body, 'No fue posible iniciar sesión.'))
+  const result = loginResponseSchema.safeParse(body)
+  if (!result.success) throw new Error('La respuesta de inicio de sesión no es válida.')
+  return result.data
 }

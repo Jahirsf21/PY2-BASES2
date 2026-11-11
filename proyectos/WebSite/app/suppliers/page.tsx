@@ -1,5 +1,7 @@
 'use client'
 
+import { pageNumberSchema } from '@/lib/schemas/pagination'
+import { arrayResponseSchema } from '@/lib/schemas/responses'
 import type { SubmitEvent } from 'react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -94,7 +96,7 @@ export default function SuppliersPage() {
         if (!isSessionCurrent(requestRevision)) return
         const items = await read()
         if (!cancelled && isSessionCurrent(requestRevision)) {
-          if (!Array.isArray(items)) throw new SyntaxError('Catálogo inesperado')
+          if (!arrayResponseSchema.safeParse(items).success) throw new SyntaxError('Catálogo inesperado')
           apply(items)
         }
       } catch (reason) {
@@ -155,9 +157,9 @@ export default function SuppliersPage() {
 
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    const page = Number(new FormData(event.currentTarget).get('pageNumber'))
-    if (!isLoading && Number.isInteger(page) && page >= 1 && page <= totalPages) {
-      changePage(page)
+    const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))
+    if (!isLoading && page.success) {
+      changePage(page.data)
     }
   }
 

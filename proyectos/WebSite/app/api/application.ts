@@ -1,6 +1,7 @@
 import type { CitiesResponse, Employee, PeopleResponse } from '@/lib/types/application'
 import type { DeliveryMethod } from '@/lib/types/deliveryMethods'
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
+import { apiMessage } from '@/lib/helpers/apiErrors'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -17,7 +18,7 @@ export async function getDeliveryMethods(): Promise<DeliveryMethod[]> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los métodos de entrega', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los métodos de entrega'), { cause: res.status })
   }
   return res.json()
 }
@@ -39,7 +40,7 @@ export async function getPeople(fullName: string, pageNumber: number, pageSize: 
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las personas', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener las personas'), { cause: res.status })
   }
   return res.json()
 }
@@ -61,7 +62,7 @@ export async function getCities(cityName: string, pageNumber: number, pageSize: 
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener las ciudades', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener las ciudades'), { cause: res.status })
   }
   return res.json()
 }
@@ -79,7 +80,7 @@ export async function getEmployees(): Promise<Employee[]> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los empleados', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los empleados'), { cause: res.status })
   }
   return res.json()
 }
@@ -95,7 +96,7 @@ export async function getSalespeople(): Promise<Employee[]> {
   const res = await fetch(`${API_URL}/api/salespeople`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(typeof body?.message === 'string' ? body.message : 'No fue posible obtener los vendedores', { cause: res.status })
+    throw new Error(apiMessage(body, 'No fue posible obtener los vendedores'), { cause: res.status })
   }
   return res.json()
 }

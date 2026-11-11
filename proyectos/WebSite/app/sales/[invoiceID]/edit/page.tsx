@@ -9,6 +9,7 @@ import { InvoiceForm } from '@/app/sales/invoice-form'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/components/auth-session'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
+import { arrayResponseSchema, rowWithIdSchema } from '@/lib/schemas/responses'
 import type { InvoiceEdit, InvoiceLine } from '@/lib/types/sales'
 
 export default function EditInvoicePage() {
@@ -39,7 +40,7 @@ function EditInvoiceContent({ invoiceID }: { invoiceID: string }) {
       try {
         const [header, lines] = await Promise.all([getInvoiceForEdit(id).catch(failed), getInvoiceLinesByID(id).catch(failed)])
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (!header || header.InvoiceID !== id || !Array.isArray(lines)) throw new SyntaxError('Precarga inesperada')
+        if (!rowWithIdSchema('InvoiceID', id).safeParse(header).success || !arrayResponseSchema.safeParse(lines).success) throw new SyntaxError('Precarga inesperada')
         setInvoice({ header, lines })
       } catch (reason) {
         if (cancelled || !isSessionCurrent(requestRevision)) return

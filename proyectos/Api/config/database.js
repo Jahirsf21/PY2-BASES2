@@ -1,6 +1,7 @@
 import sql from 'mssql'
 import { env } from './env.js'
 import { isValidNode } from '../helpers/entityValidation.js'
+import { nodeConfigurationSchema } from '../schemas/config.js'
 
 const configurations = {
     'san-jose': {
@@ -27,7 +28,7 @@ export async function getPool(node) {
         throw new Error('Sucursal inválida')
     }
     const config = configurations[node]
-    if (!config.user || !config.password || !config.port) {
+    if (!nodeConfigurationSchema.safeParse(config).success) {
         throw new Error(`Configure las credenciales y el puerto de la sucursal ${node}`)
     }
 

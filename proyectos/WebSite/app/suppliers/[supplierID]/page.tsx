@@ -12,10 +12,11 @@ import { Separator } from '@/components/ui/separator'
 import { useSession } from '@/components/auth-session'
 import { getSupplierAddressByID, getSupplierByID, getSupplierContactsByID, getSupplierPrivateByID } from '@/app/api/suppliers'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
+import { rowWithIdSchema, singleRowResponseSchema } from '@/lib/schemas/responses'
 import type { SupplierAddress, SupplierContact, SupplierDetail, SupplierPrivateDetail, SupplierRouteParams } from '@/lib/types/suppliers'
 
 function requireRow<T>(items: T[]): T {
-  if (!Array.isArray(items) || items.length !== 1 || !items[0] || typeof items[0] !== 'object' || Array.isArray(items[0])) throw new SyntaxError('Respuesta de detalle inesperada')
+  if (!singleRowResponseSchema.safeParse(items).success) throw new SyntaxError('Respuesta de detalle inesperada')
   return items[0]
 }
 
@@ -67,7 +68,7 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
       try {
         const details = requireRow(await getSupplierByID(id))
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (details.SupplierID !== id) throw new SyntaxError('El proveedor no corresponde a la solicitud')
+        if (!rowWithIdSchema('SupplierID', id).safeParse(details).success) throw new SyntaxError('El proveedor no corresponde a la solicitud')
         setSupplier(details)
       } catch (reason) {
         if (reason instanceof Error && reason.cause === 401) invalidateSession(requestRevision)
@@ -104,7 +105,7 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
       setAddressState({ loading: true, error: null })
 
       void getSupplierPrivateByID(id).then(requireRow).then(details => {
-        if (details.SupplierID !== id) throw new SyntaxError('Los datos privados no corresponden al proveedor')
+        if (!rowWithIdSchema('SupplierID', id).safeParse(details).success) throw new SyntaxError('Los datos privados no corresponden al proveedor')
         if (!isActive()) return
         setPrivateDetails(details)
         setPrivateState({ loading: false, error: null })

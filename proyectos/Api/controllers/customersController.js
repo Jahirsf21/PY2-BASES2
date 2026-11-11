@@ -14,14 +14,7 @@ import { getBillToCustomers, getCustomerAddress, getCustomerCategories, getCusto
  */
 export async function listCustomers(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const customerName = req.query.customerName
         const customerCategoryID = req.query.customerCategoryID
         const deliveryMethodID = req.query.deliveryMethodID
@@ -50,14 +43,7 @@ export async function listCustomers(req, res, next) {
  */
 export async function listBillToCustomers(req, res, next) {
     try {
-        const pageNumber = Number(req.query.pageNumber)
-        const pageSize = Number(req.query.pageSize)
-        if (!Number.isInteger(pageNumber) || !Number.isInteger(pageSize) || pageNumber < 1 || pageSize < 1) {
-            return res.status(400).json({message: 'pageNumber y pageSize deben ser enteros mayores a 0'})
-        }
-        if (pageSize > 100) {
-            return res.status(400).json({message: 'pageSize no puede ser mayor a 100'})
-        }
+        const {pageNumber, pageSize} = res.locals.pagination
         const customerName = req.query.customerName
         const result = await getBillToCustomers(customerName, pageNumber, pageSize, req.user.userID, req.user.node)
         return paginatedResponse(res, pageNumber, pageSize, result)
