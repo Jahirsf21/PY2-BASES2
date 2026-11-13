@@ -39,6 +39,10 @@ go
 drop synonym if exists dbo.StockItemStockGroups;
 create synonym dbo.StockItemStockGroups for Warehouse.StockItemStockGroups;
 go
+drop synonym if exists dbo.StockItemVersions;
+if coalesce(convert(nvarchar(128), serverproperty('MachineName')), N'') = N'corporativo'
+    create synonym dbo.StockItemVersions for Warehouse.StockItemVersions;
+go
 drop synonym if exists dbo.StockGroups;
 create synonym dbo.StockGroups for Warehouse.StockGroups;
 go

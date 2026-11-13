@@ -14,6 +14,7 @@ go
     Si la lista es null o está vacía, incluye todos los grupos; ignora los IDs repetidos.
     Combina los filtros con AND y exige que el producto pertenezca a todos los grupos seleccionados.
     Incluye el total de registros (TotalCount) para calcular la paginación en el cliente.
+    Un producto sin fila de existencias en el nodo aparece con CantidadTotalEnInventarios 0.
     Devuelve: StockItemID, NombreProducto, NombreGrupoProducto, CantidadTotalEnInventarios
 */
 create or alter procedure Warehouse.GetStockItems
@@ -52,7 +53,6 @@ as
         select @TotalCount = count(*) from dbo.StockItems s
         where
             s.StockItemName like '%' + isnull(@StockItemName, '') + '%'
-            and exists (select 1 from dbo.StockItemHoldings sih where sih.StockItemID = s.StockItemID)
             and exists (
                 select 1
                 from dbo.StockItemStockGroups sig
@@ -73,9 +73,9 @@ as
             s.StockItemID,
             s.StockItemName as NombreProducto,
             string_agg(sg.StockGroupName, ', ') as NombreGrupoProducto,
-            sih.QuantityOnHand as CantidadTotalEnInventarios
+            coalesce(sih.QuantityOnHand, 0) as CantidadTotalEnInventarios
         from dbo.StockItems s
-        inner join dbo.StockItemHoldings sih on s.StockItemID = sih.StockItemID
+        left join dbo.StockItemHoldings sih on s.StockItemID = sih.StockItemID
         inner join dbo.StockItemStockGroups sig on s.StockItemID = sig.StockItemID
         inner join dbo.StockGroups sg on sig.StockGroupID = sg.StockGroupID
         where
@@ -118,7 +118,7 @@ go
 
 /*
     Obtiene el detalle general de un producto: proveedor, color, empaques, marca, talla, precios, peso, palabras clave,
-    cantidad disponible y ubicación en bodega.
+    cantidad disponible y ubicación en bodega. Sin fila de existencias en el nodo, la cantidad es 0 y la ubicación null.
     Devuelve: stockItemID, nombreProducto, nombreProveedor, color, unidadEmpaquetamiento, empaquetamiento, cantidadEmpaquetamiento,
     marca, talla, impuesto, precioUnitario, precioVenta, peso, palabrasClave, cantidadDisponible, ubicacion
 */
@@ -145,14 +145,14 @@ as
             si.RecommendedRetailPrice as PrecioVenta,
             si.TypicalWeightPerUnit as Peso,
             si.SearchDetails as PalabrasClave,
-            sih.QuantityOnHand as CantidadDisponible,
+            coalesce(sih.QuantityOnHand, 0) as CantidadDisponible,
             sih.BinLocation as Ubicacion
         from dbo.StockItems si
         inner join dbo.Suppliers sp on si.SupplierID = sp.SupplierID
         left join dbo.Colors co on si.ColorID = co.ColorID
         inner join dbo.PackageTypes pu on si.UnitPackageID = pu.PackageTypeID
         inner join dbo.PackageTypes po on si.OuterPackageID = po.PackageTypeID
-        inner join dbo.StockItemHoldings sih on si.StockItemID = sih.StockItemID
+        left join dbo.StockItemHoldings sih on si.StockItemID = sih.StockItemID
         where si.StockItemID = @StockItemID
     end
 go
