@@ -7,25 +7,38 @@ import {
   getStockItemById,
   getStockItemEditById,
   getStockItemGroupsById,
+  getStockItemHoldingsById,
   addStockItem,
   editStockItem,
+  adjustStockItemHoldingsById,
   removeStockItem,
 } from "../controllers/stockItemsController.js";
 import { requireRole } from "../middleware/auth.js";
+import { sqlErrors } from "../middleware/sqlErrors.js";
 import {
   validateBody,
   validateParams,
   validatePagination,
 } from "../middleware/validation.js";
 import { idParams } from "../schemas/common.js";
-import { stockItemSchema } from "../schemas/stockItems.js";
+import {
+  catalogStockItemSchema,
+  catalogStockItemUpdateSchema,
+  stockItemHoldingsSchema,
+} from "../schemas/stockItems.js";
 
 // Rutas de Productos.
 const router = Router();
 
+const stockItemParams = validateParams(idParams("stockItemID", "Producto"));
+const invalidReferences = [
+  400,
+  "Alguna referencia del producto (proveedor, color, empaque o grupo) no existe",
+];
+
 /**
  * GET /stock-items
- * Devuelve una página de productos paginada.
+ * Devuelve una página de productos de la sucursal.
  * Query params: pageNumber, pageSize, stockItemName, stockGroupIDsJson
  * stockGroupIDsJson: arreglo JSON de IDs de grupos; null o [] incluye todos.
  */
@@ -34,18 +47,30 @@ router.get(
   requireRole("Administrador"),
   validatePagination,
   listStockItems,
+  sqlErrors({
+    50003: [
+      400,
+      "StockGroupIDsJson debe ser un arreglo JSON de IDs de categorías",
+    ],
+    50004: [400, "Los IDs de categorías deben ser números enteros positivos"],
+    50005: [
+      400,
+      "Una o más categorías indicadas no existen en la base de datos",
+    ],
+  }),
 );
 
 /**
  * POST /stock-items
- * Crea un producto con sus existencias y grupos.
- * Body: datos requeridos por Warehouse.InsertStockItem.
+ * Inserta un producto en el catálogo central (Corporativo) con sus grupos.
+ * Body: datos de catálogo, sin existencias. Responde { stockItemID, version }.
  */
 router.post(
   "/stock-items",
   requireRole("Administrador"),
-  validateBody(stockItemSchema),
+  validateBody(catalogStockItemSchema),
   addStockItem,
+  sqlErrors({ 547: invalidReferences }),
 );
 
 /**
@@ -76,63 +101,103 @@ router.get(
 
 /**
  * GET /stock-items/:stockItemID
- * Devuelve el detalle general de un producto.
- * Path param: stockItemID
+ * Devuelve el detalle general de un producto en la sucursal.
  */
 router.get(
   "/stock-items/:stockItemID",
   requireRole("Administrador"),
-  validateParams(idParams("stockItemID", "Producto")),
+  stockItemParams,
   getStockItemById,
 );
 
 /**
  * GET /stock-items/:stockItemID/edit
- * Devuelve los datos editables de un producto.
- * Path param: stockItemID
+ * Devuelve de Corporativo los datos editables del catálogo con Grupos y Version.
  */
 router.get(
   "/stock-items/:stockItemID/edit",
   requireRole("Administrador"),
-  validateParams(idParams("stockItemID", "Producto")),
+  stockItemParams,
   getStockItemEditById,
 );
 
 /**
  * GET /stock-items/:stockItemID/groups
- * Devuelve los grupos asociados a un producto.
- * Path param: stockItemID
+ * Devuelve los grupos asociados a un producto en la sucursal.
  */
 router.get(
   "/stock-items/:stockItemID/groups",
   requireRole("Administrador"),
-  validateParams(idParams("stockItemID", "Producto")),
+  stockItemParams,
   getStockItemGroupsById,
 );
 
 /**
  * PUT /stock-items/:stockItemID
- * Actualiza un producto, sus existencias y sus grupos.
- * Path param: stockItemID. Body: datos requeridos por Warehouse.UpdateStockItem.
+ * Actualiza un producto del catálogo central y reemplaza sus grupos.
+ * Body: datos de catálogo y version. Responde { stockItemID, version }; 409 si la versión cambió.
  */
 router.put(
   "/stock-items/:stockItemID",
   requireRole("Administrador"),
-  validateParams(idParams("stockItemID", "Producto")),
-  validateBody(stockItemSchema),
+  stockItemParams,
+  validateBody(catalogStockItemUpdateSchema),
   editStockItem,
+  sqlErrors({
+    53000: [404, "Producto no encontrado"],
+    53003: [
+      409,
+      "El producto fue modificado por otro usuario. Recargue los datos antes de guardar",
+    ],
+    547: invalidReferences,
+  }),
+);
+
+/**
+ * GET /stock-items/:stockItemID/holdings
+ * Devuelve las existencias del producto en la sucursal con su Version.
+ */
+router.get(
+  "/stock-items/:stockItemID/holdings",
+  requireRole("Administrador"),
+  stockItemParams,
+  getStockItemHoldingsById,
+);
+
+/**
+ * PUT /stock-items/:stockItemID/holdings
+ * Guarda los valores absolutos de las existencias del producto en la sucursal.
+ * Body: existencias y version (null si todavía no hay fila). Responde { stockItemID, version }; 409 si cambió.
+ */
+router.put(
+  "/stock-items/:stockItemID/holdings",
+  requireRole("Administrador"),
+  stockItemParams,
+  validateBody(stockItemHoldingsSchema),
+  adjustStockItemHoldingsById,
+  sqlErrors({
+    53000: [404, "El producto todavía no está disponible en esta sucursal"],
+    53004: [
+      409,
+      "Las existencias fueron modificadas por otro usuario. Recargue los datos antes de guardar",
+    ],
+    547: [400, "El empleado indicado no existe"],
+  }),
 );
 
 /**
  * DELETE /stock-items/:stockItemID
- * Elimina un producto por su identificador.
- * Path param: stockItemID
+ * Elimina un producto en la sucursal.
  */
 router.delete(
   "/stock-items/:stockItemID",
   requireRole("Administrador"),
-  validateParams(idParams("stockItemID", "Producto")),
+  stockItemParams,
   removeStockItem,
+  sqlErrors({
+    53001: [404, "Producto no encontrado"],
+    53002: [409, "El producto tiene ventas u órdenes asociadas"],
+  }),
 );
 
 export default router;

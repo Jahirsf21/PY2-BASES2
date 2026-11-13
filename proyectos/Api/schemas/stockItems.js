@@ -5,6 +5,7 @@ import {
   booleanSchema,
   idSchema,
   textSchema,
+  versionSchema,
 } from "./common.js";
 
 const groupsMessage =
@@ -21,43 +22,83 @@ const stockGroupIDSchema = z
   .max(SQL_INT_MAX, { error: groupsMessage });
 
 /**
- * Valida los datos de creación y actualización de un producto y sus existencias.
- * Exige al menos un grupo de productos, sin identificadores repetidos.
+ * Devuelve el mensaje de los errores generales de un objeto.
+ * Indica los campos que no pertenecen al formulario, por ejemplo existencias enviadas al catálogo.
+ *
+ * @param {string} emptyMessage Mensaje cuando el cuerpo no es un objeto.
+ * @returns {(issue: object) => string} Función de mensaje para Zod.
+ */
+function objectError(emptyMessage) {
+  return (issue) =>
+    issue.code === "unrecognized_keys"
+      ? `Campos no permitidos: ${issue.keys.join(", ")}.`
+      : emptyMessage;
+}
+
+/** Campos del catálogo de un producto, compartidos por la inserción y la edición. */
+const catalogFields = {
+  stockItemName: textSchema("Nombre del producto", 100, true),
+  supplierID: idSchema("Proveedor", true),
+  lastEditedBy: idSchema("Empleado", true),
+  colorID: idSchema("Color"),
+  unitPackageID: idSchema("Empaque unitario", true),
+  outerPackageID: idSchema("Empaque exterior", true),
+  stockGroupIDs: z
+    .array(stockGroupIDSchema, { error: groupsMessage })
+    .min(1, { error: groupsMessage })
+    .refine((ids) => new Set(ids).size === ids.length, {
+      error: groupsMessage,
+    }),
+  brand: textSchema("brand", 50),
+  size: textSchema("size", 20),
+  barcode: textSchema("barcode", 50),
+  leadTimeDays: amountSchema("leadTimeDays", 0),
+  quantityPerOuter: amountSchema("quantityPerOuter", 0).refine(
+    (value) => value !== 0,
+    { error: "quantityPerOuter debe ser mayor que cero." },
+  ),
+  unitPrice: amountSchema("unitPrice", 2, true),
+  recommendedRetailPrice: amountSchema("recommendedRetailPrice", 2),
+  taxRate: amountSchema("taxRate", 3, true),
+  typicalWeightPerUnit: amountSchema("typicalWeightPerUnit", 3),
+  isChillerStock: booleanSchema("isChillerStock"),
+};
+
+/**
+ * Valida la inserción de un producto en el catálogo central.
+ * Exige al menos un grupo sin repeticiones y rechaza campos de existencias.
  *
  * @type {import('zod').ZodType}
  */
-export const stockItemSchema = z.object(
+export const catalogStockItemSchema = z.strictObject(catalogFields, {
+  error: objectError("Indique los datos del producto"),
+});
+
+/**
+ * Valida la edición de un producto del catálogo central con la versión cargada en el formulario.
+ *
+ * @type {import('zod').ZodType}
+ */
+export const catalogStockItemUpdateSchema = z.strictObject(
+  { ...catalogFields, version: versionSchema },
+  { error: objectError("Indique los datos del producto") },
+);
+
+/**
+ * Valida los valores absolutos de las existencias de un producto en la sucursal.
+ * version es null cuando el producto todavía no tiene fila de existencias.
+ *
+ * @type {import('zod').ZodType}
+ */
+export const stockItemHoldingsSchema = z.strictObject(
   {
-    stockItemName: textSchema("Nombre del producto", 100, true),
-    supplierID: idSchema("Proveedor", true),
     lastEditedBy: idSchema("Empleado", true),
-    colorID: idSchema("Color"),
-    unitPackageID: idSchema("Empaque unitario", true),
-    outerPackageID: idSchema("Empaque exterior", true),
-    stockGroupIDs: z
-      .array(stockGroupIDSchema, { error: groupsMessage })
-      .min(1, { error: groupsMessage })
-      .refine((ids) => new Set(ids).size === ids.length, {
-        error: groupsMessage,
-      }),
-    brand: textSchema("brand", 50),
-    size: textSchema("size", 20),
-    barcode: textSchema("barcode", 50),
-    binLocation: textSchema("binLocation", 20),
-    leadTimeDays: amountSchema("leadTimeDays", 0),
-    reorderLevel: amountSchema("reorderLevel", 0),
-    targetStockLevel: amountSchema("targetStockLevel", 0),
     quantityOnHand: amountSchema("quantityOnHand", 0, true),
-    quantityPerOuter: amountSchema("quantityPerOuter", 0).refine(
-      (value) => value !== 0,
-      { error: "quantityPerOuter debe ser mayor que cero." },
-    ),
-    lastCostPrice: amountSchema("lastCostPrice", 2),
-    unitPrice: amountSchema("unitPrice", 2, true),
-    recommendedRetailPrice: amountSchema("recommendedRetailPrice", 2),
-    taxRate: amountSchema("taxRate", 3, true),
-    typicalWeightPerUnit: amountSchema("typicalWeightPerUnit", 3),
-    isChillerStock: booleanSchema("isChillerStock"),
+    binLocation: textSchema("binLocation", 20),
+    lastCostPrice: amountSchema("lastCostPrice", 2, true),
+    reorderLevel: amountSchema("reorderLevel", 0, true),
+    targetStockLevel: amountSchema("targetStockLevel", 0, true),
+    version: versionSchema.nullable(),
   },
-  { error: "Indique los datos del producto" },
+  { error: objectError("Indique las existencias del producto") },
 );

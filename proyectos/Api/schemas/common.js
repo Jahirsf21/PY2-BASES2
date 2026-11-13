@@ -108,6 +108,18 @@ export function idParams(name, label) {
 }
 
 /**
+ * Valida la versión opaca que devuelve SQL Server: '0x' seguido de 16 dígitos hexadecimales.
+ * Se conserva como texto; el servicio la convierte a Buffer al enviarla al procedimiento.
+ *
+ * @type {import('zod').ZodType<string>}
+ */
+export const versionSchema = z
+  .string({ error: "La versión es obligatoria. Recargue los datos." })
+  .regex(/^0x[0-9A-Fa-f]{16}$/, {
+    error: "La versión no es válida. Recargue los datos.",
+  });
+
+/**
  * Crea el esquema de un campo booleano opcional.
  *
  * @param {string} label Nombre legible del campo para el mensaje.

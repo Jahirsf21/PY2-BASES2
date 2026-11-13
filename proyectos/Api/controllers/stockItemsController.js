@@ -5,81 +5,43 @@ import {
   getColors,
   getPackageTypes,
   getStockItemDetail,
-  getStockItemForEdit,
   getStockItemGroups,
-  insertStockItem,
-  updateStockItem,
+  getCatalogStockItemForEdit,
+  insertCatalogStockItem,
+  updateCatalogStockItem,
+  getStockItemHoldings,
+  adjustStockItemHoldings,
   deleteStockItem,
 } from "../services/stockItems.js";
 
 /**
- * Obtiene una página de productos.
+ * Obtiene una página de productos de la sucursal.
  * Permite filtrar opcionalmente por nombre de producto y grupos.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, stockItemName y stockGroupIDsJson en req.query. El arreglo JSON null o [] incluye todos los grupos.
- * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de productos.
+ * @param {import('express').Request} req Petición HTTP. Espera stockItemName y stockGroupIDsJson en req.query.
+ * @param {import('express').Response} res Respuesta HTTP con la paginación en res.locals.pagination.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con la página de productos.
  */
-export async function listStockItems(req, res, next) {
-  try {
-    const { pageNumber, pageSize } = res.locals.pagination;
-    const stockItemName = req.query.stockItemName;
-    const stockGroupIDsJson = req.query.stockGroupIDsJson;
-    const result = await getStockItems(
-      stockItemName,
-      stockGroupIDsJson,
-      pageNumber,
-      pageSize,
-      req.user.userID,
-      req.user.node,
-    );
-    return paginatedResponse(res, pageNumber, pageSize, result);
-  } catch (error) {
-    const sqlErrorCode = Number(error.number);
-    if (sqlErrorCode === 50003) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "StockGroupIDsJson debe ser un arreglo JSON de IDs de categorías",
-        });
-    }
-    if (sqlErrorCode === 50004) {
-      return res
-        .status(400)
-        .json({
-          message: "Los IDs de categorías deben ser números enteros positivos",
-        });
-    }
-    if (sqlErrorCode === 50005) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Una o más categorías indicadas no existen en la base de datos",
-        });
-    }
-    return next(error);
-  }
+export async function listStockItems(req, res) {
+  const { pageNumber, pageSize } = res.locals.pagination;
+  const result = await getStockItems(req.user, {
+    stockItemName: req.query.stockItemName,
+    stockGroupIDsJson: req.query.stockGroupIDsJson,
+    pageNumber,
+    pageSize,
+  });
+  return paginatedResponse(res, pageNumber, pageSize, result);
 }
 
 /**
  * Obtiene todos los grupos de productos.
- * Se usa para llenar el combo de filtros de la lista de productos.
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los grupos de productos.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los grupos de productos.
  */
-export async function listStockGroups(req, res, next) {
-  try {
-    const groups = await getStockGroups(req.user.userID, req.user.node);
-    return res.json(groups);
-  } catch (error) {
-    return next(error);
-  }
+export async function listStockGroups(req, res) {
+  return res.json(await getStockGroups(req.user));
 }
 
 /**
@@ -87,16 +49,10 @@ export async function listStockGroups(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los colores.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los colores.
  */
-export async function listColors(req, res, next) {
-  try {
-    const colors = await getColors(req.user.userID, req.user.node);
-    return res.json(colors);
-  } catch (error) {
-    return next(error);
-  }
+export async function listColors(req, res) {
+  return res.json(await getColors(req.user));
 }
 
 /**
@@ -104,179 +60,140 @@ export async function listColors(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los tipos de empaque.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los tipos de empaque.
  */
-export async function listPackageTypes(req, res, next) {
-  try {
-    const packageTypes = await getPackageTypes(req.user.userID, req.user.node);
-    return res.json(packageTypes);
-  } catch (error) {
-    return next(error);
-  }
+export async function listPackageTypes(req, res) {
+  return res.json(await getPackageTypes(req.user));
 }
 
 /**
- * Obtiene el detalle de un producto por su identificador.
+ * Obtiene el detalle de un producto en la sucursal.
  *
- * @param {import('express').Request} req Petición HTTP con stockItemID en res.locals.params.
- * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Detalle del producto o 404.
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Detalle del producto o 404.
  */
-export async function getStockItemById(req, res, next) {
-  try {
-    const { stockItemID } = res.locals.params;
-    const items = await getStockItemDetail(
-      stockItemID,
-      req.user.userID,
-      req.user.node,
-    );
-    if (items.length === 0) {
-      return res.status(404).json({ message: "Producto no encontrado" });
-    }
-    return res.json(items);
-  } catch (error) {
-    return next(error);
+export async function getStockItemById(req, res) {
+  const items = await getStockItemDetail(
+    req.user,
+    res.locals.params.stockItemID,
+  );
+  if (items.length === 0) {
+    return res.status(404).json({ message: "Producto no encontrado" });
   }
+  return res.json(items);
 }
 
 /**
- * Obtiene los datos editables de un producto.
+ * Obtiene los grupos asociados a un producto en la sucursal.
  *
- * @param {import('express').Request} req Petición HTTP con stockItemID en res.locals.params.
- * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Datos del formulario o 404.
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Grupos del producto o 404.
  */
-export async function getStockItemEditById(req, res, next) {
-  try {
-    const { stockItemID } = res.locals.params;
-    const items = await getStockItemForEdit(
-      stockItemID,
-      req.user.userID,
-      req.user.node,
-    );
-    if (items.length === 0) {
-      return res.status(404).json({ message: "Producto no encontrado" });
-    }
-    return res.json(items[0]);
-  } catch (error) {
-    return next(error);
+export async function getStockItemGroupsById(req, res) {
+  const groups = await getStockItemGroups(
+    req.user,
+    res.locals.params.stockItemID,
+  );
+  if (groups.length === 0) {
+    return res
+      .status(404)
+      .json({ message: "Grupos del producto no encontrados" });
   }
+  return res.json(groups);
 }
 
 /**
- * Obtiene los grupos asociados a un producto.
+ * Obtiene de Corporativo los datos editables del catálogo, sus grupos y su versión.
  *
- * @param {import('express').Request} req Petición HTTP con stockItemID en res.locals.params.
- * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Grupos del producto o 404.
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Datos del formulario con Grupos y Version, o 404.
  */
-export async function getStockItemGroupsById(req, res, next) {
-  try {
-    const { stockItemID } = res.locals.params;
-    const groups = await getStockItemGroups(
-      stockItemID,
-      req.user.userID,
-      req.user.node,
-    );
-    if (groups.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Grupos del producto no encontrados" });
-    }
-    return res.json(groups);
-  } catch (error) {
-    return next(error);
+export async function getStockItemEditById(req, res) {
+  const item = await getCatalogStockItemForEdit(
+    req.user,
+    res.locals.params.stockItemID,
+  );
+  if (!item) {
+    return res.status(404).json({ message: "Producto no encontrado" });
   }
+  return res.json(item);
 }
 
 /**
- * Crea un producto con los datos del cuerpo de la solicitud.
+ * Inserta un producto en el catálogo central.
  *
- * @param {import('express').Request} req Petición HTTP con los datos del producto en req.body.
+ * @param {import('express').Request} req Petición HTTP con los datos del catálogo en req.body.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Identificador del producto creado.
+ * @returns {Promise<import('express').Response>} Identificador y versión del producto creado.
  */
-export async function addStockItem(req, res, next) {
-  const item = req.body;
-  try {
-    const stockItemID = await insertStockItem(
-      item,
-      req.user.userID,
-      req.user.node,
-    );
-    return res.status(201).json({ stockItemID });
-  } catch (error) {
-    if (Number(error.number) === 547) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Alguna referencia del producto (proveedor, color, empaque o grupo) no existe",
-        });
-    }
-    return next(error);
-  }
+export async function addStockItem(req, res) {
+  const created = await insertCatalogStockItem(req.user, req.body);
+  return res.status(201).json(created);
 }
 
 /**
- * Actualiza los datos de un producto.
+ * Actualiza un producto del catálogo central con la versión cargada en el formulario.
  *
- * @param {import('express').Request} req Petición HTTP con stockItemID en res.locals.params y datos en req.body.
- * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Confirmación de la actualización.
+ * @param {import('express').Request} req Petición HTTP con los datos del catálogo y version en req.body.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Identificador y nueva versión del producto.
  */
-export async function editStockItem(req, res, next) {
+export async function editStockItem(req, res) {
   const { stockItemID } = res.locals.params;
-  const item = req.body;
-  try {
-    await updateStockItem(stockItemID, item, req.user.userID, req.user.node);
-    return res.json({ stockItemID });
-  } catch (error) {
-    const sqlErrorCode = Number(error.number);
-    if (sqlErrorCode === 53000) {
-      return res.status(404).json({ message: "Producto no encontrado" });
-    }
-    if (sqlErrorCode === 547) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Alguna referencia del producto (proveedor, color, empaque o grupo) no existe",
-        });
-    }
-    return next(error);
-  }
+  const version = await updateCatalogStockItem(req.user, stockItemID, req.body);
+  return res.json({ stockItemID, version });
 }
 
 /**
- * Elimina un producto por su identificador.
+ * Obtiene las existencias de un producto en la sucursal para ajustarlas.
  *
- * @param {import('express').Request} req Petición HTTP con stockItemID en res.locals.params.
- * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta sin contenido al eliminarlo.
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Existencias con Version, o 404 si el producto no está en la sucursal.
  */
-export async function removeStockItem(req, res, next) {
-  const { stockItemID } = res.locals.params;
-  try {
-    await deleteStockItem(stockItemID, req.user.userID, req.user.node);
-    return res.status(204).send();
-  } catch (error) {
-    const sqlErrorCode = Number(error.number);
-    if (sqlErrorCode === 53001) {
-      return res.status(404).json({ message: "Producto no encontrado" });
-    }
-    if (sqlErrorCode === 53002) {
-      return res
-        .status(409)
-        .json({ message: "El producto tiene ventas u órdenes asociadas" });
-    }
-    return next(error);
+export async function getStockItemHoldingsById(req, res) {
+  const holdings = await getStockItemHoldings(
+    req.user,
+    res.locals.params.stockItemID,
+  );
+  if (!holdings) {
+    return res
+      .status(404)
+      .json({
+        message: "El producto todavía no está disponible en esta sucursal",
+      });
   }
+  return res.json(holdings);
+}
+
+/**
+ * Guarda los valores absolutos de las existencias de un producto en la sucursal.
+ *
+ * @param {import('express').Request} req Petición HTTP con las existencias y version en req.body.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Identificador y nueva versión de las existencias.
+ */
+export async function adjustStockItemHoldingsById(req, res) {
+  const { stockItemID } = res.locals.params;
+  const version = await adjustStockItemHoldings(
+    req.user,
+    stockItemID,
+    req.body,
+  );
+  return res.json({ stockItemID, version });
+}
+
+/**
+ * Elimina un producto en la sucursal.
+ *
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP con stockItemID en res.locals.params.
+ * @returns {Promise<import('express').Response>} Respuesta sin contenido al eliminarlo.
+ */
+export async function removeStockItem(req, res) {
+  await deleteStockItem(req.user, res.locals.params.stockItemID);
+  return res.status(204).send();
 }

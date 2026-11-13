@@ -3,27 +3,29 @@ import { getPool } from "../config/database.js";
 import { idSchema } from "../schemas/common.js";
 import { isRoleAllowedInNode } from "./entityValidation.js";
 import { isConnectionError } from "./connectionErrors.js";
+import { addParameters } from "./procedure.js";
 
 const userIDSchema = idSchema("Usuario", true);
 
 /**
  * Valida al Administrador en su sucursal antes de ejecutar un SP del catálogo central.
  * La identidad debe proceder de req.user verificado y la ruta debe conservar requireRole.
- * El nombre del SP y la configuración de parámetros son internos del servicio, no del body.
- * No reutiliza la autorización entre peticiones ni valida el UserID como usuario de Corporativo.
+ * El nombre del SP y los parámetros son internos del servicio, no del body.
+ * Repite la validación en cada llamada y no valida el UserID como usuario de Corporativo.
  *
- * @param {number} userID Identificador del usuario autenticado en su nodo de origen.
- * @param {string} node Sucursal del JWT verificado: san-jose o limon.
- * @param {string} procedure Procedimiento corporativo preparado para la identidad delegada.
- * @param {(request: import('mssql').Request) => void|Promise<void>} [configureRequest] Parámetros de negocio y salidas del SP.
- * @returns {Promise<import('mssql').IProcedureResult<object>>} Resultado completo, incluidos recordsets y outputs.
+ * @param {object} session Identidad de req.user, con userID y node (san-jose o limon).
+ * @param {string} procedure Procedimiento de Corporativo preparado para la identidad de la sucursal.
+ * @param {object} [params] Entradas como { Nombre: [tipo, valor] }.
+ * @param {object} [outputs] Salidas como { Nombre: tipo }.
+ * @returns {Promise<object>} Resultado completo de mssql, con recordset, recordsets y output.
  */
 export async function executeCatalogProcedure(
-  userID,
-  node,
+  session,
   procedure,
-  configureRequest,
+  params = {},
+  outputs = {},
 ) {
+  const { userID, node } = session ?? {};
   let targetNode = node;
   try {
     if (!isRoleAllowedInNode("Administrador", node)) {
@@ -47,7 +49,7 @@ export async function executeCatalogProcedure(
     const request = (await getPool(targetNode)).request();
     request.input("UserID", sql.Int, userID);
     request.input("OriginNode", sql.NVarChar(20), node);
-    await configureRequest?.(request);
+    addParameters(request, params, outputs);
     return await request.execute(procedure);
   } catch (error) {
     if (error instanceof Error) {
