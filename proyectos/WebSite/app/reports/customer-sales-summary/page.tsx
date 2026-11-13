@@ -17,10 +17,12 @@ const columns: ReportColumn<CustomerSalesSummary>[] = [
   { key: 'MontoPromedio', label: 'Monto promedio', format: 'amount' },
 ]
 
+/** Consulta una página del resumen de ventas por cliente con los filtros indicados. */
 function loadSummary(filters: CustomerSalesSummaryFilters, pageNumber: number, pageSize: number) {
   return getCustomerSalesSummary(filters.customerName, filters.customerCategoryName, pageNumber, pageSize)
 }
 
+/** Página del reporte de resumen de ventas por cliente. */
 export default function CustomerSalesSummaryPage() {
   const report = reportOptions['customer-sales-summary']
 

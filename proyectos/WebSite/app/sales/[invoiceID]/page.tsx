@@ -18,6 +18,7 @@ import type { InvoiceDetail } from '@/lib/types/sales'
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat('es-CR', { timeZone: 'UTC', dateStyle: 'long' })
 
+/** Página de detalle de una factura. */
 export default function InvoiceDetailPage() {
   const { invoiceID } = useParams<{ invoiceID: string }>()
   return <InvoiceDetailContent key={invoiceID} invoiceID={invoiceID} />

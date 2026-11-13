@@ -17,10 +17,12 @@ const columns: ReportColumn<TopSupplierByYear>[] = [
   { key: 'MontoComprado', label: 'Monto comprado', format: 'amount' },
 ]
 
+/** Consulta el ranking de proveedores en el rango de años indicado. */
 async function loadRanking(filters: YearRangeFilters) {
   return getTopSuppliersByYear(filters.yearFrom, filters.yearTo)
 }
 
+/** Página del reporte de mejores proveedores por año. */
 export default function TopSuppliersByYearPage() {
   const report = reportOptions['top-suppliers-by-year']
 

@@ -33,6 +33,7 @@ function supplierError(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'No fue posible obtener los proveedores.'
 }
 
+/** Lista de proveedores con filtros por nombre, categoría y método de entrega. */
 export default function SuppliersPage() {
   const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [supplierName, setSupplierName] = useState('')
@@ -65,6 +66,7 @@ export default function SuppliersPage() {
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga la página de proveedores con los filtros aplicados. */
     async function loadData() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
@@ -117,12 +119,14 @@ export default function SuppliersPage() {
     return () => { cancelled = true }
   }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
+  /** Aplica los filtros del formulario y vuelve a la primera página. */
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setFilters({ supplierName, supplierCategoryID, deliveryMethodID })
     setPageNumber(1)
   }
 
+  /** Limpia los filtros y vuelve a la primera página. */
   function resetFilters() {
     setSupplierName('')
     setSupplierCategoryID(null)
@@ -151,10 +155,12 @@ export default function SuppliersPage() {
     // setIsConfirmingDelete(false)
   // }
 
+  /** Cambia la página de resultados. */
   function changePage(page: number) {
     setPageNumber(page)
   }
 
+  /** Va a la página escrita si es válida. */
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))
@@ -207,6 +213,7 @@ export default function SuppliersPage() {
   // }
 
   const activeFilters = [filters.supplierName.trim() !== '', filters.supplierCategoryID !== null, filters.deliveryMethodID !== null].filter(Boolean).length
+  /** Vuelve a consultar los proveedores y los catálogos de los filtros. */
   const retryReads = () => { setRefreshKey(key => key + 1); setCatalogRefresh(key => key + 1) }
   const catalogMessages = [catalogErrors.categories && `Categorías: ${catalogErrors.categories}`, catalogErrors.methods && `Métodos de entrega: ${catalogErrors.methods}`].filter((message): message is string => Boolean(message))
 

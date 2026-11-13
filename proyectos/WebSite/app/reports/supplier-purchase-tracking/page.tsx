@@ -21,10 +21,12 @@ const columns: ReportColumn<SupplierPurchaseTracking>[] = [
   { key: 'CantidadMinima', label: 'Cantidad mínima', format: 'count' },
 ]
 
+/** Consulta una página del seguimiento mensual de compras por proveedor. */
 function loadTracking(filters: MonthlyTrackingFilters, pageNumber: number, pageSize: number) {
   return getSupplierPurchaseTracking(filters.year, filters.month, filters.stockGroupIDs, pageNumber, pageSize)
 }
 
+/** Página del reporte de seguimiento mensual de compras por proveedor. */
 export default function SupplierPurchaseTrackingPage() {
   const report = reportOptions['supplier-purchase-tracking']
 

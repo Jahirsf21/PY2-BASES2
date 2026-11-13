@@ -55,6 +55,7 @@ function readErrorMessage(error: unknown, fallback: string, denied: string): str
   return error instanceof Error ? error.message : fallback
 }
 
+/** Lista de clientes con filtros por nombre, categoría y método de entrega. */
 export default function Home() {
   const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [customerName, setCustomerName] = useState('')
@@ -89,6 +90,7 @@ export default function Home() {
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga la página de clientes con los filtros aplicados. */
     async function loadData() {
       setIsLoading(true)
       setError(null)
@@ -128,6 +130,7 @@ export default function Home() {
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga las categorías de cliente para el filtro. */
     async function loadCategories() {
       try {
         const result = await getCustomerCategories()
@@ -148,6 +151,7 @@ export default function Home() {
       }
     }
 
+    /** Carga los métodos de entrega para el filtro. */
     async function loadDeliveryMethods() {
       try {
         const result = await getDeliveryMethods()
@@ -193,12 +197,14 @@ export default function Home() {
     setCatalogRefreshKey((key) => key + 1)
   }
 
+  /** Aplica los filtros del formulario y vuelve a la primera página. */
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setFilters({ customerName, customerCategoryID, deliveryMethodID })
     setPageNumber(1)
   }
 
+  /** Limpia los filtros y vuelve a la primera página. */
   function resetFilters() {
     setCustomerName('')
     setCustomerCategoryID(null)
@@ -228,10 +234,12 @@ export default function Home() {
     // setIsConfirmingDelete(false)
   // }
 
+  /** Cambia la página de resultados. */
   function changePage(page: number) {
     setPageNumber(page)
   }
 
+  /** Va a la página escrita si es válida. */
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))

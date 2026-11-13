@@ -17,10 +17,12 @@ const columns: ReportColumn<SupplierPurchaseSummary>[] = [
   { key: 'MontoPromedio', label: 'Monto promedio', format: 'amount' },
 ]
 
+/** Consulta el resumen de compras por proveedor con los filtros indicados. */
 async function loadSummary(filters: SupplierPurchaseSummaryFilters) {
   return getSupplierPurchaseSummary(filters.supplierName, filters.supplierCategoryName)
 }
 
+/** Página del reporte de resumen de compras por proveedor. */
 export default function SupplierPurchaseSummaryPage() {
   const report = reportOptions['supplier-purchase-summary']
 

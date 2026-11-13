@@ -17,10 +17,12 @@ const columns: ReportColumn<TopCustomerByYear>[] = [
   { key: 'MontoFacturado', label: 'Monto facturado', format: 'amount' },
 ]
 
+/** Consulta el ranking de clientes en el rango de años indicado. */
 async function loadRanking(filters: YearRangeFilters) {
   return getTopCustomersByYear(filters.yearFrom, filters.yearTo)
 }
 
+/** Página del reporte de mejores clientes por año. */
 export default function TopCustomersByYearPage() {
   const report = reportOptions['top-customers-by-year']
 

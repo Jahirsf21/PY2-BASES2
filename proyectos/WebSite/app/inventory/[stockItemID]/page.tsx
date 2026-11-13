@@ -16,6 +16,7 @@ import type { StockGroup, StockItemDetail } from '@/lib/types/stockItems'
 const numberFormatter = new Intl.NumberFormat('es-CR', { maximumFractionDigits: 3 })
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+/** Página de detalle de un producto en la sucursal. */
 export default function StockItemDetailPage() {
   const { stockItemID } = useParams<{ stockItemID: string }>()
   return <StockItemDetailContent key={stockItemID} stockItemID={stockItemID} />
@@ -109,7 +110,8 @@ function StockItemDetailContent({ stockItemID }: { stockItemID: string }) {
               </div>
 
               <div className="min-w-0 space-y-6">
-                <SectionCard icon={WarehouseIcon} title="Inventario">
+                <SectionCard icon={WarehouseIcon} title="Inventario" description="Existencias en esta sucursal."
+                  action={<Button nativeButton={false} variant="outline" size="sm" render={<Link href={`/inventory/${item.StockItemID}/holdings`} />}><BoxesIcon data-icon="inline-start" />Ajustar existencias</Button>}>
                   <dl className="space-y-4">
                     <div className="rounded-lg border bg-muted/30 p-4">
                       <dt className="text-xs text-muted-foreground">Cantidad disponible</dt>

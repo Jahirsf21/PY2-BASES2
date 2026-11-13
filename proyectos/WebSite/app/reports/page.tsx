@@ -5,6 +5,7 @@ import { reportOptions } from '@/app/reports/report-options'
 
 const groups = ['Ventas', 'Compras'] as const
 
+/** Página con el listado de reportes disponibles. */
 export default function ReportsPage() {
   return (
     <main className="flex min-w-0 flex-1 bg-muted/30">

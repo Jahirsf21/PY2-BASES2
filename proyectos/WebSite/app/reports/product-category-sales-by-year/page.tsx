@@ -22,6 +22,7 @@ const columns: ReportColumn<ProductCategorySalesByYear>[] = [
   { key: 'Packaging Materials', label: 'Packaging Materials', format: 'amount' },
 ]
 
+/** Página del reporte de ventas por categoría de producto y año. */
 export default function ProductCategorySalesByYearPage() {
   const report = reportOptions['product-category-sales-by-year']
 

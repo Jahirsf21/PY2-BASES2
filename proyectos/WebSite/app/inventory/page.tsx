@@ -34,6 +34,7 @@ function inventoryError(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'No fue posible obtener los productos.'
 }
 
+/** Lista de productos de la sucursal con filtros por nombre y grupos, paginación y eliminación. */
 export default function InventoryPage() {
   const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [stockItemName, setStockItemName] = useState('')
@@ -64,6 +65,7 @@ export default function InventoryPage() {
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga la página de productos con los filtros aplicados si la sesión sigue vigente. */
     async function loadData() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
@@ -111,6 +113,7 @@ export default function InventoryPage() {
     return () => { cancelled = true }
   }, [groupsRefresh, revision, isSessionCurrent, invalidateSession])
 
+  /** Aplica los filtros del formulario y vuelve a la primera página. */
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isDeleting) return
@@ -119,6 +122,7 @@ export default function InventoryPage() {
     setPageNumber(1)
   }
 
+  /** Limpia los filtros y vuelve a la primera página. */
   function resetFilters() {
     if (isDeleting) return
     clearSelection()
@@ -133,11 +137,13 @@ export default function InventoryPage() {
   const totalCount = stockItemsResponse?.totalCount ?? 0
   const selectedStockItem = stockItems.find((item) => item.StockItemID === selectedStockItemID) ?? null
 
+  /** Quita la selección del producto y cierra la confirmación de borrado. */
   function clearSelection() {
     setSelectedStockItemID(null)
     setIsConfirmingDelete(false)
   }
 
+  /** Selecciona o deselecciona un producto de la lista. */
   function toggleStockItem(stockItemID: number) {
     if (isLoading || isDeleting) return
     if (selectedStockItemID === stockItemID) {
@@ -148,11 +154,13 @@ export default function InventoryPage() {
     setIsConfirmingDelete(false)
   }
 
+  /** Cambia la página de resultados y quita la selección. */
   function changePage(page: number) {
     clearSelection()
     setPageNumber(page)
   }
 
+  /** Va a la página escrita si es válida. */
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))
@@ -205,6 +213,7 @@ export default function InventoryPage() {
   }
 
   const activeFilters = [filters.stockItemName.trim() !== '', filters.stockGroupIDs.length > 0].filter(Boolean).length
+  /** Vuelve a consultar los productos y los grupos. */
   const retryReads = () => { setRefreshKey(key => key + 1); setGroupsRefresh(key => key + 1) }
   const groupLabel = stockGroupIDs.length === 0 ? 'Todos los grupos' : stockGroupIDs.length === 1 ? groups.find((group) => group.StockGroupID === stockGroupIDs[0])?.NombreGrupoProducto ?? '1 grupo seleccionado' : `${stockGroupIDs.length} grupos seleccionados`
 
@@ -335,6 +344,7 @@ export default function InventoryPage() {
 
 const quantityFormatter = new Intl.NumberFormat('es-CR')
 
+/** Ícono de producto para las filas de la lista. */
 function ProductIcon() {
   return <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-foreground/10"><PackageIcon className="size-4" /></span>
 }

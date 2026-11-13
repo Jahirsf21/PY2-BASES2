@@ -51,6 +51,7 @@ function SessionLookupPicker(props: LookupPickerProps) {
   return <LookupPickerContent {...props} session={{ revision, isSessionCurrent, invalidateSession }} />
 }
 
+/** Obtiene hasta dos iniciales del texto para el avatar de una opción. */
 function initials(text: string) {
   return text.replace(/[^\p{L}\p{N}\s,]/gu, '').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(word => word[0]?.toUpperCase()).join('') || '?'
 }
@@ -81,6 +82,7 @@ function LookupPickerContent({ id, label, value, onChange, search, disabled, req
     const requestRevision = revision
     /** Comprueba también cambios del almacenamiento que todavía no recibieron foco. */
     const current = () => requestRevision === undefined || Boolean(isSessionCurrent?.(requestRevision))
+    /** Consulta una página de opciones si la búsqueda y la sesión siguen vigentes. */
     async function load() {
       if (cancelled || !current()) return
       setLoading(true)

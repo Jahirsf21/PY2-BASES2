@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   description: "Proyecto 1 - Bases 2",
 };
 
+/** Estructura raíz de la aplicación con la sesión, los avisos y la navegación. */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html

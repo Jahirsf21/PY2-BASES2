@@ -15,11 +15,13 @@ import { parseEntityId } from '@/lib/helpers/entityValidation'
 import { rowWithIdSchema, singleRowResponseSchema } from '@/lib/schemas/responses'
 import type { SupplierAddress, SupplierContact, SupplierDetail, SupplierPrivateDetail, SupplierRouteParams } from '@/lib/types/suppliers'
 
+/** Exige que el detalle tenga exactamente una fila y la devuelve. */
 function requireRow<T>(items: T[]): T {
   if (!singleRowResponseSchema.safeParse(items).success) throw new SyntaxError('Respuesta de detalle inesperada')
   return items[0]
 }
 
+/** Convierte el error de una lectura en un mensaje con el nombre del recurso, sin mostrar errores internos. */
 function requestMessage(reason: unknown, resource: string) {
   const status = reason instanceof Error ? reason.cause : null
   if (status === 403) return `${resource}: Sin permisos para consultar estos datos.`
@@ -27,6 +29,7 @@ function requestMessage(reason: unknown, resource: string) {
   return `${resource}: ${reason instanceof Error ? reason.message : 'No disponible.'}`
 }
 
+/** Página de detalle de un proveedor. */
 export default function SupplierDetailPage() {
   const { supplierID } = useParams<SupplierRouteParams>()
   return <SupplierDetailContent key={supplierID} supplierID={supplierID} />
@@ -52,6 +55,7 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
     let cancelled = false
     const requestRevision = revision
 
+    /** Consulta el detalle general del proveedor si la sesión sigue vigente. */
     async function loadSupplier() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
@@ -86,13 +90,16 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
     let cancelled = false
     const requestRevision = revision
     const requestId = ++privateRequestId.current
+    /** Indica si la lectura privada sigue vigente para esta pantalla y sesión. */
     const isActive = () => !cancelled && requestId === privateRequestId.current && isSessionCurrent(requestRevision)
 
+    /** Invalida la sesión ante un 401 o muestra el error de la sección privada. */
     function failed(reason: unknown, setState: (state: DetailLoadState) => void, resource: string) {
       if (reason instanceof Error && reason.cause === 401) invalidateSession(requestRevision)
       else if (isActive()) setState({ loading: false, error: requestMessage(reason, resource) })
     }
 
+    /** Consulta en Corporativo los datos privados, contactos y dirección del proveedor. */
     function loadPrivate() {
       if (!isActive()) return
       const id = parseEntityId(supplierID)
@@ -128,6 +135,7 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
     return () => { cancelled = true }
   }, [supplierID, privateRefreshKey, revision, isSessionCurrent, invalidateSession])
 
+  /** Descarta las lecturas privadas en curso y vuelve a consultarlas. */
   function retryPrivate() {
     privateRequestId.current++
     setPrivateDetails(null)
@@ -139,6 +147,7 @@ function SupplierDetailContent({ supplierID }: { supplierID: string }) {
     setPrivateRefreshKey(key => key + 1)
   }
 
+  /** Limpia el detalle del proveedor y vuelve a consultarlo. */
   function retryDetail() {
     setIsLoading(true)
     setError(null)

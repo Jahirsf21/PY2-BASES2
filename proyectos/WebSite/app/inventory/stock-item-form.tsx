@@ -2,7 +2,9 @@
 
 import type { SubmitEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { BoxesIcon, CircleCheckIcon, InfoIcon, ListIcon } from 'lucide-react'
 import { getEmployees } from '@/app/api/application'
 import { getSuppliers } from '@/app/api/suppliers'
 import { createStockItem, getColors, getPackageTypes, getStockGroups, updateStockItemByID } from '@/app/api/stockItems'
@@ -10,6 +12,9 @@ import { LookupPicker, type LookupOption } from '@/app/customers/lookup-picker'
 import { FormStepper, StepPanel, type FormStep } from '@/components/form-stepper'
 import { FormAlerts, FormHeader, InlineError, RequiredMark, ReviewSections, SCROLL_LIST_CLASS, SelectField, StepActions, TextField, serverFieldErrors, useStepForm } from '@/components/form-kit'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { BackLink } from '@/components/detail-kit'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FieldDescription, FieldGroup, FieldLegend, FieldSet } from '@/components/ui/field'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -21,24 +26,26 @@ import { stockItemStepSchema } from '@/lib/schemas/forms'
 import { arrayResponseSchema } from '@/lib/schemas/responses'
 import { useSession } from '@/components/auth-session'
 import type { Employee } from '@/lib/types/application'
-import type { Color, NewStockItem, PackageType, StockGroup, StockItemEdit } from '@/lib/types/stockItems'
+import type { Color, NewStockItem, PackageType, StockGroup, StockItemEdit, StockItemUpdate } from '@/lib/types/stockItems'
 
 const STEPS: FormStep[] = [
   { id: 'general', title: 'Datos generales', description: 'Nombre, proveedor, responsable del registro y datos de identificación.' },
   { id: 'classification', title: 'Clasificación y empaque', description: 'Grupos del producto, color y forma en que se empaca.' },
-  { id: 'pricing', title: 'Precios y existencias', description: 'Precios, impuesto, cantidades en bodega y reposición.' },
+  { id: 'pricing', title: 'Precios y entrega', description: 'Precios, impuesto y días de entrega del proveedor.' },
   { id: 'review', title: 'Revisión', description: 'Compruebe la información antes de guardar.' },
 ]
 
 const FIELD_STEP: Record<string, number> = {
   stockItemName: 0, supplier: 0, supplierID: 0, lastEditedBy: 0, brand: 0, size: 0, barcode: 0, isChillerStock: 0,
   stockGroupIDs: 1, colorID: 1, unitPackageID: 1, outerPackageID: 1, quantityPerOuter: 1, typicalWeightPerUnit: 1,
-  unitPrice: 2, taxRate: 2, recommendedRetailPrice: 2, lastCostPrice: 2, quantityOnHand: 2, reorderLevel: 2, targetStockLevel: 2, leadTimeDays: 2, binLocation: 2,
+  unitPrice: 2, taxRate: 2, recommendedRetailPrice: 2, leadTimeDays: 2,
 }
 
 const moneyFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** Formatea un monto del formulario como moneda para la revisión. */
 const money = (value: string | undefined) => value ? `$${moneyFormatter.format(Number(value))}` : null
 
+/** Busca proveedores por nombre para el selector del formulario. */
 async function findSuppliers(query: string, page: number) {
   const result = await getSuppliers(query, null, null, page, 8)
   return { items: result.data.map((supplier) => ({ id: supplier.SupplierID, label: supplier.NombreProveedor })), totalPages: result.totalPages }
@@ -52,7 +59,8 @@ function stockFormError(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'No fue posible completar la operación.'
 }
 
-export function StockItemForm({ initial, initialGroups = [] }: { initial?: StockItemEdit; initialGroups?: StockGroup[] }) {
+/** Formulario del catálogo del producto; al editar recibe los grupos, la versión y cómo recargar la precarga. */
+export function StockItemForm({ initial, onReload }: { initial?: StockItemEdit; onReload?: () => void }) {
   const router = useRouter()
   const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [supplier, setSupplier] = useState<LookupOption | null>(initial ? { id: initial.SupplierID, label: initial.SupplierName } : null)
@@ -64,14 +72,14 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
   const [colorID, setColorID] = useState<number | null>(initial?.ColorID ?? null)
   const [unitPackageID, setUnitPackageID] = useState<number | null>(initial?.UnitPackageID ?? null)
   const [outerPackageID, setOuterPackageID] = useState<number | null>(initial?.OuterPackageID ?? null)
-  const [stockGroupIDs, setStockGroupIDs] = useState<number[]>(initialGroups.map((group) => group.StockGroupID))
+  const [stockGroupIDs, setStockGroupIDs] = useState<number[]>(initial?.Grupos.map((group) => group.StockGroupID) ?? [])
   const [isChillerStock, setIsChillerStock] = useState(Boolean(initial?.IsChillerStock))
   const [catalogMessage, setCatalogMessage] = useState<string | null>(null)
   const [catalogLoading, setCatalogLoading] = useState(true)
   const [catalogRefresh, setCatalogRefresh] = useState(0)
   const catalogError = Boolean(catalogMessage) || catalogLoading
   const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [created, setCreated] = useState<{ id: number; name: string } | null>(null)
   const submitLock = useRef(false)
   const lifetime = useRef({ active: false })
   const back = initial ? `/inventory/${initial.StockItemID}` : '/inventory'
@@ -127,8 +135,16 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
     return () => { cancelled = true }
   }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
-  function showError(message: string) {
-    toast.add({ type: 'error', title: 'Revise el producto', description: message, priority: 'high', timeout: 8000 })
+  /** Muestra el error del guardado en un toast; ante un conflicto de versión ofrece recargar el producto. */
+  function showError(message: string, conflict: boolean) {
+    toast.add({
+      type: 'error',
+      title: initial ? 'No se pudo guardar el producto' : 'No se pudo crear el producto',
+      description: message,
+      priority: 'high',
+      timeout: 8000,
+      actionProps: conflict && onReload ? { children: 'Recargar producto', onClick: onReload } : undefined,
+    })
   }
 
   /** Bloquea doble envío y evita publicar mutaciones de otra pantalla o sesión. */
@@ -144,32 +160,39 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
       return
     }
     const data = new FormData(event.currentTarget)
+    /** Lee un campo del formulario como texto sin espacios en los extremos. */
     const text = (field: string) => String(data.get(field) ?? '').trim()
+    /** Lee un campo del formulario como número. */
     const number = (field: string) => Number(text(field))
+    /** Lee un campo numérico opcional; vacío devuelve null. */
     const optionalNumber = (field: string) => text(field) ? number(field) : null
-    const item: NewStockItem = {
+    const catalog: NewStockItem = {
       stockItemName: text('stockItemName'), supplierID: supplier.id, lastEditedBy,
       unitPackageID, outerPackageID, stockGroupIDs, colorID, isChillerStock,
       leadTimeDays: number('leadTimeDays'), quantityPerOuter: number('quantityPerOuter'),
-      quantityOnHand: number('quantityOnHand'), reorderLevel: number('reorderLevel'),
-      targetStockLevel: number('targetStockLevel'), lastCostPrice: number('lastCostPrice'),
       unitPrice: number('unitPrice'), taxRate: number('taxRate'),
       recommendedRetailPrice: optionalNumber('recommendedRetailPrice'), typicalWeightPerUnit: optionalNumber('typicalWeightPerUnit'),
-      brand: text('brand') || null, size: text('size') || null, barcode: text('barcode') || null, binLocation: text('binLocation') || null,
+      brand: text('brand') || null, size: text('size') || null, barcode: text('barcode') || null,
     }
+    const item: NewStockItem | StockItemUpdate = initial ? { ...catalog, version: initial.Version } : catalog
     const { fields, errors } = validateStockItem(item)
     if (fields.length) { form.showErrorsAt(Object.fromEntries(fields.map(field => [field, errors[field]]))); return }
     if (!isSessionCurrent(requestRevision)) return
     submitLock.current = true
     setSubmitting(true)
-    setSubmitError(null)
     try {
-      const id = initial ? (await updateStockItemByID(initial.StockItemID, item), initial.StockItemID) : await createStockItem(item)
+      const id = initial ? (await updateStockItemByID(initial.StockItemID, { ...catalog, version: initial.Version }), initial.StockItemID) : await createStockItem(catalog)
       if (!screen.active || !isSessionCurrent(requestRevision)) return
       const idErrors: Record<string, string> = {}
       checkId(idErrors, 'id', 'Producto', id, true)
       if (idErrors.id) throw new SyntaxError('Identificador inesperado')
-      toast.add({ type: 'success', title: initial ? 'Producto actualizado' : 'Producto creado', description: item.stockItemName })
+      // El catálogo se guarda en Corporativo y llega a la sucursal por replicación, con un posible atraso.
+      if (!initial) {
+        setCreated({ id, name: catalog.stockItemName })
+        setSubmitting(false)
+        return
+      }
+      toast.add({ type: 'success', title: 'Producto actualizado', description: `${catalog.stockItemName}. Los cambios pueden tardar unos segundos en verse en la sucursal.` })
       router.push(`/inventory/${id}`)
     } catch (reason) {
       if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
@@ -178,8 +201,7 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
       const serverErrors = serverFieldErrors(reason)
       if (Object.keys(serverErrors).length) message += ` ${Object.values(serverErrors).join(' ')}`
       if (Object.keys(serverErrors).some(key => key in FIELD_STEP)) form.showErrorsAt(serverErrors)
-      setSubmitError(message)
-      showError(message)
+      showError(message, reason instanceof Error && reason.cause === 409)
       setSubmitting(false)
     } finally {
       submitLock.current = false
@@ -187,8 +209,11 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
   }
 
   const packageOptions = packages.map((pack) => ({ value: pack.PackageTypeID, label: pack.PackageTypeName }))
+  /** Obtiene el nombre de un empaque por su identificador. */
   const packageName = (id: number | null) => packages.find((pack) => pack.PackageTypeID === id)?.PackageTypeName ?? null
   const review = form.review
+
+  if (created) return <StockItemCreated id={created.id} name={created.name} />
 
   return (
     <main className="flex min-w-0 flex-1 bg-muted/40">
@@ -198,7 +223,7 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
 
         <FormStepper steps={STEPS} current={form.step} invalid={form.invalidSteps} completed={index => index < form.visited} canSelect={index => index <= form.visited && !submitting} onSelect={form.goTo} />
 
-        <FormAlerts loading={catalogLoading} errors={catalogMessage ? [catalogMessage] : []} onRetry={() => setCatalogRefresh(key => key + 1)} retryDisabled={catalogLoading || submitting} submitError={submitError} />
+        <FormAlerts loading={catalogLoading} errors={catalogMessage ? [catalogMessage] : []} onRetry={() => setCatalogRefresh(key => key + 1)} retryDisabled={catalogLoading || submitting} />
 
         <form ref={formRef} noValidate className="space-y-6" onSubmit={(event) => void handleSubmit(event)} onInput={form.onInput}>
           <fieldset disabled={submitting} className="min-w-0">
@@ -273,19 +298,9 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
                     <TextField label="Precio unitario" name="unitPrice" type="number" min={0} step="0.01" defaultValue={initial?.UnitPrice ?? 0} required error={fieldErrors.unitPrice} />
                     <TextField label="Impuesto (%)" name="taxRate" type="number" min={0} step="0.001" defaultValue={initial?.TaxRate ?? 0} required error={fieldErrors.taxRate} />
                     <TextField label="Precio recomendado" name="recommendedRetailPrice" type="number" min={0} step="0.01" defaultValue={initial?.RecommendedRetailPrice ?? ''} error={fieldErrors.recommendedRetailPrice} />
-                    <TextField label="Último costo" name="lastCostPrice" type="number" min={0} step="0.01" defaultValue={initial?.LastCostPrice ?? 0} error={fieldErrors.lastCostPrice} />
-                  </div>
-                </FieldSet>
-                <Separator />
-                <FieldSet>
-                  <FieldLegend>Existencias y reposición</FieldLegend>
-                  <div className="grid gap-5 sm:grid-cols-3">
-                    <TextField label="Cantidad disponible" name="quantityOnHand" type="number" min={0} step={1} defaultValue={initial?.QuantityOnHand ?? 0} required error={fieldErrors.quantityOnHand} />
-                    <TextField label="Nivel de reposición" name="reorderLevel" type="number" min={0} step={1} defaultValue={initial?.ReorderLevel ?? 0} error={fieldErrors.reorderLevel} />
-                    <TextField label="Nivel objetivo" name="targetStockLevel" type="number" min={0} step={1} defaultValue={initial?.TargetStockLevel ?? 0} error={fieldErrors.targetStockLevel} />
                     <TextField label="Días de entrega" name="leadTimeDays" type="number" min={0} step={1} defaultValue={initial?.LeadTimeDays ?? 1} error={fieldErrors.leadTimeDays} />
-                    <TextField label="Ubicación en bodega" name="binLocation" maxLength={20} defaultValue={initial?.BinLocation ?? ''} error={fieldErrors.binLocation} />
                   </div>
+                  <FieldDescription>Las existencias, la ubicación y el último costo se ajustan por sucursal desde el detalle del producto.</FieldDescription>
                 </FieldSet>
               </FieldGroup>
             </StepPanel>
@@ -294,13 +309,47 @@ export function StockItemForm({ initial, initialGroups = [] }: { initial?: Stock
               <ReviewSections steps={STEPS} onEdit={form.goTo} sections={[
                 { step: 0, items: [['Nombre', review.stockItemName], ['Proveedor', supplier?.label], [initial ? 'Empleado a cargo' : 'Empleado que registra', employees.find((employee) => employee.PersonID === lastEditedBy)?.NombreCompleto], ['Marca', review.brand], ['Talla', review.size], ['Código de barras', review.barcode], ['Refrigeración', isChillerStock ? 'Requerida' : 'No requerida']] },
                 { step: 1, items: [['Grupos', groups.filter((group) => stockGroupIDs.includes(group.StockGroupID)).map((group) => group.NombreGrupoProducto).join(', ')], ['Color', colors.find((color) => color.ColorID === colorID)?.ColorName ?? 'Sin color'], ['Empaque unitario', packageName(unitPackageID)], ['Empaque exterior', packageName(outerPackageID)], ['Unidades por empaque', review.quantityPerOuter], ['Peso por unidad', review.typicalWeightPerUnit]] },
-                { step: 2, items: [['Precio unitario', money(review.unitPrice)], ['Impuesto', review.taxRate ? `${review.taxRate} %` : null], ['Precio recomendado', money(review.recommendedRetailPrice)], ['Último costo', money(review.lastCostPrice)], ['Cantidad disponible', review.quantityOnHand], ['Nivel de reposición', review.reorderLevel], ['Nivel objetivo', review.targetStockLevel], ['Días de entrega', review.leadTimeDays], ['Ubicación en bodega', review.binLocation]] },
+                { step: 2, items: [['Precio unitario', money(review.unitPrice)], ['Impuesto', review.taxRate ? `${review.taxRate} %` : null], ['Precio recomendado', money(review.recommendedRetailPrice)], ['Días de entrega', review.leadTimeDays]] },
               ]} />
             </StepPanel>
 
             <StepActions step={form.step} total={STEPS.length} backHref={back} onBack={() => form.goTo(form.step - 1)} submitting={submitting} saveDisabled={catalogError} saveLabel={initial ? 'Guardar cambios' : 'Crear producto'} />
           </fieldset>
         </form>
+      </div>
+    </main>
+  )
+}
+
+/** Confirmación del alta: el producto llega a la sucursal por replicación antes de registrar su ubicación y existencias. */
+function StockItemCreated({ id, name }: { id: number; name: string }) {
+  return (
+    <main className="flex min-w-0 flex-1 bg-muted/40">
+      <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6 sm:px-8 sm:py-10">
+        <BackLink href="/inventory">Volver al inventario</BackLink>
+        <Card className="gap-0 py-0 shadow-sm">
+          <div className="flex flex-col items-center gap-4 border-b px-4 py-8 text-center sm:px-8 sm:py-10">
+            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CircleCheckIcon className="size-7" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Producto #{id}</p>
+              <h1 className="text-xl font-semibold tracking-tight break-words sm:text-2xl">{name}</h1>
+              <p role="status" className="text-sm text-muted-foreground">Producto creado en el catálogo central.</p>
+            </div>
+          </div>
+          <div className="space-y-5 px-4 py-5 sm:px-8 sm:py-6">
+            <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+              <InfoIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <p>Cuando esté disponible en la sucursal podrá registrar su ubicación y existencias. La llegada del catálogo puede tardar unos segundos.</p>
+            </div>
+            {/* En móvil los botones se apilan a ancho completo con la acción principal arriba; desde sm quedan en fila a la derecha. */}
+            <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-start">
+              <Button nativeButton={false} className="w-full sm:w-auto" render={<Link href={`/inventory/${id}/holdings`} />}><BoxesIcon data-icon="inline-start" />Registrar ubicación y existencias</Button>
+              <Button nativeButton={false} variant="outline" className="w-full sm:w-auto" render={<Link href="/inventory" />}><ListIcon data-icon="inline-start" />Volver al inventario</Button>
+            </div>
+          </div>
+        </Card>
       </div>
     </main>
   )

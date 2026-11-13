@@ -39,6 +39,7 @@ function salesError(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'No fue posible obtener las facturas.'
 }
 
+/** Lista de facturas con filtros por número, fechas, cliente, método de entrega y monto. */
 export default function SalesPage() {
   const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [invoiceID, setInvoiceID] = useState<InvoiceFilters['invoiceID']>(null)
@@ -63,6 +64,7 @@ export default function SalesPage() {
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga la página de facturas con los filtros aplicados. */
     async function loadData() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
@@ -102,12 +104,14 @@ export default function SalesPage() {
     return () => { cancelled = true }
   }, [methodsRefresh, revision, isSessionCurrent, invalidateSession])
 
+  /** Aplica los filtros del formulario y vuelve a la primera página. */
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setFilters({ invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount })
     setPageNumber(1)
   }
 
+  /** Limpia los filtros y vuelve a la primera página. */
   function resetFilters() {
     setInvoiceID(null)
     setInvoiceDateFrom('')
@@ -124,10 +128,12 @@ export default function SalesPage() {
   const totalPages = invoicesResponse?.totalPages ?? 0
   const totalCount = invoicesResponse?.totalCount ?? 0
 
+  /** Cambia la página de resultados. */
   function changePage(page: number) {
     setPageNumber(page)
   }
 
+  /** Va a la página escrita si es válida. */
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))
@@ -137,6 +143,7 @@ export default function SalesPage() {
   }
 
   const activeFilters = [filters.invoiceID !== null, filters.customerName.trim() !== '', filters.invoiceDateFrom !== '', filters.invoiceDateTo !== '', filters.deliveryMethodID !== null, filters.minInvoiceAmount !== null, filters.maxInvoiceAmount !== null].filter(Boolean).length
+  /** Vuelve a consultar las facturas y los métodos de entrega. */
   const retryReads = () => { setRefreshKey(key => key + 1); setMethodsRefresh(key => key + 1) }
   const pageTotal = invoices.reduce((sum, invoice) => sum + invoice.MontoFacturado, 0)
 
@@ -259,6 +266,7 @@ export default function SalesPage() {
   )
 }
 
+/** Ícono de factura para las filas de la lista. */
 function InvoiceIcon() {
   return <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground ring-1 ring-foreground/10"><ReceiptTextIcon className="size-4" /></span>
 }

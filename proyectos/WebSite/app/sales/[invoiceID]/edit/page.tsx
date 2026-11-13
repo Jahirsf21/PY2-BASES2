@@ -12,6 +12,7 @@ import { parseEntityId } from '@/lib/helpers/entityValidation'
 import { arrayResponseSchema, rowWithIdSchema } from '@/lib/schemas/responses'
 import type { InvoiceEdit, InvoiceLine } from '@/lib/types/sales'
 
+/** Página para editar una factura. */
 export default function EditInvoicePage() {
   const {invoiceID} = useParams<{invoiceID: string}>()
   return <EditInvoiceContent key={invoiceID} invoiceID={invoiceID} />

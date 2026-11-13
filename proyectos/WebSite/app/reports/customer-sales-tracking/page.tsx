@@ -21,10 +21,12 @@ const columns: ReportColumn<CustomerSalesTracking>[] = [
   { key: 'CantidadMinima', label: 'Cantidad mínima', format: 'count' },
 ]
 
+/** Consulta una página del seguimiento mensual de ventas por cliente. */
 function loadTracking(filters: MonthlyTrackingFilters, pageNumber: number, pageSize: number) {
   return getCustomerSalesTracking(filters.year, filters.month, filters.stockGroupIDs, pageNumber, pageSize)
 }
 
+/** Página del reporte de seguimiento mensual de ventas por cliente. */
 export default function CustomerSalesTrackingPage() {
   const report = reportOptions['customer-sales-tracking']
 

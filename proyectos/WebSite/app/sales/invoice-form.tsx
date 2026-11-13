@@ -38,21 +38,25 @@ const FIELD_STEP: Record<string, number> = {
   customer: 0, customerID: 0, billTo: 0, billToCustomerID: 0, contact: 0, contactPersonID: 0, invoiceDate: 0, customerPurchaseOrderNumber: 0,
   deliveryMethodID: 1, accountsPersonID: 1, packedByPersonID: 1, lastEditedBy: 1, salespersonPersonID: 1, deliveryInstructions: 1,
 }
+/** Indica el paso del formulario al que pertenece un campo, incluidas las líneas. */
 const stepOf = (key: string) => FIELD_STEP[key] ?? (key.startsWith('line') ? 2 : undefined)
 
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const dateFormatter = new Intl.DateTimeFormat('es-CR', { timeZone: 'UTC', dateStyle: 'long' })
 
+/** Busca clientes por nombre para el selector del formulario. */
 async function findCustomers(query: string, page: number) {
   const response = await getBillToCustomers(query, page, 8)
   return {items: response.data.map((item) => ({id: item.CustomerID, label: item.NombreCliente})), totalPages: response.totalPages}
 }
 
+/** Busca personas por nombre para el selector de contacto. */
 async function findPeople(query: string, page: number) {
   const response = await getPeople(query, page, 8)
   return {items: response.data.map((item) => ({id: item.PersonID, label: item.NombreCompleto})), totalPages: response.totalPages}
 }
 
+/** Busca productos por nombre para las líneas de la factura. */
 async function findProducts(query: string, page: number) {
   const response = await getStockItems(query, [], page, 8)
   return {items: response.data.map((item) => ({id: item.StockItemID, label: item.NombreProducto})), totalPages: response.totalPages}
@@ -75,6 +79,7 @@ function invoiceFormError(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'No fue posible completar la operación.'
 }
 
+/** Formulario por pasos para crear o editar una factura con sus líneas. */
 export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit; initialLines?: InvoiceLine[]}) {
   const router = useRouter()
   const { revision, isSessionCurrent, invalidateSession } = useSession()
@@ -155,21 +160,25 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
     return () => { cancelled = true }
   }, [catalogRefresh, revision, isSessionCurrent, invalidateSession])
 
+  /** Muestra un aviso de error del formulario de facturas. */
   function showError(message: string) {
     toast.add({type: 'error', title: 'Revise la factura', description: message, priority: 'high', timeout: 8000})
   }
 
+  /** Actualiza una línea de la factura y limpia sus errores. */
   function updateLine(key: number, changes: Partial<EditableLine>) {
     setLines((previous) => previous.map((line) => line.key === key ? {...line, ...changes} : line))
     if ('quantity' in changes) clearError(`line:${key}:quantity`)
     if ('unitPrice' in changes) clearError(`line:${key}:price`)
   }
 
+  /** Agrega una línea vacía a la factura. */
   function addLine() {
     clearError('lines')
     setLines((previous) => [...previous, { key: nextLineKey++, product: null, quantity: '1', unitPrice: '' }])
   }
 
+  /** Quita una línea y descarta su consulta de precio pendiente. */
   function removeLine(key: number) {
     priceRequests.current.delete(key)
     setPriceLoading(previous => previous.filter(value => value !== key))
@@ -226,6 +235,7 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
       return
     }
     const data = new FormData(event.currentTarget)
+    /** Lee un campo del formulario como texto sin espacios en los extremos. */
     const text = (field: string) => String(data.get(field) ?? '').trim()
     const invoice: NewInvoice = {
       customerID: customer.id, billToCustomerID: billTo?.id ?? null, deliveryMethodID,
@@ -265,6 +275,7 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
   }
 
   const employeeOptions = employees.map((employee) => ({ value: employee.PersonID, label: employee.NombreCompleto }))
+  /** Obtiene el nombre de un empleado por su identificador. */
   const employeeName = (id: number | null) => employees.find((employee) => employee.PersonID === id)?.NombreCompleto ?? null
   const subtotal = lines.reduce((sum, line) => sum + (lineSubtotal(line) ?? 0), 0)
   const review = form.review

@@ -61,6 +61,7 @@ function useReportYears(source: ReportYearSource) {
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga los años disponibles para los filtros del reporte. */
     async function loadYears() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
@@ -241,6 +242,7 @@ export function MonthlyTrackingReportFilters({ source, filters, setFilters }: { 
     let cancelled = false
     const requestRevision = revision
 
+    /** Carga los grupos de productos para el filtro del reporte. */
     async function loadStockGroups() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoadingGroups(true)

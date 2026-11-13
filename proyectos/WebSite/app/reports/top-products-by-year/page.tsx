@@ -16,10 +16,12 @@ const columns: ReportColumn<TopProductByYear>[] = [
   { key: 'Ganancia', label: 'Ganancia acumulada', format: 'amount' },
 ]
 
+/** Consulta el ranking de productos del año indicado. */
 async function loadRanking(filters: YearFilters) {
   return getTopProductsByYear(filters.year)
 }
 
+/** Página del reporte de productos con mayor ganancia por año. */
 export default function TopProductsByYearPage() {
   const report = reportOptions['top-products-by-year']
 

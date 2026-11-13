@@ -39,6 +39,7 @@ interface ReportViewProps<Row, Filters> {
   isSummary?: (row: Row) => boolean
 }
 
+/** Formatea el valor de una celda según el formato de su columna. */
 function formatValue<Row>(row: Row, column: ReportColumn<Row>): string {
   const value = row[column.key]
   if (value === null || value === undefined || (typeof value === 'string' && !value.trim())) return ' '
@@ -48,6 +49,7 @@ function formatValue<Row>(row: Row, column: ReportColumn<Row>): string {
   return String(value)
 }
 
+/** Obtiene el ancho de una columna según su formato. */
 function getColumnWidth<Row>(column: ReportColumn<Row>): number {
   if (column.format === 'year') return 64
   if (column.format === 'count' || column.format === 'month') return 96
@@ -70,6 +72,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
     let cancelled = false
     const requestRevision = revision
 
+    /** Consulta el reporte con los filtros y la página actuales si la sesión sigue vigente. */
     async function loadReport() {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setIsLoading(true)
@@ -102,6 +105,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
     return () => { cancelled = true }
   }, [filters, pageNumber, loadData, refreshKey, revision, isSessionCurrent, invalidateSession])
 
+  /** Aplica los filtros del formulario y vuelve a la primera página. */
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setFilters(draftFilters)
@@ -109,6 +113,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
     setRefreshKey((key) => key + 1)
   }
 
+  /** Restablece los filtros iniciales y vuelve a la primera página. */
   function resetFilters() {
     setDraftFilters(initialFilters)
     setFilters(initialFilters)
@@ -116,6 +121,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
     setRefreshKey((key) => key + 1)
   }
 
+  /** Va a la página escrita si es válida. */
   function handlePageSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const page = pageNumberSchema(totalPages).safeParse(new FormData(event.currentTarget).get('pageNumber'))

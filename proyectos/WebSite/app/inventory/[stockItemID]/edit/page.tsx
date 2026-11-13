@@ -4,33 +4,36 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeftIcon } from 'lucide-react'
-import { getStockItemForEdit, getStockItemGroupsByID } from '@/app/api/stockItems'
+import { z } from 'zod'
+import { getStockItemForEdit } from '@/app/api/stockItems'
 import { StockItemForm } from '@/app/inventory/stock-item-form'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/components/auth-session'
 import { parseEntityId } from '@/lib/helpers/entityValidation'
 import { arrayResponseSchema, rowWithIdSchema } from '@/lib/schemas/responses'
-import type { StockGroup, StockItemEdit } from '@/lib/types/stockItems'
+import { versionSchema } from '@/lib/schemas/stockItems'
+import type { StockItemEdit } from '@/lib/types/stockItems'
 
+/** Esquema de la precarga de edición: el producto solicitado, sus grupos y una versión válida. */
+function editResponseSchema(id: number) {
+  return rowWithIdSchema('StockItemID', id).and(z.looseObject({ Version: versionSchema, Grupos: arrayResponseSchema }))
+}
+
+/** Página para editar el catálogo de un producto. */
 export default function EditStockItemPage() {
   const {stockItemID} = useParams<{stockItemID: string}>()
   return <EditStockItemContent key={stockItemID} stockItemID={stockItemID} />
 }
 
-/** Precarga detalle y grupos sin mezclar productos ni perder un 401 paralelo. */
+/** Precarga catálogo, grupos y versión en una sola lectura de Corporativo. */
 function EditStockItemContent({ stockItemID }: { stockItemID: string }) {
   const { revision, isSessionCurrent, invalidateSession } = useSession()
-  const [item, setItem] = useState<{detail: StockItemEdit; groups: StockGroup[]} | null>(null)
+  const [item, setItem] = useState<StockItemEdit | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   useEffect(() => {
     let cancelled = false
     const requestRevision = revision
-    /** Invalida la revisión que recibió un 401 aun después de otro fallo del lote. */
-    function failed(reason: unknown): never {
-      if (reason instanceof Error && reason.cause === 401) invalidateSession(requestRevision)
-      throw reason
-    }
     queueMicrotask(async () => {
       if (cancelled || !isSessionCurrent(requestRevision)) return
       setItem(null)
@@ -38,11 +41,12 @@ function EditStockItemContent({ stockItemID }: { stockItemID: string }) {
       const id = parseEntityId(stockItemID)
       if (id === null) { setError('Producto no encontrado'); return }
       try {
-        const [detail, groups] = await Promise.all([getStockItemForEdit(id).catch(failed), getStockItemGroupsByID(id).catch(failed)])
+        const detail = await getStockItemForEdit(id)
         if (cancelled || !isSessionCurrent(requestRevision)) return
-        if (!rowWithIdSchema('StockItemID', id).safeParse(detail).success || !arrayResponseSchema.safeParse(groups).success) throw new SyntaxError('Precarga inesperada')
-        setItem({ detail, groups })
+        if (!editResponseSchema(id).safeParse(detail).success) throw new SyntaxError('Precarga inesperada')
+        setItem(detail)
       } catch (reason) {
+        if (reason instanceof Error && reason.cause === 401) { invalidateSession(requestRevision); return }
         if (cancelled || !isSessionCurrent(requestRevision)) return
         const status = reason instanceof Error ? reason.cause : null
         setError(status === 403 ? 'Sin permisos para editar productos.' : reason instanceof TypeError || reason instanceof SyntaxError || (typeof status === 'number' && status >= 500 && status !== 503) ? 'No fue posible cargar el producto. Intente nuevamente.' : reason instanceof Error ? reason.message : 'No fue posible cargar el producto.')
@@ -50,7 +54,7 @@ function EditStockItemContent({ stockItemID }: { stockItemID: string }) {
     })
     return () => { cancelled = true }
   }, [stockItemID, refreshKey, revision, isSessionCurrent, invalidateSession])
-  if (item && !error) return <StockItemForm key={item.detail.StockItemID} initial={item.detail} initialGroups={item.groups} />
+  if (item && !error) return <StockItemForm key={`${item.StockItemID}-${item.Version}`} initial={item} onReload={() => setRefreshKey(key => key + 1)} />
   return (
     <main className="flex min-w-0 flex-1 bg-muted/30">
       <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 sm:px-8 sm:py-8">
