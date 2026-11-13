@@ -11,12 +11,12 @@
  * @returns {import('express').Response} Respuesta JSON con los datos paginados.
  */
 export function paginatedResponse(res, pageNumber, pageSize, result) {
-    const {totalCount = 0, data = []} = result
-    return res.json({
-        page: pageNumber,
-        size: pageSize,
-        totalCount,
-        totalPages: Math.ceil(totalCount / pageSize),
-        data
-    })
+  const { totalCount = 0, data = [] } = result;
+  return res.json({
+    page: pageNumber,
+    size: pageSize,
+    totalCount,
+    totalPages: Math.ceil(totalCount / pageSize),
+    data,
+  });
 }

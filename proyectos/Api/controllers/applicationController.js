@@ -1,5 +1,11 @@
-import { paginatedResponse } from '../helpers/paginatedResponse.js'
-import { getPeople, getCities, getDeliveryMethods, getEmployees, getSalespeople } from '../services/application.js'
+import { paginatedResponse } from "../helpers/paginatedResponse.js";
+import {
+  getPeople,
+  getCities,
+  getDeliveryMethods,
+  getEmployees,
+  getSalespeople,
+} from "../services/application.js";
 
 /**
  * Obtiene una página de personas, opcionalmente filtradas por nombre.
@@ -10,14 +16,20 @@ import { getPeople, getCities, getDeliveryMethods, getEmployees, getSalespeople 
  * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de personas.
  */
 export async function listPeople(req, res, next) {
-    try {
-        const {pageNumber, pageSize} = res.locals.pagination
-        const fullName = req.query.fullName
-        const result = await getPeople(fullName, pageNumber, pageSize, req.user.userID, req.user.node)
-        return paginatedResponse(res, pageNumber, pageSize, result)
-    } catch (error) {
-        return next(error)
-    }
+  try {
+    const { pageNumber, pageSize } = res.locals.pagination;
+    const fullName = req.query.fullName;
+    const result = await getPeople(
+      fullName,
+      pageNumber,
+      pageSize,
+      req.user.userID,
+      req.user.node,
+    );
+    return paginatedResponse(res, pageNumber, pageSize, result);
+  } catch (error) {
+    return next(error);
+  }
 }
 
 /**
@@ -29,16 +41,24 @@ export async function listPeople(req, res, next) {
  * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de ciudades.
  */
 export async function listCities(req, res, next) {
-    try {
-        const {pageNumber, pageSize} = res.locals.pagination
-        const cityName = req.query.cityName
-        const provinceName = req.query.provinceName
-        const countryName = req.query.countryName
-        const result = await getCities(cityName, provinceName, countryName, pageNumber, pageSize, req.user.userID, req.user.node)
-        return paginatedResponse(res, pageNumber, pageSize, result)
-    } catch (error) {
-        return next(error)
-    }
+  try {
+    const { pageNumber, pageSize } = res.locals.pagination;
+    const cityName = req.query.cityName;
+    const provinceName = req.query.provinceName;
+    const countryName = req.query.countryName;
+    const result = await getCities(
+      cityName,
+      provinceName,
+      countryName,
+      pageNumber,
+      pageSize,
+      req.user.userID,
+      req.user.node,
+    );
+    return paginatedResponse(res, pageNumber, pageSize, result);
+  } catch (error) {
+    return next(error);
+  }
 }
 
 /**
@@ -51,12 +71,12 @@ export async function listCities(req, res, next) {
  * @returns {Promise<import('express').Response|void>} Respuesta JSON con los métodos de entrega.
  */
 export async function listDeliveryMethods(req, res, next) {
-    try {
-        const methods = await getDeliveryMethods(req.user.userID, req.user.node)
-        return res.json(methods)
-    } catch (error) {
-        return next(error)
-    }
+  try {
+    const methods = await getDeliveryMethods(req.user.userID, req.user.node);
+    return res.json(methods);
+  } catch (error) {
+    return next(error);
+  }
 }
 
 /**
@@ -68,12 +88,12 @@ export async function listDeliveryMethods(req, res, next) {
  * @returns {Promise<import('express').Response|void>} Respuesta JSON con los empleados.
  */
 export async function listEmployees(req, res, next) {
-    try {
-        const employees = await getEmployees(req.user.userID, req.user.node)
-        return res.json(employees)
-    } catch (error) {
-        return next(error)
-    }
+  try {
+    const employees = await getEmployees(req.user.userID, req.user.node);
+    return res.json(employees);
+  } catch (error) {
+    return next(error);
+  }
 }
 
 /**
@@ -85,10 +105,10 @@ export async function listEmployees(req, res, next) {
  * @returns {Promise<import('express').Response|void>} Respuesta JSON con los vendedores.
  */
 export async function listSalespeople(req, res, next) {
-    try {
-        const salespeople = await getSalespeople(req.user.userID, req.user.node)
-        return res.json(salespeople)
-    } catch (error) {
-        return next(error)
-    }
+  try {
+    const salespeople = await getSalespeople(req.user.userID, req.user.node);
+    return res.json(salespeople);
+  } catch (error) {
+    return next(error);
+  }
 }

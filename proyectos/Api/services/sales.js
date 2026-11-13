@@ -1,5 +1,5 @@
-import { getPool } from '../config/database.js'
-import sql from 'mssql'
+import { getPool } from "../config/database.js";
+import sql from "mssql";
 
 /**
  * Obtiene una página de facturas junto con el total de registros.
@@ -19,24 +19,36 @@ import sql from 'mssql'
  * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y facturas de la página.
  */
-export async function getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('InvoiceID', sql.Int, invoiceID)
-    connection.input('InvoiceDateFrom', sql.Date, invoiceDateFrom)
-    connection.input('InvoiceDateTo', sql.Date, invoiceDateTo)
-    connection.input('CustomerName', sql.NVarChar, customerName)
-    connection.input('DeliveryMethodID', sql.Int, deliveryMethodID)
-    connection.input('MinInvoiceAmount', sql.Decimal(18, 2), minInvoiceAmount)
-    connection.input('MaxInvoiceAmount', sql.Decimal(18, 2), maxInvoiceAmount)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Sales.GetInvoices')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getInvoices(
+  invoiceID,
+  invoiceDateFrom,
+  invoiceDateTo,
+  customerName,
+  deliveryMethodID,
+  minInvoiceAmount,
+  maxInvoiceAmount,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("InvoiceID", sql.Int, invoiceID);
+  connection.input("InvoiceDateFrom", sql.Date, invoiceDateFrom);
+  connection.input("InvoiceDateTo", sql.Date, invoiceDateTo);
+  connection.input("CustomerName", sql.NVarChar, customerName);
+  connection.input("DeliveryMethodID", sql.Int, deliveryMethodID);
+  connection.input("MinInvoiceAmount", sql.Decimal(18, 2), minInvoiceAmount);
+  connection.input("MaxInvoiceAmount", sql.Decimal(18, 2), maxInvoiceAmount);
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Sales.GetInvoices");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -48,11 +60,11 @@ export async function getInvoices(invoiceID, invoiceDateFrom, invoiceDateTo, cus
  * @returns {Promise<object[]>} Encabezado en una fila o un arreglo vacío.
  */
 export async function getInvoiceHeader(invoiceID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('InvoiceID', sql.Int, invoiceID)
-    const result = await connection.execute('Sales.GetInvoiceHeader')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("InvoiceID", sql.Int, invoiceID);
+  const result = await connection.execute("Sales.GetInvoiceHeader");
+  return result.recordset;
 }
 
 /**
@@ -64,11 +76,11 @@ export async function getInvoiceHeader(invoiceID, userID, node) {
  * @returns {Promise<object[]>} Datos para precargar el formulario.
  */
 export async function getInvoiceForEdit(invoiceID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('InvoiceID', sql.Int, invoiceID)
-    const result = await connection.execute('Sales.GetInvoiceForEdit')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("InvoiceID", sql.Int, invoiceID);
+  const result = await connection.execute("Sales.GetInvoiceForEdit");
+  return result.recordset;
 }
 
 /**
@@ -80,11 +92,11 @@ export async function getInvoiceForEdit(invoiceID, userID, node) {
  * @returns {Promise<object[]>} Líneas ordenadas por identificador.
  */
 export async function getInvoiceLines(invoiceID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('InvoiceID', sql.Int, invoiceID)
-    const result = await connection.execute('Sales.GetInvoiceLines')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("InvoiceID", sql.Int, invoiceID);
+  const result = await connection.execute("Sales.GetInvoiceLines");
+  return result.recordset;
 }
 
 /**
@@ -96,27 +108,49 @@ export async function getInvoiceLines(invoiceID, userID, node) {
  * @returns {Promise<number>} Identificador de la factura creada.
  */
 export async function insertInvoice(invoice, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerID', sql.Int, invoice.customerID)
-    connection.input('BillToCustomerID', sql.Int, invoice.billToCustomerID ?? null)
-    connection.input('DeliveryMethodID', sql.Int, invoice.deliveryMethodID)
-    connection.input('ContactPersonID', sql.Int, invoice.contactPersonID)
-    connection.input('AccountsPersonID', sql.Int, invoice.accountsPersonID)
-    connection.input('PackedByPersonID', sql.Int, invoice.packedByPersonID)
-    connection.input('LastEditedBy', sql.Int, invoice.lastEditedBy)
-    connection.input('SalespersonPersonID', sql.Int, invoice.salespersonPersonID ?? null)
-    connection.input('CustomerPurchaseOrderNumber', sql.NVarChar, invoice.customerPurchaseOrderNumber ?? null)
-    connection.input('InvoiceDate', sql.Date, invoice.invoiceDate)
-    connection.input('DeliveryInstructions', sql.NVarChar, invoice.deliveryInstructions ?? null)
-    connection.input('LinesJson', sql.NVarChar(sql.MAX), JSON.stringify(invoice.lines.map((line) => ({
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerID", sql.Int, invoice.customerID);
+  connection.input(
+    "BillToCustomerID",
+    sql.Int,
+    invoice.billToCustomerID ?? null,
+  );
+  connection.input("DeliveryMethodID", sql.Int, invoice.deliveryMethodID);
+  connection.input("ContactPersonID", sql.Int, invoice.contactPersonID);
+  connection.input("AccountsPersonID", sql.Int, invoice.accountsPersonID);
+  connection.input("PackedByPersonID", sql.Int, invoice.packedByPersonID);
+  connection.input("LastEditedBy", sql.Int, invoice.lastEditedBy);
+  connection.input(
+    "SalespersonPersonID",
+    sql.Int,
+    invoice.salespersonPersonID ?? null,
+  );
+  connection.input(
+    "CustomerPurchaseOrderNumber",
+    sql.NVarChar,
+    invoice.customerPurchaseOrderNumber ?? null,
+  );
+  connection.input("InvoiceDate", sql.Date, invoice.invoiceDate);
+  connection.input(
+    "DeliveryInstructions",
+    sql.NVarChar,
+    invoice.deliveryInstructions ?? null,
+  );
+  connection.input(
+    "LinesJson",
+    sql.NVarChar(sql.MAX),
+    JSON.stringify(
+      invoice.lines.map((line) => ({
         StockItemID: line.stockItemID,
         Quantity: line.quantity,
         UnitPrice: line.unitPrice,
-    }))))
-    connection.output('NewInvoiceID', sql.Int)
-    const result = await connection.execute('Sales.InsertInvoice')
-    return result.output.NewInvoiceID
+      })),
+    ),
+  );
+  connection.output("NewInvoiceID", sql.Int);
+  const result = await connection.execute("Sales.InsertInvoice");
+  return result.output.NewInvoiceID;
 }
 
 /**
@@ -129,25 +163,46 @@ export async function insertInvoice(invoice, userID, node) {
  * @returns {Promise<void>} Finaliza al actualizar la factura.
  */
 export async function updateInvoice(invoiceID, invoice, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('InvoiceID', sql.Int, invoiceID)
-    connection.input('CustomerID', sql.Int, invoice.customerID)
-    connection.input('BillToCustomerID', sql.Int, invoice.billToCustomerID ?? null)
-    connection.input('DeliveryMethodID', sql.Int, invoice.deliveryMethodID)
-    connection.input('ContactPersonID', sql.Int, invoice.contactPersonID)
-    connection.input('AccountsPersonID', sql.Int, invoice.accountsPersonID)
-    connection.input('PackedByPersonID', sql.Int, invoice.packedByPersonID)
-    connection.input('LastEditedBy', sql.Int, invoice.lastEditedBy)
-    connection.input('SalespersonPersonID', sql.Int, invoice.salespersonPersonID ?? null)
-    connection.input('CustomerPurchaseOrderNumber', sql.NVarChar, invoice.customerPurchaseOrderNumber ?? null)
-    connection.input('InvoiceDate', sql.Date, invoice.invoiceDate)
-    connection.input('DeliveryInstructions', sql.NVarChar, invoice.deliveryInstructions ?? null)
-    connection.input('LinesJson', sql.NVarChar(sql.MAX), JSON.stringify(invoice.lines.map((line) => ({
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("InvoiceID", sql.Int, invoiceID);
+  connection.input("CustomerID", sql.Int, invoice.customerID);
+  connection.input(
+    "BillToCustomerID",
+    sql.Int,
+    invoice.billToCustomerID ?? null,
+  );
+  connection.input("DeliveryMethodID", sql.Int, invoice.deliveryMethodID);
+  connection.input("ContactPersonID", sql.Int, invoice.contactPersonID);
+  connection.input("AccountsPersonID", sql.Int, invoice.accountsPersonID);
+  connection.input("PackedByPersonID", sql.Int, invoice.packedByPersonID);
+  connection.input("LastEditedBy", sql.Int, invoice.lastEditedBy);
+  connection.input(
+    "SalespersonPersonID",
+    sql.Int,
+    invoice.salespersonPersonID ?? null,
+  );
+  connection.input(
+    "CustomerPurchaseOrderNumber",
+    sql.NVarChar,
+    invoice.customerPurchaseOrderNumber ?? null,
+  );
+  connection.input("InvoiceDate", sql.Date, invoice.invoiceDate);
+  connection.input(
+    "DeliveryInstructions",
+    sql.NVarChar,
+    invoice.deliveryInstructions ?? null,
+  );
+  connection.input(
+    "LinesJson",
+    sql.NVarChar(sql.MAX),
+    JSON.stringify(
+      invoice.lines.map((line) => ({
         StockItemID: line.stockItemID,
         Quantity: line.quantity,
         UnitPrice: line.unitPrice,
-    }))))
-    await connection.execute('Sales.UpdateInvoice')
+      })),
+    ),
+  );
+  await connection.execute("Sales.UpdateInvoice");
 }
-

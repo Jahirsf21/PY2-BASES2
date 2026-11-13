@@ -1,7 +1,7 @@
-import { z } from 'zod'
-import { formatFieldPath } from '../helpers/validation.js'
+import { z } from "zod";
+import { formatFieldPath } from "../helpers/validation.js";
 
-export const SQL_INT_MAX = 2147483647
+export const SQL_INT_MAX = 2147483647;
 
 /**
  * Indica si un campo no contiene un valor utilizable.
@@ -11,10 +11,14 @@ export const SQL_INT_MAX = 2147483647
  * @returns {boolean} Verdadero si el valor está ausente o contiene solo espacios.
  */
 export function isEmpty(value) {
-    return value === null || value === undefined || (typeof value === 'string' && !value.trim())
+  return (
+    value === null ||
+    value === undefined ||
+    (typeof value === "string" && !value.trim())
+  );
 }
 
-const emptyValueSchema = z.custom(isEmpty)
+const emptyValueSchema = z.custom(isEmpty);
 
 /**
  * Aplica la obligatoriedad de un campo antes de validar su valor.
@@ -27,11 +31,18 @@ const emptyValueSchema = z.custom(isEmpty)
  * @returns {import('zod').ZodType} Esquema que valida presencia y valor.
  */
 export function withPresence(schema, label, required, invalidMessage) {
-    if (!required) return z.union([emptyValueSchema, schema], {error: invalidMessage}).optional()
-    return z.unknown().refine(value => !isEmpty(value), {
-        error: issue => `${typeof label === 'function' ? label(issue) : label} es obligatorio.`,
-        abort: true,
-    }).pipe(schema)
+  if (!required)
+    return z
+      .union([emptyValueSchema, schema], { error: invalidMessage })
+      .optional();
+  return z
+    .unknown()
+    .refine((value) => !isEmpty(value), {
+      error: (issue) =>
+        `${typeof label === "function" ? label(issue) : label} es obligatorio.`,
+      abort: true,
+    })
+    .pipe(schema);
 }
 
 /**
@@ -43,10 +54,12 @@ export function withPresence(schema, label, required, invalidMessage) {
  * @returns {import('zod').ZodType} Esquema del campo de texto.
  */
 export function textSchema(label, maxLength, required = false) {
-    const message = maxLength ? `${label} debe ser texto de máximo ${maxLength} caracteres.` : `${label} debe ser texto.`
-    let schema = z.string({error: message})
-    if (maxLength) schema = schema.max(maxLength, {error: message})
-    return withPresence(schema, label, required, message)
+  const message = maxLength
+    ? `${label} debe ser texto de máximo ${maxLength} caracteres.`
+    : `${label} debe ser texto.`;
+  let schema = z.string({ error: message });
+  if (maxLength) schema = schema.max(maxLength, { error: message });
+  return withPresence(schema, label, required, message);
 }
 
 /**
@@ -57,9 +70,41 @@ export function textSchema(label, maxLength, required = false) {
  * @returns {import('zod').ZodType} Esquema del identificador.
  */
 export function idSchema(label, required = false) {
-    const message = `${label} debe ser un identificador entero positivo.`
-    const schema = z.number({error: message}).int({error: message}).min(1, {error: message}).max(SQL_INT_MAX, {error: message})
-    return withPresence(schema, label, required, message)
+  const message = `${label} debe ser un identificador entero positivo.`;
+  const schema = z
+    .number({ error: message })
+    .int({ error: message })
+    .min(1, { error: message })
+    .max(SQL_INT_MAX, { error: message });
+  return withPresence(schema, label, required, message);
+}
+
+/**
+ * Crea el esquema de un identificador recibido como texto en un parámetro de ruta.
+ * Acepta solo dígitos sin cero inicial y lo convierte a número dentro del rango int de SQL Server.
+ *
+ * @param {string} label Nombre legible del parámetro para el mensaje.
+ * @returns {import('zod').ZodType<number>} Esquema que devuelve el identificador como número.
+ */
+export function idParamSchema(label) {
+  const message = `${label} debe ser un identificador entero positivo.`;
+  return z
+    .string({ error: message })
+    .regex(/^[1-9]\d*$/, { error: message })
+    .transform(Number)
+    .pipe(z.number().max(SQL_INT_MAX, { error: message }));
+}
+
+/**
+ * Crea el esquema de los parámetros de una ruta con un único identificador.
+ * El nombre debe coincidir con el parámetro declarado en la ruta, por ejemplo customerID en /customers/:customerID.
+ *
+ * @param {string} name Nombre del parámetro de ruta.
+ * @param {string} label Nombre legible de la entidad para el mensaje.
+ * @returns {import('zod').ZodType<Record<string, number>>} Esquema que devuelve el identificador como número.
+ */
+export function idParams(name, label) {
+  return z.object({ [name]: idParamSchema(label) });
 }
 
 /**
@@ -69,8 +114,8 @@ export function idSchema(label, required = false) {
  * @returns {import('zod').ZodType} Esquema del campo booleano.
  */
 export function booleanSchema(label) {
-    const message = `${label} debe ser verdadero o falso.`
-    return withPresence(z.boolean({error: message}), label, false, message)
+  const message = `${label} debe ser verdadero o falso.`;
+  return withPresence(z.boolean({ error: message }), label, false, message);
 }
 
 /**
@@ -83,14 +128,20 @@ export function booleanSchema(label) {
  * @returns {import('zod').ZodType} Esquema del monto o cantidad.
  */
 export function amountSchema(field, decimals, required = false) {
-    const label = issue => formatFieldPath(issue.path) || field
-    const message = issue => `${label(issue)} debe ser un número no negativo${decimals ? ` con máximo ${decimals} decimales` : ' entero dentro del rango int'}.`
-    let schema = z.number({error: message}).min(0, {error: message})
-    if (decimals === 0) {
-        schema = schema.int({error: message}).max(SQL_INT_MAX, {error: message})
-    } else {
-        schema = schema.lt(10 ** (18 - decimals), {error: message})
-            .refine(value => Number(value.toFixed(decimals)) === value, {error: message})
-    }
-    return withPresence(schema, label, required, message)
+  const label = (issue) => formatFieldPath(issue.path) || field;
+  const message = (issue) =>
+    `${label(issue)} debe ser un número no negativo${decimals ? ` con máximo ${decimals} decimales` : " entero dentro del rango int"}.`;
+  let schema = z.number({ error: message }).min(0, { error: message });
+  if (decimals === 0) {
+    schema = schema
+      .int({ error: message })
+      .max(SQL_INT_MAX, { error: message });
+  } else {
+    schema = schema
+      .lt(10 ** (18 - decimals), { error: message })
+      .refine((value) => Number(value.toFixed(decimals)) === value, {
+        error: message,
+      });
+  }
+  return withPresence(schema, label, required, message);
 }

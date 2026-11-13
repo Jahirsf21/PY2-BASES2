@@ -6,9 +6,13 @@
  * @returns {string} Nombre del campo, por ejemplo lines[0].quantity, o texto vacío para la raíz.
  */
 export function formatFieldPath(path = []) {
-    return path.reduce((field, part) => typeof part === 'number'
+  return path.reduce(
+    (field, part) =>
+      typeof part === "number"
         ? `${field}[${part}]`
-        : `${field}${field ? '.' : ''}${part}`, '')
+        : `${field}${field ? "." : ""}${part}`,
+    "",
+  );
 }
 
 /**
@@ -20,12 +24,13 @@ export function formatFieldPath(path = []) {
  * @returns {{fields: string[], errors: Record<string, string>}} Nombres de campos inválidos y sus mensajes.
  */
 export function formatValidationErrors(error) {
-    const errors = {}
-    for (const issue of error.issues) {
-        const field = issue.path[0] === 'stockGroupIDs'
-            ? 'stockGroupIDs'
-            : formatFieldPath(issue.path) || 'body'
-        if (!Object.hasOwn(errors, field)) errors[field] = issue.message
-    }
-    return {fields: Object.keys(errors), errors}
+  const errors = {};
+  for (const issue of error.issues) {
+    const field =
+      issue.path[0] === "stockGroupIDs"
+        ? "stockGroupIDs"
+        : formatFieldPath(issue.path) || "body";
+    if (!Object.hasOwn(errors, field)) errors[field] = issue.message;
+  }
+  return { fields: Object.keys(errors), errors };
 }

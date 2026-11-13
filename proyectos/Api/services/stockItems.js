@@ -1,5 +1,5 @@
-import { getPool } from '../config/database.js'
-import sql from 'mssql'
+import { getPool } from "../config/database.js";
+import sql from "mssql";
 
 /**
  * Obtiene una página de productos junto con el total de registros.
@@ -13,19 +13,30 @@ import sql from 'mssql'
  * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y productos de la página.
  */
-export async function getStockItems(stockItemName, stockGroupIDsJson, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemName', sql.NVarChar, stockItemName)
-    connection.input('StockGroupIDsJson', sql.NVarChar(sql.MAX), stockGroupIDsJson)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Warehouse.GetStockItems')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getStockItems(
+  stockItemName,
+  stockGroupIDsJson,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemName", sql.NVarChar, stockItemName);
+  connection.input(
+    "StockGroupIDsJson",
+    sql.NVarChar(sql.MAX),
+    stockGroupIDsJson,
+  );
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Warehouse.GetStockItems");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -36,10 +47,10 @@ export async function getStockItems(stockItemName, stockGroupIDsJson, pageNumber
  * @returns {Promise<object[]>} Listado de grupos de productos.
  */
 export async function getStockGroups(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Warehouse.GetStockGroups')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Warehouse.GetStockGroups");
+  return result.recordset;
 }
 
 /**
@@ -50,10 +61,10 @@ export async function getStockGroups(userID, node) {
  * @returns {Promise<object[]>} Listado de colores.
  */
 export async function getColors(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Warehouse.GetColors')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Warehouse.GetColors");
+  return result.recordset;
 }
 
 /**
@@ -64,10 +75,10 @@ export async function getColors(userID, node) {
  * @returns {Promise<object[]>} Listado de empaques.
  */
 export async function getPackageTypes(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Warehouse.GetPackageTypes')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Warehouse.GetPackageTypes");
+  return result.recordset;
 }
 
 /**
@@ -79,11 +90,11 @@ export async function getPackageTypes(userID, node) {
  * @returns {Promise<object[]>} Datos del producto en una fila o un arreglo vacío.
  */
 export async function getStockItemDetail(stockItemID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemID', sql.Int, stockItemID)
-    const result = await connection.execute('Warehouse.GetStockItemDetail')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemID", sql.Int, stockItemID);
+  const result = await connection.execute("Warehouse.GetStockItemDetail");
+  return result.recordset;
 }
 
 /**
@@ -95,11 +106,11 @@ export async function getStockItemDetail(stockItemID, userID, node) {
  * @returns {Promise<object[]>} Datos para precargar el formulario.
  */
 export async function getStockItemForEdit(stockItemID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemID', sql.Int, stockItemID)
-    const result = await connection.execute('Warehouse.GetStockItemForEdit')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemID", sql.Int, stockItemID);
+  const result = await connection.execute("Warehouse.GetStockItemForEdit");
+  return result.recordset;
 }
 
 /**
@@ -111,11 +122,11 @@ export async function getStockItemForEdit(stockItemID, userID, node) {
  * @returns {Promise<object[]>} Grupos del producto o un arreglo vacío.
  */
 export async function getStockItemGroups(stockItemID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemID', sql.Int, stockItemID)
-    const result = await connection.execute('Warehouse.GetStockItemStockGroups')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemID", sql.Int, stockItemID);
+  const result = await connection.execute("Warehouse.GetStockItemStockGroups");
+  return result.recordset;
 }
 
 /**
@@ -127,33 +138,49 @@ export async function getStockItemGroups(stockItemID, userID, node) {
  * @returns {Promise<number>} Identificador del producto creado.
  */
 export async function insertStockItem(item, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemName', sql.NVarChar, item.stockItemName)
-    connection.input('SupplierID', sql.Int, item.supplierID)
-    connection.input('LastEditedBy', sql.Int, item.lastEditedBy)
-    connection.input('LeadTimeDays', sql.Int, item.leadTimeDays ?? 1)
-    connection.input('IsChillerStock', sql.Bit, item.isChillerStock ?? false)
-    connection.input('LastCostPrice', sql.Decimal(18, 2), item.lastCostPrice ?? 0)
-    connection.input('ReorderLevel', sql.Int, item.reorderLevel ?? 0)
-    connection.input('TargetStockLevel', sql.Int, item.targetStockLevel ?? 0)
-    connection.input('ColorID', sql.Int, item.colorID ?? null)
-    connection.input('UnitPackageID', sql.Int, item.unitPackageID)
-    connection.input('OuterPackageID', sql.Int, item.outerPackageID)
-    connection.input('Brand', sql.NVarChar, item.brand ?? null)
-    connection.input('Size', sql.NVarChar, item.size ?? null)
-    connection.input('QuantityPerOuter', sql.Int, item.quantityPerOuter ?? 1)
-    connection.input('Barcode', sql.NVarChar, item.barcode ?? null)
-    connection.input('TaxRate', sql.Decimal(18, 3), item.taxRate)
-    connection.input('UnitPrice', sql.Decimal(18, 2), item.unitPrice)
-    connection.input('RecommendedRetailPrice', sql.Decimal(18, 2), item.recommendedRetailPrice ?? null)
-    connection.input('TypicalWeightPerUnit', sql.Decimal(18, 3), item.typicalWeightPerUnit ?? null)
-    connection.input('StockGroupIDsJson', sql.NVarChar(sql.MAX), JSON.stringify(item.stockGroupIDs))
-    connection.input('QuantityOnHand', sql.Int, item.quantityOnHand ?? 0)
-    connection.input('BinLocation', sql.NVarChar, item.binLocation ?? null)
-    connection.output('NewStockItemID', sql.Int)
-    const result = await connection.execute('Warehouse.InsertStockItem')
-    return result.output.NewStockItemID
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemName", sql.NVarChar, item.stockItemName);
+  connection.input("SupplierID", sql.Int, item.supplierID);
+  connection.input("LastEditedBy", sql.Int, item.lastEditedBy);
+  connection.input("LeadTimeDays", sql.Int, item.leadTimeDays ?? 1);
+  connection.input("IsChillerStock", sql.Bit, item.isChillerStock ?? false);
+  connection.input(
+    "LastCostPrice",
+    sql.Decimal(18, 2),
+    item.lastCostPrice ?? 0,
+  );
+  connection.input("ReorderLevel", sql.Int, item.reorderLevel ?? 0);
+  connection.input("TargetStockLevel", sql.Int, item.targetStockLevel ?? 0);
+  connection.input("ColorID", sql.Int, item.colorID ?? null);
+  connection.input("UnitPackageID", sql.Int, item.unitPackageID);
+  connection.input("OuterPackageID", sql.Int, item.outerPackageID);
+  connection.input("Brand", sql.NVarChar, item.brand ?? null);
+  connection.input("Size", sql.NVarChar, item.size ?? null);
+  connection.input("QuantityPerOuter", sql.Int, item.quantityPerOuter ?? 1);
+  connection.input("Barcode", sql.NVarChar, item.barcode ?? null);
+  connection.input("TaxRate", sql.Decimal(18, 3), item.taxRate);
+  connection.input("UnitPrice", sql.Decimal(18, 2), item.unitPrice);
+  connection.input(
+    "RecommendedRetailPrice",
+    sql.Decimal(18, 2),
+    item.recommendedRetailPrice ?? null,
+  );
+  connection.input(
+    "TypicalWeightPerUnit",
+    sql.Decimal(18, 3),
+    item.typicalWeightPerUnit ?? null,
+  );
+  connection.input(
+    "StockGroupIDsJson",
+    sql.NVarChar(sql.MAX),
+    JSON.stringify(item.stockGroupIDs),
+  );
+  connection.input("QuantityOnHand", sql.Int, item.quantityOnHand ?? 0);
+  connection.input("BinLocation", sql.NVarChar, item.binLocation ?? null);
+  connection.output("NewStockItemID", sql.Int);
+  const result = await connection.execute("Warehouse.InsertStockItem");
+  return result.output.NewStockItemID;
 }
 
 /**
@@ -166,32 +193,48 @@ export async function insertStockItem(item, userID, node) {
  * @returns {Promise<void>} Finaliza al actualizar el producto.
  */
 export async function updateStockItem(stockItemID, item, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemID', sql.Int, stockItemID)
-    connection.input('StockItemName', sql.NVarChar, item.stockItemName)
-    connection.input('SupplierID', sql.Int, item.supplierID)
-    connection.input('LastEditedBy', sql.Int, item.lastEditedBy)
-    connection.input('LeadTimeDays', sql.Int, item.leadTimeDays ?? 1)
-    connection.input('IsChillerStock', sql.Bit, item.isChillerStock ?? false)
-    connection.input('LastCostPrice', sql.Decimal(18, 2), item.lastCostPrice ?? 0)
-    connection.input('ReorderLevel', sql.Int, item.reorderLevel ?? 0)
-    connection.input('TargetStockLevel', sql.Int, item.targetStockLevel ?? 0)
-    connection.input('ColorID', sql.Int, item.colorID ?? null)
-    connection.input('UnitPackageID', sql.Int, item.unitPackageID)
-    connection.input('OuterPackageID', sql.Int, item.outerPackageID)
-    connection.input('Brand', sql.NVarChar, item.brand ?? null)
-    connection.input('Size', sql.NVarChar, item.size ?? null)
-    connection.input('QuantityPerOuter', sql.Int, item.quantityPerOuter ?? 1)
-    connection.input('Barcode', sql.NVarChar, item.barcode ?? null)
-    connection.input('TaxRate', sql.Decimal(18, 3), item.taxRate)
-    connection.input('UnitPrice', sql.Decimal(18, 2), item.unitPrice)
-    connection.input('RecommendedRetailPrice', sql.Decimal(18, 2), item.recommendedRetailPrice ?? null)
-    connection.input('TypicalWeightPerUnit', sql.Decimal(18, 3), item.typicalWeightPerUnit ?? null)
-    connection.input('StockGroupIDsJson', sql.NVarChar(sql.MAX), JSON.stringify(item.stockGroupIDs))
-    connection.input('QuantityOnHand', sql.Int, item.quantityOnHand ?? 0)
-    connection.input('BinLocation', sql.NVarChar, item.binLocation ?? null)
-    await connection.execute('Warehouse.UpdateStockItem')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemID", sql.Int, stockItemID);
+  connection.input("StockItemName", sql.NVarChar, item.stockItemName);
+  connection.input("SupplierID", sql.Int, item.supplierID);
+  connection.input("LastEditedBy", sql.Int, item.lastEditedBy);
+  connection.input("LeadTimeDays", sql.Int, item.leadTimeDays ?? 1);
+  connection.input("IsChillerStock", sql.Bit, item.isChillerStock ?? false);
+  connection.input(
+    "LastCostPrice",
+    sql.Decimal(18, 2),
+    item.lastCostPrice ?? 0,
+  );
+  connection.input("ReorderLevel", sql.Int, item.reorderLevel ?? 0);
+  connection.input("TargetStockLevel", sql.Int, item.targetStockLevel ?? 0);
+  connection.input("ColorID", sql.Int, item.colorID ?? null);
+  connection.input("UnitPackageID", sql.Int, item.unitPackageID);
+  connection.input("OuterPackageID", sql.Int, item.outerPackageID);
+  connection.input("Brand", sql.NVarChar, item.brand ?? null);
+  connection.input("Size", sql.NVarChar, item.size ?? null);
+  connection.input("QuantityPerOuter", sql.Int, item.quantityPerOuter ?? 1);
+  connection.input("Barcode", sql.NVarChar, item.barcode ?? null);
+  connection.input("TaxRate", sql.Decimal(18, 3), item.taxRate);
+  connection.input("UnitPrice", sql.Decimal(18, 2), item.unitPrice);
+  connection.input(
+    "RecommendedRetailPrice",
+    sql.Decimal(18, 2),
+    item.recommendedRetailPrice ?? null,
+  );
+  connection.input(
+    "TypicalWeightPerUnit",
+    sql.Decimal(18, 3),
+    item.typicalWeightPerUnit ?? null,
+  );
+  connection.input(
+    "StockGroupIDsJson",
+    sql.NVarChar(sql.MAX),
+    JSON.stringify(item.stockGroupIDs),
+  );
+  connection.input("QuantityOnHand", sql.Int, item.quantityOnHand ?? 0);
+  connection.input("BinLocation", sql.NVarChar, item.binLocation ?? null);
+  await connection.execute("Warehouse.UpdateStockItem");
 }
 
 /**
@@ -203,8 +246,8 @@ export async function updateStockItem(stockItemID, item, userID, node) {
  * @returns {Promise<void>} Finaliza al eliminar el producto.
  */
 export async function deleteStockItem(stockItemID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('StockItemID', sql.Int, stockItemID)
-    await connection.execute('Warehouse.DeleteStockItem')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("StockItemID", sql.Int, stockItemID);
+  await connection.execute("Warehouse.DeleteStockItem");
 }

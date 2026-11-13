@@ -1,5 +1,5 @@
-import { getPool } from '../config/database.js'
-import sql from 'mssql'
+import { getPool } from "../config/database.js";
+import sql from "mssql";
 
 /**
  * Obtiene los años distintos en los que se registraron órdenes de compra.
@@ -10,10 +10,10 @@ import sql from 'mssql'
  * @returns {Promise<object[]>} Listado de años con la columna Año.
  */
 export async function getPurchaseYears(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Purchasing.GetPurchaseYears')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Purchasing.GetPurchaseYears");
+  return result.recordset;
 }
 
 /**
@@ -25,10 +25,10 @@ export async function getPurchaseYears(userID, node) {
  * @returns {Promise<object[]>} Listado de años con la columna Año.
  */
 export async function getInvoiceYears(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Sales.GetInvoiceYears')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Sales.GetInvoiceYears");
+  return result.recordset;
 }
 
 /**
@@ -41,13 +41,20 @@ export async function getInvoiceYears(userID, node) {
  * @param {string} node Sucursal del JWT verificado (corporativo).
  * @returns {Promise<object[]>} Resumen de compras por proveedor y resumen general.
  */
-export async function getSupplierPurchaseSummary(supplierName, supplierCategoryName, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('SupplierName', sql.NVarChar, supplierName)
-    connection.input('SupplierCategoryName', sql.NVarChar, supplierCategoryName)
-    const result = await connection.execute('Purchasing.GetSupplierPurchaseSummary')
-    return result.recordset
+export async function getSupplierPurchaseSummary(
+  supplierName,
+  supplierCategoryName,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("SupplierName", sql.NVarChar, supplierName);
+  connection.input("SupplierCategoryName", sql.NVarChar, supplierCategoryName);
+  const result = await connection.execute(
+    "Purchasing.GetSupplierPurchaseSummary",
+  );
+  return result.recordset;
 }
 
 /**
@@ -62,19 +69,26 @@ export async function getSupplierPurchaseSummary(supplierName, supplierCategoryN
  * @param {string} node Sucursal del JWT verificado (corporativo).
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y resumen de la página.
  */
-export async function getCustomerSalesSummary(customerName, customerCategoryName, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerName', sql.NVarChar, customerName)
-    connection.input('CustomerCategoryName', sql.NVarChar, customerCategoryName)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Sales.GetCustomerSalesSummary')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getCustomerSalesSummary(
+  customerName,
+  customerCategoryName,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerName", sql.NVarChar, customerName);
+  connection.input("CustomerCategoryName", sql.NVarChar, customerCategoryName);
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Sales.GetCustomerSalesSummary");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -87,13 +101,18 @@ export async function getCustomerSalesSummary(customerName, customerCategoryName
  * @param {string} node Sucursal del JWT verificado (corporativo).
  * @returns {Promise<object[]>} Clientes, cantidad de facturas, monto facturado y puesto por año.
  */
-export async function getTopCustomersByYear(invoiceYearFrom, invoiceYearTo, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('InvoiceYearFrom', sql.Int, invoiceYearFrom)
-    connection.input('InvoiceYearTo', sql.Int, invoiceYearTo)
-    const result = await connection.execute('Sales.GetTopCustomersByYear')
-    return result.recordset
+export async function getTopCustomersByYear(
+  invoiceYearFrom,
+  invoiceYearTo,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("InvoiceYearFrom", sql.Int, invoiceYearFrom);
+  connection.input("InvoiceYearTo", sql.Int, invoiceYearTo);
+  const result = await connection.execute("Sales.GetTopCustomersByYear");
+  return result.recordset;
 }
 
 /**
@@ -106,11 +125,11 @@ export async function getTopCustomersByYear(invoiceYearFrom, invoiceYearTo, user
  * @returns {Promise<object[]>} Año, producto, ganancia acumulada y puesto del ranking.
  */
 export async function getTopProductsByYear(year, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('Year', sql.Int, year)
-    const result = await connection.execute('Warehouse.GetTopProductsByYear')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("Year", sql.Int, year);
+  const result = await connection.execute("Warehouse.GetTopProductsByYear");
+  return result.recordset;
 }
 
 /**
@@ -123,13 +142,18 @@ export async function getTopProductsByYear(year, userID, node) {
  * @param {string} node Sucursal del JWT verificado (corporativo).
  * @returns {Promise<object[]>} Proveedores, cantidad de compras, monto comprado y puesto por año.
  */
-export async function getTopSuppliersByYear(orderYearFrom, orderYearTo, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('OrderYearFrom', sql.Int, orderYearFrom)
-    connection.input('OrderYearTo', sql.Int, orderYearTo)
-    const result = await connection.execute('Purchasing.GetTopSuppliersByYear')
-    return result.recordset
+export async function getTopSuppliersByYear(
+  orderYearFrom,
+  orderYearTo,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("OrderYearFrom", sql.Int, orderYearFrom);
+  connection.input("OrderYearTo", sql.Int, orderYearTo);
+  const result = await connection.execute("Purchasing.GetTopSuppliersByYear");
+  return result.recordset;
 }
 
 /**
@@ -140,10 +164,12 @@ export async function getTopSuppliersByYear(orderYearFrom, orderYearTo, userID, 
  * @returns {Promise<object[]>} Montos por grupo de productos ordenados por año.
  */
 export async function getProductCategorySalesByYear(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Sales.GetProductCategorySalesByYear')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute(
+    "Sales.GetProductCategorySalesByYear",
+  );
+  return result.recordset;
 }
 
 /**
@@ -162,20 +188,32 @@ export async function getProductCategorySalesByYear(userID, node) {
  * @param {string} node Sucursal del JWT verificado (corporativo).
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de grupos cliente/año/mes y seguimiento de la página.
  */
-export async function getCustomerSalesTracking(year, month, stockGroupIDsJson, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('Year', sql.Int, year)
-    connection.input('Month', sql.Int, month)
-    connection.input('StockGroupIDsJson', sql.NVarChar(sql.MAX), stockGroupIDsJson)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Sales.GetCustomerSalesTracking')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getCustomerSalesTracking(
+  year,
+  month,
+  stockGroupIDsJson,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("Year", sql.Int, year);
+  connection.input("Month", sql.Int, month);
+  connection.input(
+    "StockGroupIDsJson",
+    sql.NVarChar(sql.MAX),
+    stockGroupIDsJson,
+  );
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Sales.GetCustomerSalesTracking");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -195,18 +233,32 @@ export async function getCustomerSalesTracking(year, month, stockGroupIDsJson, p
  * @param {string} node Sucursal del JWT verificado (corporativo).
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de grupos proveedor/año/mes filtrados y seguimiento de la página.
  */
-export async function getSupplierPurchaseTracking(year, month, stockGroupIDsJson, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('Year', sql.Int, year)
-    connection.input('Month', sql.Int, month)
-    connection.input('StockGroupIDsJson', sql.NVarChar(sql.MAX), stockGroupIDsJson)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Purchasing.GetSupplierPurchaseTracking')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getSupplierPurchaseTracking(
+  year,
+  month,
+  stockGroupIDsJson,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("Year", sql.Int, year);
+  connection.input("Month", sql.Int, month);
+  connection.input(
+    "StockGroupIDsJson",
+    sql.NVarChar(sql.MAX),
+    stockGroupIDsJson,
+  );
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute(
+    "Purchasing.GetSupplierPurchaseTracking",
+  );
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }

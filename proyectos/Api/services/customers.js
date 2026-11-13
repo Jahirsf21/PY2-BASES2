@@ -1,6 +1,6 @@
-import { getPool } from '../config/database.js'
-import sql from 'mssql'
-import { executeCorporateProcedure } from '../helpers/corporateQuery.js'
+import { getPool } from "../config/database.js";
+import sql from "mssql";
+import { executeCorporateProcedure } from "../helpers/corporateQuery.js";
 
 /**
  * Obtiene una página de clientes junto con el total de registros.
@@ -15,20 +15,28 @@ import { executeCorporateProcedure } from '../helpers/corporateQuery.js'
  * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y clientes de la página.
  */
-export async function getCustomers(customerName, customerCategoryID, deliveryMethodID, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerName', sql.NVarChar, customerName)
-    connection.input('CustomerCategoryID', sql.Int, customerCategoryID)
-    connection.input('DeliveryMethodID', sql.Int, deliveryMethodID)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Sales.GetCustomers')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getCustomers(
+  customerName,
+  customerCategoryID,
+  deliveryMethodID,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerName", sql.NVarChar, customerName);
+  connection.input("CustomerCategoryID", sql.Int, customerCategoryID);
+  connection.input("DeliveryMethodID", sql.Int, deliveryMethodID);
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Sales.GetCustomers");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -42,18 +50,24 @@ export async function getCustomers(customerName, customerCategoryID, deliveryMet
  * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y clientes de la página.
  */
-export async function getBillToCustomers(customerName, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerName', sql.NVarChar, customerName)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Sales.GetBillToCustomers')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getBillToCustomers(
+  customerName,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerName", sql.NVarChar, customerName);
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Sales.GetBillToCustomers");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -67,11 +81,11 @@ export async function getBillToCustomers(customerName, pageNumber, pageSize, use
  * @returns {Promise<object[]>} Datos del cliente en una fila, o un arreglo vacío si no existe.
  */
 export async function getCustomerDetail(customerID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerID', sql.Int, customerID)
-    const result = await connection.execute('Sales.GetCustomerDetail')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerID", sql.Int, customerID);
+  const result = await connection.execute("Sales.GetCustomerDetail");
+  return result.recordset;
 }
 
 /**
@@ -85,10 +99,13 @@ export async function getCustomerDetail(customerID, userID, node) {
  * @returns {Promise<object[]>} Una fila con CustomerID y SitioWeb, o un arreglo vacío si no hay datos.
  */
 export async function getCustomerPrivateDetail(customerID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerID', sql.Int, customerID)
-    return executeCorporateProcedure(connection, 'Sales.GetCustomerPrivateDetail')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerID", sql.Int, customerID);
+  return executeCorporateProcedure(
+    connection,
+    "Sales.GetCustomerPrivateDetail",
+  );
 }
 
 // /**
@@ -119,10 +136,10 @@ export async function getCustomerPrivateDetail(customerID, userID, node) {
  * @returns {Promise<object[]>} Datos de los contactos en una fila, o un arreglo vacío si no existe.
  */
 export async function getCustomerContacts(customerID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerID', sql.Int, customerID)
-    return executeCorporateProcedure(connection, 'Sales.GetCustomerContacts')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerID", sql.Int, customerID);
+  return executeCorporateProcedure(connection, "Sales.GetCustomerContacts");
 }
 
 /**
@@ -136,10 +153,10 @@ export async function getCustomerContacts(customerID, userID, node) {
  * @returns {Promise<object[]>} Direcciones y coordenadas en una fila, o un arreglo vacío si no existe.
  */
 export async function getCustomerAddress(customerID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('CustomerID', sql.Int, customerID)
-    return executeCorporateProcedure(connection, 'Sales.GetCustomerAddress')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("CustomerID", sql.Int, customerID);
+  return executeCorporateProcedure(connection, "Sales.GetCustomerAddress");
 }
 
 /**
@@ -151,10 +168,10 @@ export async function getCustomerAddress(customerID, userID, node) {
  * @returns {Promise<object[]>} Listado de categorías de cliente.
  */
 export async function getCustomerCategories(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Sales.GetCustomerCategories')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Sales.GetCustomerCategories");
+  return result.recordset;
 }
 
 // /**

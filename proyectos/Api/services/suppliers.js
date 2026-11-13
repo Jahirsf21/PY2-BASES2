@@ -1,6 +1,6 @@
-import { getPool } from '../config/database.js'
-import sql from 'mssql'
-import { executeCorporateProcedure } from '../helpers/corporateQuery.js'
+import { getPool } from "../config/database.js";
+import sql from "mssql";
+import { executeCorporateProcedure } from "../helpers/corporateQuery.js";
 
 /**
  * Obtiene una página de proveedores junto con el total de registros.
@@ -15,20 +15,28 @@ import { executeCorporateProcedure } from '../helpers/corporateQuery.js'
  * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y proveedores de la página.
  */
-export async function getSuppliers(supplierName, supplierCategoryID, deliveryMethodID, pageNumber, pageSize, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('SupplierName', sql.NVarChar, supplierName)
-    connection.input('SupplierCategoryID', sql.Int, supplierCategoryID)
-    connection.input('DeliveryMethodID', sql.Int, deliveryMethodID)
-    connection.input('PageNumber', sql.Int, pageNumber)
-    connection.input('PageSize', sql.Int, pageSize)
-    connection.output('TotalCount', sql.Int)
-    const result = await connection.execute('Purchasing.GetSuppliers')
-    return {
-        totalCount: result.output.TotalCount,
-        data: result.recordset
-    }
+export async function getSuppliers(
+  supplierName,
+  supplierCategoryID,
+  deliveryMethodID,
+  pageNumber,
+  pageSize,
+  userID,
+  node,
+) {
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("SupplierName", sql.NVarChar, supplierName);
+  connection.input("SupplierCategoryID", sql.Int, supplierCategoryID);
+  connection.input("DeliveryMethodID", sql.Int, deliveryMethodID);
+  connection.input("PageNumber", sql.Int, pageNumber);
+  connection.input("PageSize", sql.Int, pageSize);
+  connection.output("TotalCount", sql.Int);
+  const result = await connection.execute("Purchasing.GetSuppliers");
+  return {
+    totalCount: result.output.TotalCount,
+    data: result.recordset,
+  };
 }
 
 /**
@@ -40,10 +48,10 @@ export async function getSuppliers(supplierName, supplierCategoryID, deliveryMet
  * @returns {Promise<object[]>} Listado de categorías de proveedor.
  */
 export async function getSupplierCategories(userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    const result = await connection.execute('Purchasing.GetSupplierCategories')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  const result = await connection.execute("Purchasing.GetSupplierCategories");
+  return result.recordset;
 }
 
 /**
@@ -56,11 +64,11 @@ export async function getSupplierCategories(userID, node) {
  * @returns {Promise<object[]>} Datos del proveedor en una fila, o un arreglo vacío si no existe.
  */
 export async function getSupplierDetail(supplierID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('SupplierID', sql.Int, supplierID)
-    const result = await connection.execute('Purchasing.GetSupplierDetail')
-    return result.recordset
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("SupplierID", sql.Int, supplierID);
+  const result = await connection.execute("Purchasing.GetSupplierDetail");
+  return result.recordset;
 }
 
 /**
@@ -76,10 +84,13 @@ export async function getSupplierDetail(supplierID, userID, node) {
  * @returns {Promise<object[]>} Datos privados del proveedor en una fila, o un arreglo vacío si no se encuentran.
  */
 export async function getSupplierPrivateDetail(supplierID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('SupplierID', sql.Int, supplierID)
-    return executeCorporateProcedure(connection, 'Purchasing.GetSupplierPrivateDetail')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("SupplierID", sql.Int, supplierID);
+  return executeCorporateProcedure(
+    connection,
+    "Purchasing.GetSupplierPrivateDetail",
+  );
 }
 
 /**
@@ -93,10 +104,13 @@ export async function getSupplierPrivateDetail(supplierID, userID, node) {
  * @returns {Promise<object[]>} Datos de los contactos en una fila, o un arreglo vacío si no existe.
  */
 export async function getSupplierContacts(supplierID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('SupplierID', sql.Int, supplierID)
-    return executeCorporateProcedure(connection, 'Purchasing.GetSupplierContacts')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("SupplierID", sql.Int, supplierID);
+  return executeCorporateProcedure(
+    connection,
+    "Purchasing.GetSupplierContacts",
+  );
 }
 
 /**
@@ -110,10 +124,10 @@ export async function getSupplierContacts(supplierID, userID, node) {
  * @returns {Promise<object[]>} Direcciones y coordenadas en una fila, o un arreglo vacío si no existe.
  */
 export async function getSupplierAddress(supplierID, userID, node) {
-    const connection = (await getPool(node)).request()
-    connection.input('UserID', sql.Int, userID)
-    connection.input('SupplierID', sql.Int, supplierID)
-    return executeCorporateProcedure(connection, 'Purchasing.GetSupplierAddress')
+  const connection = (await getPool(node)).request();
+  connection.input("UserID", sql.Int, userID);
+  connection.input("SupplierID", sql.Int, supplierID);
+  return executeCorporateProcedure(connection, "Purchasing.GetSupplierAddress");
 }
 
 // /**

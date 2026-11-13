@@ -1,5 +1,5 @@
-import { formatValidationErrors } from '../helpers/validation.js'
-import { paginationSchema } from '../schemas/pagination.js'
+import { formatValidationErrors } from "../helpers/validation.js";
+import { paginationSchema } from "../schemas/pagination.js";
 
 /**
  * Crea un middleware que valida el cuerpo JSON antes de ejecutar el controlador.
@@ -8,18 +8,34 @@ import { paginationSchema } from '../schemas/pagination.js'
  * @param {import('zod').ZodType} schema Esquema que debe cumplir req.body.
  * @returns {import('express').RequestHandler} Middleware que responde 400 con message, fields y errors si el cuerpo es inválido.
  */
-export const validateBody = schema => (req, res, next) => {
-    const result = schema.safeParse(req.body)
-    if (!result.success) {
-        if (result.error.issues[0].path.length === 0) {
-            return res.status(400).json({message: result.error.issues[0].message})
-        }
-        const {fields, errors} = formatValidationErrors(result.error)
-        return res.status(400).json({message: errors[fields[0]], fields, errors})
+export const validateBody = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.body);
+  if (!result.success) {
+    if (result.error.issues[0].path.length === 0) {
+      return res.status(400).json({ message: result.error.issues[0].message });
     }
-    req.body = result.data
-    next()
-}
+    const { fields, errors } = formatValidationErrors(result.error);
+    return res.status(400).json({ message: errors[fields[0]], fields, errors });
+  }
+  req.body = result.data;
+  next();
+};
+
+/**
+ * Crea un middleware que valida los parámetros de ruta antes de ejecutar el controlador.
+ * Express conserva req.params como texto, por lo que los valores convertidos se guardan en res.locals.params.
+ *
+ * @param {import('zod').ZodType} schema Esquema que deben cumplir req.params.
+ * @returns {import('express').RequestHandler} Middleware que responde 400 con message si algún parámetro es inválido.
+ */
+export const validateParams = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.params);
+  if (!result.success) {
+    return res.status(400).json({ message: result.error.issues[0].message });
+  }
+  res.locals.params = result.data;
+  next();
+};
 
 /**
  * Valida pageNumber y pageSize antes de ejecutar un controlador paginado.
@@ -31,10 +47,10 @@ export const validateBody = schema => (req, res, next) => {
  * @returns {import('express').Response|void} Respuesta 400 si la paginación es inválida o continuación de la petición.
  */
 export const validatePagination = (req, res, next) => {
-    const result = paginationSchema.safeParse(req.query)
-    if (!result.success) {
-        return res.status(400).json({message: result.error.issues[0].message})
-    }
-    res.locals.pagination = result.data
-    next()
-}
+  const result = paginationSchema.safeParse(req.query);
+  if (!result.success) {
+    return res.status(400).json({ message: result.error.issues[0].message });
+  }
+  res.locals.pagination = result.data;
+  next();
+};

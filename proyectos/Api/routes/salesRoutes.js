@@ -1,52 +1,95 @@
-import { Router } from 'express'
-import { listInvoices, getInvoiceById, getInvoiceEditById, getInvoiceLinesById, addInvoice, editInvoice } from '../controllers/salesController.js'
-import { requireRole } from '../middleware/auth.js'
-import { validateBody, validatePagination } from '../middleware/validation.js'
-import { invoiceSchema } from '../schemas/sales.js'
+import { Router } from "express";
+import {
+  listInvoices,
+  getInvoiceById,
+  getInvoiceEditById,
+  getInvoiceLinesById,
+  addInvoice,
+  editInvoice,
+} from "../controllers/salesController.js";
+import { requireRole } from "../middleware/auth.js";
+import {
+  validateBody,
+  validateParams,
+  validatePagination,
+} from "../middleware/validation.js";
+import { idParams } from "../schemas/common.js";
+import { invoiceSchema } from "../schemas/sales.js";
 
 // Rutas de Ventas (facturas).
-const router = Router()
+const router = Router();
 
 /**
  * GET /sales
  * Devuelve una página de facturas (módulo de ventas) paginada.
  * Query params: pageNumber, pageSize, invoiceID, invoiceDateFrom, invoiceDateTo, customerName, deliveryMethodID, minInvoiceAmount, maxInvoiceAmount
  */
-router.get('/sales', requireRole('Administrador'), validatePagination, listInvoices)
+router.get(
+  "/sales",
+  requireRole("Administrador"),
+  validatePagination,
+  listInvoices,
+);
 
 /**
  * POST /sales
  * Crea una factura con sus líneas de detalle.
  * Body: datos requeridos por Sales.InsertInvoice.
  */
-router.post('/sales', requireRole('Administrador'), validateBody(invoiceSchema), addInvoice)
+router.post(
+  "/sales",
+  requireRole("Administrador"),
+  validateBody(invoiceSchema),
+  addInvoice,
+);
 
 /**
  * GET /sales/:invoiceID
  * Devuelve el encabezado de una factura.
  * Path param: invoiceID
  */
-router.get('/sales/:invoiceID', requireRole('Administrador'), getInvoiceById)
+router.get(
+  "/sales/:invoiceID",
+  requireRole("Administrador"),
+  validateParams(idParams("invoiceID", "Factura")),
+  getInvoiceById,
+);
 
 /**
  * GET /sales/:invoiceID/edit
  * Devuelve los datos editables del encabezado de una factura.
  * Path param: invoiceID
  */
-router.get('/sales/:invoiceID/edit', requireRole('Administrador'), getInvoiceEditById)
+router.get(
+  "/sales/:invoiceID/edit",
+  requireRole("Administrador"),
+  validateParams(idParams("invoiceID", "Factura")),
+  getInvoiceEditById,
+);
 
 /**
  * GET /sales/:invoiceID/lines
  * Devuelve las líneas de detalle de una factura.
  * Path param: invoiceID
  */
-router.get('/sales/:invoiceID/lines', requireRole('Administrador'), getInvoiceLinesById)
+router.get(
+  "/sales/:invoiceID/lines",
+  requireRole("Administrador"),
+  validateParams(idParams("invoiceID", "Factura")),
+  getInvoiceLinesById,
+);
 
 /**
  * PUT /sales/:invoiceID
  * Actualiza el encabezado y las líneas de una factura.
  * Path param: invoiceID. Body: datos requeridos por Sales.UpdateInvoice.
  */
-router.put('/sales/:invoiceID', requireRole('Administrador'), validateBody(invoiceSchema), editInvoice)
+router.put(
+  "/sales/:invoiceID",
+  requireRole("Administrador"),
+  validateParams(idParams("invoiceID", "Factura")),
+  validateBody(invoiceSchema),
+  editInvoice,
+);
 
-export default router
+export default router;

@@ -7,13 +7,13 @@
  * @returns {Promise<object[]>} Filas devueltas por el procedimiento, o un arreglo vacío si no hay recordset.
  */
 export async function executeCorporateProcedure(request, procedure) {
-    try {
-        const result = await request.execute(procedure)
-        return result.recordset ?? []
-    } catch (error) {
-        if (error instanceof Error) error.corporateQuery = true
-        throw error
-    }
+  try {
+    const result = await request.execute(procedure);
+    return result.recordset ?? [];
+  } catch (error) {
+    if (error instanceof Error) error.corporateQuery = true;
+    throw error;
+  }
 }
 
 /**
@@ -24,6 +24,9 @@ export async function executeCorporateProcedure(request, procedure) {
  * @returns {boolean} Verdadero si el error tiene la marca de Corporativo y uno de los códigos reconocidos.
  */
 export function isCorporateConnectionError(error) {
-    return error?.corporateQuery === true && (error.code === 'ETIMEOUT' || (error.code === 'EREQUEST' && Number(error.number) === 11001)
-    )
+  return (
+    error?.corporateQuery === true &&
+    (error.code === "ETIMEOUT" ||
+      (error.code === "EREQUEST" && Number(error.number) === 11001))
+  );
 }

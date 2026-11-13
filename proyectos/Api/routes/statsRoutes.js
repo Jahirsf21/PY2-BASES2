@@ -1,22 +1,41 @@
-import { Router } from 'express'
-import { listPurchaseYears, listInvoiceYears, listSupplierPurchaseSummary, listCustomerSalesSummary, listTopCustomersByYear, listTopProductsByYear, listTopSuppliersByYear, listProductCategorySalesByYear, listCustomerSalesTracking, listSupplierPurchaseTracking } from '../controllers/statsController.js'
-import { requireRole } from '../middleware/auth.js'
-import { validatePagination } from '../middleware/validation.js'
+import { Router } from "express";
+import {
+  listPurchaseYears,
+  listInvoiceYears,
+  listSupplierPurchaseSummary,
+  listCustomerSalesSummary,
+  listTopCustomersByYear,
+  listTopProductsByYear,
+  listTopSuppliersByYear,
+  listProductCategorySalesByYear,
+  listCustomerSalesTracking,
+  listSupplierPurchaseTracking,
+} from "../controllers/statsController.js";
+import { requireRole } from "../middleware/auth.js";
+import { validatePagination } from "../middleware/validation.js";
 
 // Rutas de Estadísticas (compras y ventas).
-const router = Router()
+const router = Router();
 
 /**
  * GET /stats/purchase-years
  * Devuelve los años disponibles para los filtros de los reportes de compras.
  */
-router.get('/stats/purchase-years', requireRole('Corporativo'), listPurchaseYears)
+router.get(
+  "/stats/purchase-years",
+  requireRole("Corporativo"),
+  listPurchaseYears,
+);
 
 /**
  * GET /stats/invoice-years
  * Devuelve los años disponibles para los filtros de los reportes de ventas.
  */
-router.get('/stats/invoice-years', requireRole('Corporativo'), listInvoiceYears)
+router.get(
+  "/stats/invoice-years",
+  requireRole("Corporativo"),
+  listInvoiceYears,
+);
 
 /**
  * GET /stats/supplier-purchase-summary
@@ -24,7 +43,11 @@ router.get('/stats/invoice-years', requireRole('Corporativo'), listInvoiceYears)
  * Query params: supplierName, supplierCategoryName
  * supplierCategoryName: nombre parcial de categoría; ausente o vacío para consultar todas.
  */
-router.get('/stats/supplier-purchase-summary', requireRole('Corporativo'), listSupplierPurchaseSummary)
+router.get(
+  "/stats/supplier-purchase-summary",
+  requireRole("Corporativo"),
+  listSupplierPurchaseSummary,
+);
 
 /**
  * GET /stats/customer-sales-summary
@@ -32,34 +55,55 @@ router.get('/stats/supplier-purchase-summary', requireRole('Corporativo'), listS
  * Query params: customerName, customerCategoryName, pageNumber, pageSize
  * customerCategoryName: nombre parcial de categoría; ausente o vacío para consultar todas.
  */
-router.get('/stats/customer-sales-summary', requireRole('Corporativo'), validatePagination, listCustomerSalesSummary)
+router.get(
+  "/stats/customer-sales-summary",
+  requireRole("Corporativo"),
+  validatePagination,
+  listCustomerSalesSummary,
+);
 
 /**
  * GET /stats/top-customers-by-year
  * Devuelve los clientes con los cinco primeros puestos por cantidad de facturas por año, incluyendo empates.
  * Query params: invoiceYearFrom, invoiceYearTo
  */
-router.get('/stats/top-customers-by-year', requireRole('Corporativo'), listTopCustomersByYear)
+router.get(
+  "/stats/top-customers-by-year",
+  requireRole("Corporativo"),
+  listTopCustomersByYear,
+);
 
 /**
  * GET /stats/top-products-by-year
  * Devuelve los productos con los cinco primeros puestos por ganancia acumulada de cada año, incluyendo empates.
  * Query params: year
  */
-router.get('/stats/top-products-by-year', requireRole('Corporativo'), listTopProductsByYear)
+router.get(
+  "/stats/top-products-by-year",
+  requireRole("Corporativo"),
+  listTopProductsByYear,
+);
 
 /**
  * GET /stats/top-suppliers-by-year
  * Devuelve los proveedores con los cinco primeros puestos por cantidad de compras por año, incluyendo empates.
  * Query params: orderYearFrom, orderYearTo
  */
-router.get('/stats/top-suppliers-by-year', requireRole('Corporativo'), listTopSuppliersByYear)
+router.get(
+  "/stats/top-suppliers-by-year",
+  requireRole("Corporativo"),
+  listTopSuppliersByYear,
+);
 
 /**
  * GET /stats/product-category-sales-by-year
  * Devuelve el monto facturado por año con los grupos de productos como columnas.
  */
-router.get('/stats/product-category-sales-by-year', requireRole('Corporativo'), listProductCategorySalesByYear)
+router.get(
+  "/stats/product-category-sales-by-year",
+  requireRole("Corporativo"),
+  listProductCategorySalesByYear,
+);
 
 /**
  * GET /stats/customer-sales-tracking
@@ -67,7 +111,12 @@ router.get('/stats/product-category-sales-by-year', requireRole('Corporativo'), 
  * Query params: year, month, stockGroupIDsJson, pageNumber, pageSize
  * stockGroupIDsJson: arreglo JSON de IDs de categorías, como '[1,3,5]'; ausente o '[]' para consultar todas.
  */
-router.get('/stats/customer-sales-tracking', requireRole('Corporativo'), validatePagination, listCustomerSalesTracking)
+router.get(
+  "/stats/customer-sales-tracking",
+  requireRole("Corporativo"),
+  validatePagination,
+  listCustomerSalesTracking,
+);
 
 /**
  * GET /stats/supplier-purchase-tracking
@@ -75,6 +124,11 @@ router.get('/stats/customer-sales-tracking', requireRole('Corporativo'), validat
  * Query params enviados al procedimiento: year, month, stockGroupIDsJson, pageNumber, pageSize
  * stockGroupIDsJson: arreglo JSON de IDs de categorías, como '[1,3,5]'; ausente o '[]' para consultar todas.
  */
-router.get('/stats/supplier-purchase-tracking', requireRole('Corporativo'), validatePagination, listSupplierPurchaseTracking)
+router.get(
+  "/stats/supplier-purchase-tracking",
+  requireRole("Corporativo"),
+  validatePagination,
+  listSupplierPurchaseTracking,
+);
 
-export default router
+export default router;
