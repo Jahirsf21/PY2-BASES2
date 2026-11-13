@@ -124,7 +124,9 @@ export interface MonthlyTrackingFilters {
   stockGroupIDs: number[]
 }
 
-/** Respuestas paginadas de los reportes. */
+/** Respuesta paginada del resumen de ventas por cliente. */
 export type CustomerSalesSummaryResponse = PaginatedResponse<CustomerSalesSummary>
+/** Respuesta paginada del seguimiento mensual de ventas por cliente. */
 export type CustomerSalesTrackingResponse = PaginatedResponse<CustomerSalesTracking>
+/** Respuesta paginada del seguimiento mensual de compras por proveedor. */
 export type SupplierPurchaseTrackingResponse = PaginatedResponse<SupplierPurchaseTracking>

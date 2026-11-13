@@ -47,7 +47,7 @@ export interface StockItemDetail {
   Ubicacion: string | null
 }
 
-/** Datos editables de un producto devueltos por el GET de edición. */
+/** Datos editables del catálogo devueltos por Corporativo, con sus grupos y su versión. */
 export interface StockItemEdit {
   StockItemID: number
   StockItemName: string
@@ -70,14 +70,12 @@ export interface StockItemEdit {
   UnitPrice: number
   RecommendedRetailPrice: number | null
   TypicalWeightPerUnit: number | null
-  LastCostPrice: number | null
-  ReorderLevel: number | null
-  TargetStockLevel: number | null
-  QuantityOnHand: number | null
-  BinLocation: string | null
+  /** Versión opaca del catálogo; se envía sin cambios al guardar. */
+  Version: string
+  Grupos: StockGroup[]
 }
 
-/** Datos enviados al crear o actualizar un producto, sus existencias y grupos. */
+/** Datos del catálogo enviados al crear un producto, sin existencias. */
 export interface NewStockItem {
   stockItemName: string
   supplierID: number
@@ -85,14 +83,10 @@ export interface NewStockItem {
   unitPackageID: number
   outerPackageID: number
   stockGroupIDs: number[]
-  quantityOnHand: number
   taxRate: number
   unitPrice: number
   leadTimeDays: number
   isChillerStock: boolean
-  lastCostPrice: number
-  reorderLevel: number
-  targetStockLevel: number
   colorID: number | null
   brand: string | null
   size: string | null
@@ -100,7 +94,35 @@ export interface NewStockItem {
   barcode: string | null
   recommendedRetailPrice: number | null
   typicalWeightPerUnit: number | null
+}
+
+/** Datos del catálogo enviados al editar un producto, con la versión cargada en el formulario. */
+export interface StockItemUpdate extends NewStockItem {
+  version: string
+}
+
+/** Existencias del producto en la sucursal; sin fila, la cantidad es 0 y los demás valores null. */
+export interface StockItemHoldings {
+  StockItemID: number
+  StockItemName: string
+  QuantityOnHand: number
+  BinLocation: string | null
+  LastCostPrice: number | null
+  ReorderLevel: number | null
+  TargetStockLevel: number | null
+  /** Versión opaca de las existencias, o null si todavía no hay fila. */
+  Version: string | null
+}
+
+/** Valores absolutos enviados al ajustar las existencias en la sucursal. */
+export interface StockItemHoldingsUpdate {
+  lastEditedBy: number
+  quantityOnHand: number
   binLocation: string | null
+  lastCostPrice: number
+  reorderLevel: number
+  targetStockLevel: number
+  version: string | null
 }
 
 /** Color disponible para asignar a un producto. */

@@ -1,29 +1,12 @@
-import { entityIdParamSchema, idSchema, textSchema } from '../schemas/common'
+import { entityIdParamSchema, idSchema } from '../schemas/common'
 import { customerCreateSchema, customerUpdateSchema, supplierSchema } from '../schemas/entities'
-import { stockItemSchema } from '../schemas/stockItems'
+import { stockItemHoldingsSchema, stockItemSchema, stockItemUpdateSchema } from '../schemas/stockItems'
 import { invoiceSchema } from '../schemas/sales'
 import { validateSchema } from './validation'
 import type { NewCustomer } from '../types/customers'
 import type { NewSupplier } from '../types/suppliers'
-import type { NewStockItem } from '../types/stockItems'
+import type { NewStockItem, StockItemHoldingsUpdate, StockItemUpdate } from '../types/stockItems'
 import type { NewInvoice } from '../types/sales'
-
-/**
- * Comprueba que un campo de texto respete su obligatoriedad y longitud máxima.
- * Las reglas se definen en textSchema.
- *
- * @param errors Errores acumulados por nombre de campo.
- * @param field Nombre del campo a validar.
- * @param label Nombre legible del campo para el mensaje.
- * @param value Valor recibido.
- * @param maxLength Longitud máxima permitida, si aplica.
- * @param required Indica si el campo es obligatorio.
- * @returns Agrega un mensaje a errors cuando el valor es inválido.
- */
-export function checkText(errors: Record<string, string>, field: string, label: string, value: unknown, maxLength?: number, required = false) {
-  const result = textSchema(label, maxLength, required).safeParse(value)
-  if (!result.success) errors[field] = result.error.issues[0].message
-}
 
 /**
  * Comprueba que un identificador sea un entero positivo dentro del rango int de SQL Server.
@@ -75,13 +58,24 @@ export function validateSupplier(supplier: NewSupplier) {
 }
 
 /**
- * Valida los campos editables y las existencias de un producto antes de enviarlo al API.
+ * Valida los datos del catálogo de un producto antes de enviarlos al API.
+ * Al editar, exige además la versión cargada en el formulario.
  *
  * @param item Datos del producto introducidos en el formulario.
  * @returns Campos inválidos y sus mensajes.
  */
-export function validateStockItem(item: NewStockItem) {
-  return validateSchema(stockItemSchema, { ...item })
+export function validateStockItem(item: NewStockItem | StockItemUpdate) {
+  return validateSchema('version' in item ? stockItemUpdateSchema : stockItemSchema, { ...item })
+}
+
+/**
+ * Valida los valores absolutos de las existencias antes de enviarlos al API.
+ *
+ * @param holdings Existencias introducidas en el formulario.
+ * @returns Campos inválidos y sus mensajes.
+ */
+export function validateStockItemHoldings(holdings: StockItemHoldingsUpdate) {
+  return validateSchema(stockItemHoldingsSchema, { ...holdings })
 }
 
 /**
