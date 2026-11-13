@@ -16,6 +16,7 @@ import { extractServerFieldErrors } from '@/lib/helpers/apiErrors'
 export const SCROLL_LIST_CLASS = '[&>[data-slot=scroll-area-viewport]]:max-h-64'
 const NONE = '__none'
 
+/** Marca un campo como obligatorio (*) u opcional. */
 export function RequiredMark({ required }: { required?: boolean }) {
   return required
     ? <span className="text-destructive" aria-hidden="true">*</span>
@@ -184,6 +185,7 @@ export function useStepForm({ steps, editing, stepOf, customErrors }: {
   const formRef = useRef<HTMLFormElement>(null)
   const topRef = useRef<HTMLDivElement>(null)
 
+  /** Quita el error de un campo. */
   function clearError(name: string) {
     setFieldErrors(previous => {
       if (!(name in previous)) return previous
@@ -193,6 +195,7 @@ export function useStepForm({ steps, editing, stepOf, customErrors }: {
     })
   }
 
+  /** Obtiene los errores nativos y propios de los campos de un paso. */
   function stepErrors(index: number): Record<string, string> {
     const errors: Record<string, string> = {}
     const panel = formRef.current?.querySelector<HTMLElement>(`[data-step="${index}"]`)
@@ -202,12 +205,14 @@ export function useStepForm({ steps, editing, stepOf, customErrors }: {
     return { ...errors, ...customErrors(index, formRef.current ? new FormData(formRef.current) : null) }
   }
 
+  /** Enfoca el primer campo inválido del paso. */
   function focusFirstError(index: number) {
     requestAnimationFrame(() => {
       formRef.current?.querySelector<HTMLElement>(`[data-step="${index}"] [aria-invalid="true"]`)?.focus()
     })
   }
 
+  /** Cambia al paso indicado; al llegar a la revisión guarda los valores del formulario. */
   function goTo(index: number) {
     if (index === reviewStep && formRef.current) setReview(Object.fromEntries([...new FormData(formRef.current)].map(([key, value]) => [key, String(value).trim()])))
     setStep(index)
@@ -215,6 +220,7 @@ export function useStepForm({ steps, editing, stepOf, customErrors }: {
     requestAnimationFrame(() => topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
+  /** Valida el paso actual y avanza si no tiene errores. */
   function next() {
     const errors = stepErrors(step)
     setFieldErrors(previous => ({ ...Object.fromEntries(Object.entries(previous).filter(([key]) => stepOf(key) !== step)), ...errors }))
@@ -235,6 +241,7 @@ export function useStepForm({ steps, editing, stepOf, customErrors }: {
     return Object.assign({}, ...steps.slice(0, reviewStep).map((_, index) => stepErrors(index))) as Record<string, string>
   }
 
+  /** Quita el error del campo que el usuario modifica. */
   function onInput(event: FormEvent<HTMLFormElement>) {
     const target = event.target as HTMLInputElement
     if (target.name) clearError(target.name)

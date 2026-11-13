@@ -206,7 +206,8 @@ function Toaster({
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
       <ToastPortal>
-        <ToastViewport>
+        {/* Por encima de la navegación inferior y de la barra de acciones de los formularios, que también van pegadas abajo. */}
+        <ToastViewport className="bottom-[calc(9rem+env(safe-area-inset-bottom))] lg:bottom-20">
           <ToastList />
         </ToastViewport>
       </ToastPortal>

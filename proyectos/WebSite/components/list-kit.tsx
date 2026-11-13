@@ -19,10 +19,12 @@ import { SCROLL_LIST_CLASS } from '@/components/form-kit'
 /** Estilo de los encabezados de tabla. */
 export const HEAD_CLASS = 'text-xs font-semibold tracking-wide text-muted-foreground uppercase'
 
+/** Obtiene hasta dos iniciales del texto para el avatar. */
 export function initials(text: string) {
   return text.replace(/[^\p{L}\p{N}\s,]/gu, '').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(word => word[0]?.toUpperCase()).join('') || '?'
 }
 
+/** Avatar con las iniciales del nombre. */
 export function EntityAvatar({ name, className }: { name: string; className?: string }) {
   return <span aria-hidden="true" className={cn('flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground ring-1 ring-foreground/10', className)}>{initials(name)}</span>
 }
@@ -199,6 +201,7 @@ export function TableSkeleton({ label, avatar = true, rows = 6 }: { label: strin
   )
 }
 
+/** Estado de error de la lista con un botón para reintentar. */
 export function ErrorState({ message, onRetry, disabled }: { message: string; onRetry: () => void; disabled?: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-4 py-16 text-center">
@@ -209,6 +212,7 @@ export function ErrorState({ message, onRetry, disabled }: { message: string; on
   )
 }
 
+/** Estado sin resultados con opción de limpiar los filtros. */
 export function EmptyState({ message, onReset }: { message: string; onReset?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-4 py-16 text-center">
@@ -247,6 +251,7 @@ export function RowMenu({ detailHref, editHref, name }: { detailHref: string; ed
   )
 }
 
+/** Acciones de una fila: ver detalle y, si aplica, editar. */
 export function RowActions({ detailHref, editHref, name }: { detailHref: string; editHref?: string; name: string }) {
   return (
     <div className="flex items-center justify-end gap-1">

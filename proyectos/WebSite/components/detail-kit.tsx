@@ -11,10 +11,12 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { initials } from '@/components/list-kit'
 
+/** Enlace para volver a la pantalla anterior. */
 export function BackLink({ href, children }: { href: string; children: ReactNode }) {
   return <Link href={href} className="inline-flex w-fit items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:underline"><ArrowLeftIcon className="size-4" aria-hidden="true" />{children}</Link>
 }
 
+/** Marcador de carga del detalle con un texto para lectores de pantalla. */
 export function DetailSkeleton({ label }: { label: string }) {
   return (
     <div role="status" className="space-y-6">
@@ -28,6 +30,7 @@ export function DetailSkeleton({ label }: { label: string }) {
   )
 }
 
+/** Mensaje de error del detalle con un botón opcional para reintentar. */
 export function DetailError({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-xl bg-card px-4 py-16 text-center ring-1 ring-foreground/10">
@@ -62,6 +65,7 @@ export function DetailSectionFeedback({ state, label, onRetry, children }: { sta
 export interface StatItem { icon: LucideIcon; label: string; value: ReactNode; href?: string; title?: string }
 
 
+/** Encabezado del detalle con ícono, título, etiquetas, acción y estadísticas. */
 export function DetailHero({ badge, eyebrow, title, tags, action, stats }: { badge: ReactNode; eyebrow: string; title: string; tags?: ReactNode; action?: ReactNode; stats?: StatItem[] }) {
   return (
     <Card className="gap-0 py-0 shadow-sm">
@@ -88,6 +92,7 @@ export function DetailHero({ badge, eyebrow, title, tags, action, stats }: { bad
   )
 }
 
+/** Estadística del encabezado; sin valor muestra «No disponible» y con href abre un enlace externo. */
 function Stat({ icon: Icon, label, value, href, title }: StatItem) {
   const empty = value === null || value === undefined || value === ''
   return (
@@ -104,6 +109,7 @@ function Stat({ icon: Icon, label, value, href, title }: StatItem) {
   )
 }
 
+/** Tarjeta de sección del detalle con ícono, título, descripción y acción opcionales. */
 export function SectionCard({ icon: Icon, title, description, action, children, contentClassName }: { icon: LucideIcon; title: string; description?: string; action?: ReactNode; children: ReactNode; contentClassName?: string }) {
   const id = `section-${title.toLowerCase().replace(/\s+/g, '-')}`
   return (
@@ -118,6 +124,7 @@ export function SectionCard({ icon: Icon, title, description, action, children, 
   )
 }
 
+/** Par etiqueta y valor del detalle; sin valor muestra «No disponible». */
 export function DetailItem({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   const empty = value === null || value === undefined || value === ''
   return (
@@ -128,6 +135,7 @@ export function DetailItem({ label, value, mono }: { label: string; value: React
   )
 }
 
+/** Bloque de dirección con sus líneas y código postal. */
 export function AddressBlock({ title, lines, postalCode }: { title: string; lines: (string | null | undefined)[]; postalCode: string | null | undefined }) {
   const visible = lines.filter(Boolean)
   return (
@@ -141,6 +149,7 @@ export function AddressBlock({ title, lines, postalCode }: { title: string; line
   )
 }
 
+/** Bloque de contacto con nombre, teléfono, fax y correo. */
 export function ContactBlock({ role, name, phone, fax, email }: { role: string; name: string | null | undefined; phone: string | null | undefined; fax: string | null | undefined; email: string | null | undefined }) {
   const missing = <span className="text-muted-foreground italic">No disponible</span>
   return (
@@ -161,6 +170,7 @@ export function ContactBlock({ role, name, phone, fax, email }: { role: string; 
   )
 }
 
+/** Tarjeta con el mapa de la ubicación de entrega, su estado de carga y reintento. */
 export function MapCard({ url, title, emptyMessage, state, onRetry }: { url: string | null; title: string; emptyMessage: string; state?: DetailLoadState; onRetry?: () => void }) {
   return (
     <SectionCard icon={MapIcon} title="Ubicación de entrega">
