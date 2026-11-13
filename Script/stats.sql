@@ -2,25 +2,58 @@ use WideWorldImporters;
 go
 if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 go
+if coalesce(convert(nvarchar(128), serverproperty('MachineName')), N'') <> N'corporativo'
+    throw 57001, 'El nodo indicado no corresponde a Corporativo.', 1;
+go
 
 -- ======================================================================================
 -- REPORTES
 -- ======================================================================================
 
 /*
+    Obtiene las facturas con la sucursal que las emitió: San José las pares y Limón las impares.
+*/
+create or alter view Sales.v_InvoicesSucursal
+as
+    select
+        iv.InvoiceID,
+        iv.CustomerID,
+        iv.InvoiceDate,
+        case when iv.InvoiceID % 2 = 0 then N'san-jose' else N'limon' end as Sucursal
+    from dbo.Invoices iv;
+go
+
+/*
+    Obtiene las órdenes de compra con la sucursal que las emitió: San José las pares y Limón las impares.
+*/
+create or alter view Purchasing.v_PurchaseOrdersSucursal
+as
+    select
+        po.PurchaseOrderID,
+        po.SupplierID,
+        po.OrderDate,
+        case when po.PurchaseOrderID % 2 = 0 then N'san-jose' else N'limon' end as Sucursal
+    from dbo.PurchaseOrders po;
+go
+
+/*
     Resume los montos de las órdenes de compra por proveedor y categoría,
     aplicando filtros opcionales por nombre del proveedor y nombre de categoría.
     Incluye un resumen general.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: NombreProveedor, NombreCategoriaProveedor, MontoMaximo, MontoMinimo, MontoPromedio
 */
 create or alter procedure Purchasing.GetSupplierPurchaseSummary
     @SupplierName nvarchar(100) = null,
     @SupplierCategoryName nvarchar(50) = null,
+    @Sucursal nvarchar(20) = null,
     @UserID int
 as
 	begin
 		set nocount on;
 		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+		if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+		    throw 50006, 'La sucursal indicada no es válida.', 1;
 
 		select
 			isnull(sp.SupplierName, 'Resumen') as NombreProveedor,
@@ -33,8 +66,9 @@ as
 				po.PurchaseOrderID,
 				po.SupplierID,
 				sum(pol.OrderedOuters * pol.ExpectedUnitPricePerOuter) as MontoComprado
-			from dbo.PurchaseOrders po
+			from Purchasing.v_PurchaseOrdersSucursal po
 			inner join dbo.PurchaseOrderLines pol on po.PurchaseOrderID = pol.PurchaseOrderID
+			where (@Sucursal is null or po.Sucursal = @Sucursal)
 			group by po.PurchaseOrderID, po.SupplierID
 		) t
 		inner join dbo.Suppliers sp on t.SupplierID = sp.SupplierID
@@ -52,6 +86,7 @@ go
     opcionales por nombre del cliente y nombre de categoría.
     Incluye un resumen general y pagina los resultados;
     @TotalCount devuelve la cantidad de filas, incluyendo el resumen general.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: NombreCliente, NombreCategoriaCliente, MontoMaximo, MontoMinimo, MontoPromedio
 */
 create or alter procedure Sales.GetCustomerSalesSummary
@@ -60,21 +95,25 @@ create or alter procedure Sales.GetCustomerSalesSummary
 	@PageNumber int = 1,
 	@PageSize int = 10,
 	@TotalCount int = 0 output,
+	@Sucursal nvarchar(20) = null,
 	@UserID int
 as
 	begin
 		set nocount on;
 		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+		if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+		    throw 50006, 'La sucursal indicada no es válida.', 1;
 
 		select @TotalCount = count(*)
 		from (
 			select cs.CustomerName, cg.CustomerCategoryName
 			from dbo.InvoiceLines ivl
-			inner join dbo.Invoices iv on ivl.InvoiceID = iv.InvoiceID
+			inner join Sales.v_InvoicesSucursal iv on ivl.InvoiceID = iv.InvoiceID
 			inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
 			inner join dbo.CustomerCategories cg on cs.CustomerCategoryID = cg.CustomerCategoryID
 			where (@CustomerName is null or cs.CustomerName like '%' + @CustomerName + '%')
 				and (@CustomerCategoryName is null or cg.CustomerCategoryName like '%' + @CustomerCategoryName + '%')
+				and (@Sucursal is null or iv.Sucursal = @Sucursal)
 			group by rollup ((cs.CustomerName, cg.CustomerCategoryName))
 		) t
 		select
@@ -90,11 +129,12 @@ as
 			from dbo.InvoiceLines ivl
 			group by ivl.InvoiceID
 		) t
-		inner join dbo.Invoices iv on t.InvoiceID = iv.InvoiceID
+		inner join Sales.v_InvoicesSucursal iv on t.InvoiceID = iv.InvoiceID
 		inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
 		inner join dbo.CustomerCategories cg on cs.CustomerCategoryID = cg.CustomerCategoryID
 		where (@CustomerName is null or cs.CustomerName like '%' + @CustomerName + '%')
 			and (@CustomerCategoryName is null or cg.CustomerCategoryName like '%' + @CustomerCategoryName + '%')
+			and (@Sucursal is null or iv.Sucursal = @Sucursal)
 		group by rollup ((cs.CustomerName, cg.CustomerCategoryName))
 		order by grouping(cs.CustomerName), cs.CustomerName, cg.CustomerCategoryName
 		offset (@PageNumber - 1) * @PageSize rows
@@ -105,15 +145,19 @@ go
 /*
     Devuelve los productos con los cinco primeros puestos por ganancia acumulada de cada año.
     Permite filtrar por un año específico (@Year) y valida que exista en la base de datos.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: Año, NombreProducto, Ganancia, Ranking
 */
 create or alter procedure Warehouse.GetTopProductsByYear
     @Year int = null,
+    @Sucursal nvarchar(20) = null,
     @UserID int
 as
     begin
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+        if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+            throw 50006, 'La sucursal indicada no es válida.', 1;
 
         if @Year is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
@@ -125,9 +169,10 @@ as
                 sum(ivl.LineProfit) as Ganancia,
                 dense_rank() over(partition by year(iv.InvoiceDate) order by sum(ivl.LineProfit) desc) as Ranking
             from dbo.InvoiceLines ivl
-            inner join dbo.Invoices iv on ivl.InvoiceID = iv.InvoiceID
+            inner join Sales.v_InvoicesSucursal iv on ivl.InvoiceID = iv.InvoiceID
             inner join dbo.StockItems s on ivl.StockItemID = s.StockItemID
             where year(iv.InvoiceDate) = isnull(@Year, year(iv.InvoiceDate))
+                and (@Sucursal is null or iv.Sucursal = @Sucursal)
             group by year(iv.InvoiceDate), s.StockItemID, s.StockItemName
         )
         select
@@ -145,16 +190,20 @@ go
     Devuelve hasta los cinco clientes con más facturas por año dentro del rango indicado.
     Valida que los años existan y que el año inicial no sea posterior al final; los empates
     en el quinto puesto también se incluyen.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: Año, NombreCliente, CantidadFacturas, MontoFacturado, Ranking
 */
 create or alter procedure Sales.GetTopCustomersByYear
     @InvoiceYearFrom int = null,
     @InvoiceYearTo int = null,
+    @Sucursal nvarchar(20) = null,
     @UserID int
 as
     begin
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+        if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+            throw 50006, 'La sucursal indicada no es válida.', 1;
 
         if @InvoiceYearFrom is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @InvoiceYearFrom)
             throw 50001, 'El año inicial indicado no existe en la base de datos.', 1;
@@ -170,12 +219,13 @@ as
                 count(distinct iv.InvoiceID) as CantidadFacturas,
                 sum(ivl.ExtendedPrice) as MontoFacturado,
                 dense_rank() over (partition by year(iv.InvoiceDate) order by count(distinct iv.InvoiceID) desc) as Ranking
-            from dbo.Invoices iv
+            from Sales.v_InvoicesSucursal iv
             inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
             inner join dbo.InvoiceLines ivl on iv.InvoiceID = ivl.InvoiceID
             where 
                 (@InvoiceYearFrom is null or year(iv.InvoiceDate) >= @InvoiceYearFrom)
                 and (@InvoiceYearTo is null or year(iv.InvoiceDate) <= @InvoiceYearTo)
+                and (@Sucursal is null or iv.Sucursal = @Sucursal)
             group by year(iv.InvoiceDate), cs.CustomerID, cs.CustomerName
         )
         select
@@ -194,16 +244,20 @@ go
     Devuelve hasta los cinco proveedores con más órdenes de compra por año dentro del rango
     indicado. Valida que los años existan y que el inicial no sea posterior al final; los
     empates en el quinto puesto también se incluyen.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: Año, NombreProveedor, CantidadCompras, MontoComprado, Ranking
 */
 create or alter procedure Purchasing.GetTopSuppliersByYear
     @OrderYearFrom int = null,
     @OrderYearTo int = null,
+    @Sucursal nvarchar(20) = null,
     @UserID int
 as
     begin
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+        if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+            throw 50006, 'La sucursal indicada no es válida.', 1;
 
         if @OrderYearFrom is not null and not exists (select 1 from dbo.PurchaseOrders where year(OrderDate) = @OrderYearFrom)
             throw 50001, 'El año inicial indicado no existe en la base de datos.', 1;
@@ -219,12 +273,13 @@ as
                 count(distinct po.PurchaseOrderID) as CantidadCompras,
                 sum(pol.OrderedOuters * pol.ExpectedUnitPricePerOuter) as MontoComprado,
                 dense_rank() over (partition by year(po.OrderDate) order by count(distinct po.PurchaseOrderID) desc) as Ranking
-            from dbo.PurchaseOrders po
+            from Purchasing.v_PurchaseOrdersSucursal po
             inner join dbo.PurchaseOrderLines pol on po.PurchaseOrderID = pol.PurchaseOrderID
             inner join dbo.Suppliers sp on po.SupplierID = sp.SupplierID
             where
                 (@OrderYearFrom is null or year(po.OrderDate) >= @OrderYearFrom)
                 and (@OrderYearTo is null or year(po.OrderDate) <= @OrderYearTo)
+                and (@Sucursal is null or po.Sucursal = @Sucursal)
             group by year(po.OrderDate), sp.SupplierID, sp.SupplierName
         )
         select
@@ -242,14 +297,18 @@ go
 /*
     Resume por año el monto facturado para cada grupo de productos y presenta los grupos
     como columnas.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: Año, Novelty Items, Clothing, Mugs, T-Shirts, Airline Novelties, Computing Novelties, USB Novelties, Furry Footwear, Toys, Packaging Materials
 */
 create or alter procedure Sales.GetProductCategorySalesByYear
+    @Sucursal nvarchar(20) = null,
     @UserID int
 as 
     begin
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+        if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+            throw 50006, 'La sucursal indicada no es válida.', 1;
 
         select
             Año,
@@ -259,11 +318,12 @@ as
             select year(iv.InvoiceDate) as Año,
                     sg.StockGroupName,
                     ivl.ExtendedPrice
-            from dbo.Invoices iv
+            from Sales.v_InvoicesSucursal iv
             inner join dbo.InvoiceLines ivl on ivl.InvoiceID = iv.InvoiceID
             inner join dbo.StockItems s on s.StockItemID = ivl.StockItemID
             inner join dbo.StockItemStockGroups sig on sig.StockItemID = s.StockItemID
             inner join dbo.StockGroups sg on sg.StockGroupID = sig.StockGroupID
+            where (@Sucursal is null or iv.Sucursal = @Sucursal)
         ) as src
         pivot (
             sum(ExtendedPrice) for StockGroupName in (
@@ -285,6 +345,7 @@ go
     Valida que el año y las categorías existan, que el mes esté entre 1 y 12 y que la lista
     sea un arreglo JSON de números enteros positivos. Pagina los resultados y asigna a @TotalCount la cantidad
     de combinaciones de cliente, año y mes que cumplen los filtros.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: NombreCliente, Año, Mes, MontoPrimeraFactura, MontoUltimaFactura, Categorias, CantidadTotalMes, CantidadMaxima, CantidadMinima
 */
 create or alter procedure Sales.GetCustomerSalesTracking
@@ -294,11 +355,14 @@ create or alter procedure Sales.GetCustomerSalesTracking
 	@PageNumber int = 1,
 	@PageSize int = 10,
 	@TotalCount int = 0 output,
+	@Sucursal nvarchar(20) = null,
 	@UserID int
 as
 	begin
 		set nocount on;
 		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+		if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+		    throw 50006, 'La sucursal indicada no es válida.', 1;
 
         if @Year is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
@@ -331,11 +395,12 @@ as
 				iv.CustomerID,
 				year(iv.InvoiceDate) as Año,
 				month(iv.InvoiceDate) as Mes
-			from dbo.Invoices iv
+			from Sales.v_InvoicesSucursal iv
 			inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
 			where 
 				year(iv.InvoiceDate) = isnull(@Year, year(iv.InvoiceDate))
 				and month(iv.InvoiceDate) = isnull(@Month, month(iv.InvoiceDate))
+				and (@Sucursal is null or iv.Sucursal = @Sucursal)
 				and exists (
 					select 1
 					from dbo.InvoiceLines ivl
@@ -365,11 +430,12 @@ as
 				sum(ivl.Quantity) as CantidadFacturada,
 				first_value(sum(ivl.ExtendedPrice)) over (partition by iv.CustomerID, year(iv.InvoiceDate), month(iv.InvoiceDate) order by iv.InvoiceDate, iv.InvoiceID) as PrimeraFactura,
 				last_value(sum(ivl.ExtendedPrice)) over (partition by iv.CustomerID, year(iv.InvoiceDate), month(iv.InvoiceDate) order by iv.InvoiceDate, iv.InvoiceID rows between unbounded preceding and unbounded following) as UltimaFactura
-			from dbo.Invoices iv
+			from Sales.v_InvoicesSucursal iv
 			inner join dbo.InvoiceLines ivl on iv.InvoiceID = ivl.InvoiceID
 			where 
 				year(iv.InvoiceDate) = isnull(@Year, year(iv.InvoiceDate))
 				and month(iv.InvoiceDate) = isnull(@Month, month(iv.InvoiceDate))
+				and (@Sucursal is null or iv.Sucursal = @Sucursal)
 				and not exists (
 					select 1
 					from @SelectedStockGroups selected
@@ -394,13 +460,14 @@ as
 					year(iv.InvoiceDate) as Año,
 					month(iv.InvoiceDate) as Mes,
 					sg.StockGroupName
-				from dbo.Invoices iv
+				from Sales.v_InvoicesSucursal iv
 				inner join dbo.InvoiceLines ivl on iv.InvoiceID = ivl.InvoiceID
 				inner join dbo.StockItemStockGroups sig on ivl.StockItemID = sig.StockItemID
 				inner join dbo.StockGroups sg on sig.StockGroupID = sg.StockGroupID
 				where 
 					year(iv.InvoiceDate) = isnull(@Year, year(iv.InvoiceDate))
 					and month(iv.InvoiceDate) = isnull(@Month, month(iv.InvoiceDate))
+					and (@Sucursal is null or iv.Sucursal = @Sucursal)
 					and not exists (
 						select 1
 						from @SelectedStockGroups selected
@@ -450,6 +517,7 @@ go
     Valida que el año y las categorías existan, que el mes esté entre 1 y 12 y que la lista
     sea un arreglo JSON de números enteros positivos. Pagina los resultados y asigna a @TotalCount la cantidad
     de combinaciones de proveedor, año y mes que cumplen los filtros.
+    Filtra por @Sucursal (san-jose, limon o null para el consolidado); si no es válida, lanza error 50006.
     Devuelve: NombreProveedor, Año, Mes, MontoPrimeraCompra, MontoUltimaCompra, Categorias, CantidadTotalMes, CantidadMaxima, CantidadMinima
 */
 create or alter procedure Purchasing.GetSupplierPurchaseTracking
@@ -459,11 +527,14 @@ create or alter procedure Purchasing.GetSupplierPurchaseTracking
 	@PageNumber int = 1,
 	@PageSize int = 10,
 	@TotalCount int = 0 output,
+	@Sucursal nvarchar(20) = null,
 	@UserID int
 as
 	begin
 		set nocount on;
 		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+		if @Sucursal is not null and @Sucursal not in (N'san-jose', N'limon')
+		    throw 50006, 'La sucursal indicada no es válida.', 1;
 
         if @Year is not null and not exists (select 1 from dbo.PurchaseOrders where year(OrderDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
@@ -496,11 +567,12 @@ as
 				po.SupplierID,
 				year(po.OrderDate) as Año,
 				month(po.OrderDate) as Mes
-			from dbo.PurchaseOrders po
+			from Purchasing.v_PurchaseOrdersSucursal po
 			inner join dbo.Suppliers sp on po.SupplierID = sp.SupplierID
 			where 
 				year(po.OrderDate) = isnull(@Year, year(po.OrderDate))
 				and month(po.OrderDate) = isnull(@Month, month(po.OrderDate))
+				and (@Sucursal is null or po.Sucursal = @Sucursal)
 				and exists (
 					select 1
 					from dbo.PurchaseOrderLines pol
@@ -530,11 +602,12 @@ as
 				sum(pol.OrderedOuters) as CantidadComprada,
 				first_value(sum(pol.OrderedOuters * pol.ExpectedUnitPricePerOuter)) over (partition by po.SupplierID, year(po.OrderDate), month(po.OrderDate) order by po.OrderDate, po.PurchaseOrderID) as PrimeraCompra,
 				last_value(sum(pol.OrderedOuters * pol.ExpectedUnitPricePerOuter)) over (partition by po.SupplierID, year(po.OrderDate), month(po.OrderDate) order by po.OrderDate, po.PurchaseOrderID rows between unbounded preceding and unbounded following) as UltimaCompra
-			from dbo.PurchaseOrders po
+			from Purchasing.v_PurchaseOrdersSucursal po
 			inner join dbo.PurchaseOrderLines pol on po.PurchaseOrderID = pol.PurchaseOrderID
 			where 
 				year(po.OrderDate) = isnull(@Year, year(po.OrderDate))
 				and month(po.OrderDate) = isnull(@Month, month(po.OrderDate))
+				and (@Sucursal is null or po.Sucursal = @Sucursal)
 				and not exists (
 					select 1
 					from @SelectedStockGroups selected
@@ -559,13 +632,14 @@ as
 					year(po.OrderDate) as Año,
 					month(po.OrderDate) as Mes,
 					sg.StockGroupName
-				from dbo.PurchaseOrders po
+				from Purchasing.v_PurchaseOrdersSucursal po
 				inner join dbo.PurchaseOrderLines pol on po.PurchaseOrderID = pol.PurchaseOrderID
 				inner join dbo.StockItemStockGroups sig on pol.StockItemID = sig.StockItemID
 				inner join dbo.StockGroups sg on sig.StockGroupID = sg.StockGroupID
 				where 
 					year(po.OrderDate) = isnull(@Year, year(po.OrderDate))
 					and month(po.OrderDate) = isnull(@Month, month(po.OrderDate))
+					and (@Sucursal is null or po.Sucursal = @Sucursal)
 					and not exists (
 						select 1
 						from @SelectedStockGroups selected
