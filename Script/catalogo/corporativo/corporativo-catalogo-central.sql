@@ -158,7 +158,7 @@ as
                 select @NewStockItemID, g.[value], @LastEditedBy
                 from openjson(@StockGroupIDsJson) g;
 
-                select @NewVersion = convert(varchar(18), v.Version, 1)
+                select @NewVersion = convert(varchar(18), convert(binary(8), v.Version), 1)
                 from dbo.StockItemVersions v
                 where v.StockItemID = @NewStockItemID;
             commit transaction
@@ -247,7 +247,7 @@ as
                 select @StockItemID, g.[value], @LastEditedBy
                 from openjson(@StockGroupIDsJson) g;
 
-                select @NewVersion = convert(varchar(18), v.Version, 1)
+                select @NewVersion = convert(varchar(18), convert(binary(8), v.Version), 1)
                 from dbo.StockItemVersions v
                 where v.StockItemID = @StockItemID;
             commit transaction

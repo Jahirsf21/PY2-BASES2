@@ -30,7 +30,7 @@ as
             sih.LastCostPrice,
             sih.ReorderLevel,
             sih.TargetStockLevel,
-            convert(varchar(18), sih.Version, 1) as Version
+            convert(varchar(18), convert(binary(8), sih.Version), 1) as Version
         from dbo.StockItems si
         left join dbo.StockItemHoldings sih on sih.StockItemID = si.StockItemID
         where si.StockItemID = @StockItemID;
@@ -94,7 +94,7 @@ as
                             throw 53004, 'Las existencias fueron modificadas por otro usuario. Recargue los datos antes de guardar.', 1;
                     end
 
-                select @NewVersion = convert(varchar(18), sih.Version, 1)
+                select @NewVersion = convert(varchar(18), convert(binary(8), sih.Version), 1)
                 from dbo.StockItemHoldings sih
                 where sih.StockItemID = @StockItemID;
             commit transaction
