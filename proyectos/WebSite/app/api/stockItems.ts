@@ -1,4 +1,4 @@
-import type { Color, NewStockItem, PackageType, StockGroup, StockItemDetail, StockItemEdit, StockItemsResponse } from '@/lib/types/stockItems'
+import type { Color, NewStockItem, PackageType, StockGroup, StockItemDetail, StockItemEdit, StockItemHoldings, StockItemHoldingsUpdate, StockItemsResponse, StockItemUpdate } from '@/lib/types/stockItems'
 
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 import { apiFieldErrors, apiMessage } from '@/lib/helpers/apiErrors'
@@ -123,10 +123,10 @@ export async function getStockItemGroupsByID(stockItemID: number): Promise<Stock
 }
 
 /**
- * Obtiene los valores editables de un producto.
+ * Obtiene de Corporativo los valores editables del catálogo, sus grupos y su versión.
  *
  * @param stockItemID Identificador del producto.
- * @returns Datos para precargar su edición.
+ * @returns Datos para precargar su edición, con Grupos y Version.
  */
 export async function getStockItemForEdit(stockItemID: number): Promise<StockItemEdit> {
   const token = readSession()?.token
@@ -141,7 +141,7 @@ export async function getStockItemForEdit(stockItemID: number): Promise<StockIte
 }
 
 /**
- * Crea un producto con existencias y grupos.
+ * Crea un producto en el catálogo central, sin existencias.
  *
  * @param item Datos del producto.
  * @returns Identificador del producto creado.
@@ -167,13 +167,13 @@ export async function createStockItem(item: NewStockItem): Promise<number> {
 }
 
 /**
- * Actualiza un producto, sus existencias y sus grupos.
+ * Actualiza el catálogo de un producto y sus grupos con la versión cargada en el formulario.
  *
  * @param stockItemID Identificador del producto.
- * @param item Datos actualizados del producto.
+ * @param item Datos actualizados del catálogo, con version.
  * @returns Promesa que se resuelve al actualizarlo.
  */
-export async function updateStockItemByID(stockItemID: number, item: NewStockItem): Promise<void> {
+export async function updateStockItemByID(stockItemID: number, item: StockItemUpdate): Promise<void> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}`, {
@@ -205,4 +205,48 @@ export async function deleteStockItemByID(stockItemID: number): Promise<void> {
     const body = await res.json().catch(() => null)
     throw new Error(apiMessage(body, 'No fue posible eliminar el producto'), { cause: res.status })
   }
+}
+
+/**
+ * Obtiene las existencias del producto en la sucursal de la sesión para ajustarlas.
+ *
+ * @param stockItemID Identificador del producto.
+ * @returns Existencias con su versión; sin fila, la cantidad es 0 y los demás valores null.
+ */
+export async function getStockItemHoldings(stockItemID: number): Promise<StockItemHoldings> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}/holdings`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(apiMessage(body, 'No fue posible cargar las existencias'), { cause: res.status })
+  }
+  return res.json()
+}
+
+/**
+ * Guarda los valores absolutos de las existencias del producto en la sucursal de la sesión.
+ *
+ * @param stockItemID Identificador del producto.
+ * @param holdings Existencias y la versión cargada en el formulario.
+ * @returns Nueva versión de las existencias.
+ */
+export async function adjustStockItemHoldings(stockItemID: number, holdings: StockItemHoldingsUpdate): Promise<string> {
+  const token = readSession()?.token
+  if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
+  const res = await fetch(`${API_URL}/api/stock-items/${stockItemID}/holdings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(holdings),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const error = new Error(apiMessage(body, 'No fue posible guardar las existencias'), { cause: res.status })
+    if (res.status === 400) {
+      Object.assign(error, apiFieldErrors(body))
+    }
+    throw error
+  }
+  const body: { version: string } = await res.json()
+  return body.version
 }
