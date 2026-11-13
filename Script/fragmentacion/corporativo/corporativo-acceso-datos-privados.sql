@@ -8,7 +8,8 @@ if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 -- ======================================================================================
 
 /*
-    Valida el nodo Corporativo, las tablas privadas y los nombres de las vistas.
+    Crea las vistas de datos sensibles en Corporativo.
+    Requiere que las tablas privadas existan y las vistas no existan.
 */
 set nocount on;
 
@@ -28,7 +29,6 @@ go
 
 /*
     Obtiene los datos de contacto de las personas almacenados en Corporativo.
-    Devuelve: PersonID, PhoneNumber, FaxNumber, EmailAddress.
 */
 create view Application.v_PeoplePrivate
 as
@@ -42,9 +42,6 @@ go
 
 /*
     Obtiene los datos sensibles de los clientes almacenados en Corporativo.
-    Devuelve: CustomerID, PrimaryContactPersonID, AlternateContactPersonID, CreditLimit,
-    PhoneNumber, FaxNumber, WebsiteURL, DeliveryAddressLine1, DeliveryAddressLine2, DeliveryPostalCode,
-    Latitud, Longitud, PostalAddressLine1, PostalAddressLine2, PostalCityID, PostalPostalCode.
 */
 create view Sales.v_CustomerPrivate
 as
@@ -70,10 +67,6 @@ go
 
 /*
     Obtiene los datos sensibles de los proveedores almacenados en Corporativo.
-    Devuelve: SupplierID, PrimaryContactPersonID, AlternateContactPersonID, SupplierReference,
-    PhoneNumber, FaxNumber, WebsiteURL, BankAccountName, BankAccountBranch, BankAccountCode,
-    BankAccountNumber, BankInternationalCode, InternalComments, DeliveryAddressLine1, DeliveryAddressLine2,
-    DeliveryPostalCode, Latitud, Longitud, PostalAddressLine1, PostalAddressLine2, PostalCityID, PostalPostalCode.
 */
 create view Purchasing.v_SupplierPrivate
 as

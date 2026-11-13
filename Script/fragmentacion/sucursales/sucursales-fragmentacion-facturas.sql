@@ -7,13 +7,10 @@ if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 -- ======================================================================================
 
 /*
-    Fragmenta las facturas y las órdenes de compra entre las sucursales según su identificador.
     Conserva los documentos pares en San José y los impares en Limón, con sus líneas y movimientos.
-    Conserva los movimientos sin documento asociado y todas las claves foráneas.
-    Ajusta las secuencias de cabeceras y líneas para generar identificadores sin colisiones entre nodos.
-    Requiere validar previamente la conservación completa de los documentos en Corporativo
-    y los límites revisados, sin escrituras concurrentes en los tres nodos.
-    Requiere que las restricciones de propiedad no existan.
+    Conserva los movimientos sin documento asociado y las claves foráneas; ajusta las secuencias sin colisiones.
+    Requiere que los datos originales estén completos en Corporativo.
+    Requiere que los límites estén revisados y las restricciones de propiedad no existan.
 */
 set nocount on;
 
@@ -34,7 +31,7 @@ begin try
     begin transaction;
 
     /*
-        Verifica que las secuencias no hayan avanzado más allá de los límites revisados.
+        Verifica que las secuencias no superen los límites revisados.
     */
     if exists (
         select 1
@@ -50,7 +47,7 @@ begin try
         throw 57012, 'Las secuencias superan los límites revisados.', 1;
 
     /*
-        Verifica que no existan documentos ni líneas posteriores a los límites revisados.
+        Verifica los límites de los identificadores de documentos y líneas.
     */
     if (select max(InvoiceID) from Sales.Invoices) > 70510
         or (select max(InvoiceLineID) from Sales.InvoiceLines) > 228265
@@ -59,9 +56,7 @@ begin try
         throw 57012, 'Existen identificadores posteriores a los límites revisados.', 1;
 
     /*
-        Elimina los movimientos de inventario, clientes y proveedores
-        asociados a los documentos de la otra sucursal.
-        Conserva los movimientos sin documento asociado.
+        Retira movimientos de la otra sucursal y conserva los que no tienen documento asociado.
     */
     delete from Warehouse.StockItemTransactions
     where (InvoiceID is not null and InvoiceID % 2 <> @Parity)
@@ -74,21 +69,19 @@ begin try
     where PurchaseOrderID is not null and PurchaseOrderID % 2 <> @Parity;
 
     /*
-        Elimina las líneas de los documentos de la otra sucursal.
+        Retira las líneas de los documentos de la otra sucursal.
     */
     delete from Sales.InvoiceLines where InvoiceID % 2 <> @Parity;
     delete from Purchasing.PurchaseOrderLines where PurchaseOrderID % 2 <> @Parity;
 
     /*
-        Elimina las cabeceras de los documentos de la otra sucursal.
-        Se retiran al final para respetar las claves foráneas de líneas y movimientos.
+        Retira las cabeceras al final para respetar las claves foráneas.
     */
     delete from Sales.Invoices where InvoiceID % 2 <> @Parity;
     delete from Purchasing.PurchaseOrders where PurchaseOrderID % 2 <> @Parity;
 
     /*
-        Reinicia las secuencias con la paridad del nodo y un incremento de dos.
-        Agrega las restricciones de propiedad sobre las cabeceras de facturas y compras.
+        Ajusta las secuencias y agrega las restricciones según la paridad del nodo.
     */
     if @Parity = 0
     begin

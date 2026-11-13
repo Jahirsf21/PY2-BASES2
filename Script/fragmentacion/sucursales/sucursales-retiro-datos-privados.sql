@@ -7,12 +7,10 @@ if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 -- ======================================================================================
 
 /*
-    Retira las columnas sensibles de personas, clientes y proveedores en las sucursales.
-    Conserva las filas generales y propaga el retiro a sus tablas históricas.
-    Ajusta las relaciones y los índices locales que dependen de las columnas retiradas.
-    No modifica los procedimientos ni las vistas originales de WWI.
-    Requiere validar previamente la conservación completa de los datos en Corporativo
-    y las consultas de la aplicación, sin escrituras concurrentes sobre estas entidades.
+    Retira columnas sensibles actuales e históricas y ajusta las claves foráneas e índices locales.
+    Conserva los datos generales y la temporalidad.
+    Requiere que los datos originales estén completos en Corporativo.
+    Requiere que las consultas de la aplicación estén validadas.
 */
 set nocount on;
 
@@ -65,7 +63,7 @@ begin try
         drop constraint FK_Purchasing_Suppliers_PostalCityID_Application_Cities;
 
     /*
-        Retira los índices dedicados a las columnas privadas.
+        Retira los índices dedicados a columnas privadas.
     */
     drop index FK_Sales_Customers_PrimaryContactPersonID on Sales.Customers;
     drop index FK_Sales_Customers_AlternateContactPersonID on Sales.Customers;
@@ -88,14 +86,12 @@ begin try
         with (drop_existing = on);
 
     /*
-        Retira primero la columna calculada que depende de CustomFields.
-        La temporalidad permanece activa y propaga el cambio al historial vinculado.
+        Retira OtherLanguages antes de CustomFields; la temporalidad propaga el cambio al historial.
     */
     alter table Application.People drop column OtherLanguages;
 
     /*
-        Retira las columnas sensibles actuales y sus correspondientes columnas históricas.
-        Conserva identificadores, campos generales y períodos de vigencia.
+        Retira las columnas sensibles, conservando identificadores, datos generales y períodos.
     */
     alter table Application.People drop column
         PhoneNumber,

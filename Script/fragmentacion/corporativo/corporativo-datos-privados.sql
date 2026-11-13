@@ -7,9 +7,8 @@ if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 -- ======================================================================================
 
 /*
-    Crea las tablas con los datos sensibles de personas, clientes y proveedores en Corporativo.
-    Copia los datos actuales conservando los identificadores y las relaciones.
-    Conserva las tablas originales y su historial.
+    Crea las tablas privadas y copia los datos sensibles actuales en Corporativo.
+    Conserva los identificadores, las relaciones, las tablas originales y sus tablas históricas.
     Requiere que las tablas privadas no existan.
 */
 set nocount on;
@@ -24,7 +23,7 @@ if object_id(N'Application.PeoplePrivate') is not null
 
 begin try
     /*
-        Crea la tabla con los datos sensibles de las personas.
+        Crea la tabla privada de personas.
     */
     create table Application.PeoplePrivate (
         PersonID int not null,
@@ -43,7 +42,7 @@ begin try
     );
 
     /*
-        Crea la tabla con los datos sensibles de los clientes.
+        Crea la tabla privada de clientes.
     */
     create table Sales.CustomerPrivate (
         CustomerID int not null,
@@ -73,7 +72,7 @@ begin try
     );
 
     /*
-        Crea la tabla con los datos sensibles de los proveedores.
+        Crea la tabla privada de proveedores.
     */
     create table Purchasing.SupplierPrivate (
         SupplierID int not null,
@@ -109,8 +108,7 @@ begin try
     );
 
     /*
-        Copia los datos sensibles actuales conservando sus identificadores.
-        Inserta primero las personas para mantener las referencias de clientes y proveedores.
+        Copia primero las personas para conservar las referencias de clientes y proveedores.
     */
     set xact_abort on;
     begin transaction;

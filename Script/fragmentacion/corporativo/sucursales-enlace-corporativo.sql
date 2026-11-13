@@ -7,7 +7,8 @@ if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 -- ======================================================================================
 
 /*
-    Configura el enlace de las sucursales a Corporativo.
+    Crea el enlace de las sucursales a Corporativo.
+    Requiere que el enlace no exista.
 */
 set nocount on;
 
@@ -22,7 +23,6 @@ declare @PasswordCorporativo nvarchar(128) = N'Jahirsf21!corporativo';
 if @PasswordCorporativo is null or len(@PasswordCorporativo) = 0
     throw 57007, 'La contraseña de Corporativo no puede estar vacía.', 1;
 
-/* Configura el enlace de las sucursales a Corporativo. */
 begin try
     exec master.dbo.sp_addlinkedserver
         @server = N'CORPORATIVO',
