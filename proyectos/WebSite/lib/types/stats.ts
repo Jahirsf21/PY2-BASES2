@@ -8,6 +8,9 @@ export interface ReportYear {
 /** Procedencia de los años mostrados en los filtros de los reportes. */
 export type ReportYearSource = 'invoices' | 'purchases'
 
+/** Sucursal de los documentos de un reporte; null para el consolidado. */
+export type ReportSucursal = 'san-jose' | 'limon' | null
+
 /** Montos incluidos en los resúmenes de compras y ventas. */
 export interface AmountSummary {
   MontoMaximo: number | null
