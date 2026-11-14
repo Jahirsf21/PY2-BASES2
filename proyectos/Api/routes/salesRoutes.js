@@ -24,6 +24,12 @@ const router = Router();
 /** La factura no tiene líneas válidas, al crearla o al actualizarla. */
 const invalidLines = [400, "La factura debe tener al menos una línea válida"];
 
+/** La factura incluye un producto bloqueado por una eliminación en curso. */
+const lockedStockItem = [
+  409,
+  "Un producto de la factura está en proceso de eliminación y no puede facturarse",
+];
+
 /**
  * GET /sales
  * Devuelve una página de facturas (módulo de ventas) paginada.
@@ -52,7 +58,7 @@ router.post(
   requireRole("Administrador"),
   validateBody(invoiceSchema),
   addInvoice,
-  sqlErrors({ 54000: invalidLines }),
+  sqlErrors({ 54000: invalidLines, 53006: lockedStockItem }),
 );
 
 /**
@@ -105,6 +111,7 @@ router.put(
   sqlErrors({
     54001: [404, "Factura no encontrada"],
     54002: invalidLines,
+    53006: lockedStockItem,
   }),
 );
 

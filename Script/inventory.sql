@@ -430,43 +430,43 @@ go
 --     end
 -- go
 
-/*
-   Elimina un producto por su StockItemID, borrando primero las tablas dependientes
-   (StockItemStockGroups y StockItemHoldings) y luego StockItems. Si no existe, lanza
-   error 53001; si hay violación de integridad referencial (error 547), lanza error
-   53002 con un mensaje más claro.
-*/
-create or alter procedure Warehouse.DeleteStockItem
-    @StockItemID int,
-    @UserID int
-as
-    begin
-        set nocount on;
-        exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
-
-        begin try
-            begin transaction
-                delete from dbo.StockItemStockGroups
-                where StockItemID = @StockItemID
-
-                delete from dbo.StockItemHoldings
-                where StockItemID = @StockItemID
-
-                delete from dbo.StockItems
-                where StockItemID = @StockItemID
-
-                if @@rowcount = 0
-                    throw 53001, 'El producto indicado no existe.', 1
-            commit transaction
-            print 'Producto eliminado correctamente. StockItemID = ' + cast(@StockItemID as varchar(20));
-        end try
-        begin catch
-            if @@trancount > 0
-                rollback transaction
-            if error_number() = 547
-                throw 53002, 'No se puede eliminar el producto porque tiene ventas u órdenes de compra asociadas.', 1
-            else
-                throw
-        end catch
-    end
-go
+-- /*
+--    Elimina un producto por su StockItemID, borrando primero las tablas dependientes
+--    (StockItemStockGroups y StockItemHoldings) y luego StockItems. Si no existe, lanza
+--    error 53001; si hay violación de integridad referencial (error 547), lanza error
+--    53002 con un mensaje más claro.
+-- */
+-- create or alter procedure Warehouse.DeleteStockItem
+--     @StockItemID int,
+--     @UserID int
+-- as
+--     begin
+--         set nocount on;
+--         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
+--
+--         begin try
+--             begin transaction
+--                 delete from dbo.StockItemStockGroups
+--                 where StockItemID = @StockItemID
+--
+--                 delete from dbo.StockItemHoldings
+--                 where StockItemID = @StockItemID
+--
+--                 delete from dbo.StockItems
+--                 where StockItemID = @StockItemID
+--
+--                 if @@rowcount = 0
+--                     throw 53001, 'El producto indicado no existe.', 1
+--             commit transaction
+--             print 'Producto eliminado correctamente. StockItemID = ' + cast(@StockItemID as varchar(20));
+--         end try
+--         begin catch
+--             if @@trancount > 0
+--                 rollback transaction
+--             if error_number() = 547
+--                 throw 53002, 'No se puede eliminar el producto porque tiene ventas u órdenes de compra asociadas.', 1
+--             else
+--                 throw
+--         end catch
+--     end
+-- go

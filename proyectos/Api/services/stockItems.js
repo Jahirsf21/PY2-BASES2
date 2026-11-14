@@ -1,6 +1,10 @@
 import sql from "mssql";
 import { executeProcedure } from "../helpers/procedure.js";
-import { executeCatalogProcedure } from "../helpers/catalogQuery.js";
+import {
+  executeCatalogProcedure,
+  executeOnNode,
+} from "../helpers/catalogQuery.js";
+import { isConnectionError } from "../helpers/connectionErrors.js";
 
 /**
  * Convierte la versión '0x' + 16 dígitos hexadecimales al binario que recibe SQL Server.
@@ -241,14 +245,92 @@ export async function adjustStockItemHoldings(session, stockItemID, holdings) {
 }
 
 /**
- * Elimina un producto en la sucursal si no tiene registros relacionados.
+ * Desbloquea el producto en las dos sucursales y restaura sus existencias.
+ * La falla de una sucursal no impide desbloquear la otra.
+ *
+ * @param {object} session Identidad de req.user, con userID y node.
+ * @param {object} params Parámetro StockItemID del producto.
+ * @returns {Promise<void>} Finaliza al intentar ambas sucursales.
+ */
+async function unlockBranches(session, params) {
+  for (const branch of ["san-jose", "limon"]) {
+    try {
+      await executeOnNode(
+        session,
+        branch,
+        "Warehouse.UnlockStockItemForDeletion",
+        params,
+      );
+    } catch {
+      // El bloqueo que quede se resuelve al reintentar la eliminación.
+    }
+  }
+}
+
+/**
+ * Confirma la eliminación del producto en las dos sucursales.
+ * La falla de una sucursal no impide confirmar la otra.
+ *
+ * @param {object} session Identidad de req.user, con userID y node.
+ * @param {object} params Parámetro StockItemID del producto.
+ * @returns {Promise<void>} Finaliza al intentar ambas sucursales.
+ */
+async function confirmBranches(session, params) {
+  for (const branch of ["san-jose", "limon"]) {
+    try {
+      await executeOnNode(
+        session,
+        branch,
+        "Warehouse.ConfirmStockItemDeletion",
+        params,
+      );
+    } catch {
+      // El producto ya se eliminó en Corporativo; la replicación lo borra en la sucursal.
+    }
+  }
+}
+
+/**
+ * Elimina un producto en Corporativo y en las sucursales.
  *
  * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} stockItemID Identificador del producto.
  * @returns {Promise<void>} Finaliza al eliminar el producto.
  */
 export async function deleteStockItem(session, stockItemID) {
-  await executeProcedure(session, "Warehouse.DeleteStockItem", {
-    StockItemID: [sql.Int, stockItemID],
-  });
+  const params = { StockItemID: [sql.Int, stockItemID] };
+  await executeCatalogProcedure(
+    session,
+    "Warehouse.CheckCatalogStockItemDeletion",
+    params,
+  );
+  try {
+    await executeOnNode(
+      session,
+      "san-jose",
+      "Warehouse.LockStockItemForDeletion",
+      params,
+    );
+    await executeOnNode(
+      session,
+      "limon",
+      "Warehouse.LockStockItemForDeletion",
+      params,
+    );
+  } catch (error) {
+    await unlockBranches(session, params);
+    throw error;
+  }
+  try {
+    await executeOnNode(
+      session,
+      "corporativo",
+      "Warehouse.DeleteCatalogStockItem",
+      params,
+    );
+  } catch (error) {
+    if (!isConnectionError(error)) await unlockBranches(session, params);
+    throw error;
+  }
+  await confirmBranches(session, params);
 }

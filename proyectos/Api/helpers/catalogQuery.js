@@ -59,6 +59,37 @@ export async function executeCatalogProcedure(
   }
 }
 
+/**
+ * Ejecuta un SP en el nodo indicado con el @UserID y el @OriginNode de la sesión.
+ * Requiere que la sesión ya esté validada en su sucursal por executeCatalogProcedure.
+ *
+ * @param {object} session Identidad de req.user, con userID y node (san-jose o limon).
+ * @param {string} targetNode Nodo donde se ejecuta: san-jose, limon o corporativo.
+ * @param {string} procedure Procedimiento preparado para la identidad de la sucursal.
+ * @param {object} [params] Entradas como { Nombre: [tipo, valor] }.
+ * @returns {Promise<object>} Resultado completo de mssql.
+ */
+export async function executeOnNode(
+  session,
+  targetNode,
+  procedure,
+  params = {},
+) {
+  try {
+    const request = (await getPool(targetNode)).request();
+    request.input("UserID", sql.Int, session.userID);
+    request.input("OriginNode", sql.NVarChar(20), session.node);
+    addParameters(request, params);
+    return await request.execute(procedure);
+  } catch (error) {
+    if (error instanceof Error) {
+      error.catalogQuery = true;
+      error.catalogNode = targetNode;
+    }
+    throw error;
+  }
+}
+
 /** Identifica los errores de conexión conocidos dentro del flujo de catálogo central. */
 export function isCatalogConnectionError(error) {
   return (

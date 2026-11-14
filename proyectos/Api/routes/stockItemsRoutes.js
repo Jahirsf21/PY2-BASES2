@@ -184,13 +184,17 @@ router.put(
       409,
       "Las existencias fueron modificadas por otro usuario. Recargue los datos antes de guardar",
     ],
+    53006: [
+      409,
+      "El producto está en proceso de eliminación y sus existencias no pueden ajustarse",
+    ],
     547: [400, "El empleado indicado no existe"],
   }),
 );
 
 /**
  * DELETE /stock-items/:stockItemID
- * Elimina un producto en la sucursal.
+ * Elimina un producto en Corporativo y en las sucursales.
  */
 router.delete(
   "/stock-items/:stockItemID",
