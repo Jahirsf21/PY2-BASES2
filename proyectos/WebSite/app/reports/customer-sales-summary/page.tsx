@@ -5,7 +5,7 @@ import type { CustomerSalesSummary, CustomerSalesSummaryFilters } from '@/lib/ty
 import { SummaryReportFilters } from '@/app/reports/report-filters'
 import { reportOptions } from '@/app/reports/report-options'
 import { ReportView } from '@/app/reports/report-view'
-import type { ReportColumn } from '@/app/reports/report-view'
+import type { ReportColumn, ReportRequest } from '@/app/reports/report-view'
 
 const initialFilters: CustomerSalesSummaryFilters = { customerName: '', customerCategoryName: '' }
 
@@ -18,8 +18,8 @@ const columns: ReportColumn<CustomerSalesSummary>[] = [
 ]
 
 /** Consulta una página del resumen de ventas por cliente con los filtros indicados. */
-function loadSummary(filters: CustomerSalesSummaryFilters, pageNumber: number, pageSize: number) {
-  return getCustomerSalesSummary(filters.customerName, filters.customerCategoryName, pageNumber, pageSize)
+function loadSummary(filters: CustomerSalesSummaryFilters, { pageNumber, pageSize, sucursal }: ReportRequest) {
+  return getCustomerSalesSummary(filters.customerName, filters.customerCategoryName, pageNumber, pageSize, sucursal)
 }
 
 /** Página del reporte de resumen de ventas por cliente. */

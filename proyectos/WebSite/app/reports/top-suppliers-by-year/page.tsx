@@ -5,7 +5,7 @@ import type { TopSupplierByYear, YearRangeFilters } from '@/lib/types/stats'
 import { YearRangeReportFilters } from '@/app/reports/report-filters'
 import { reportOptions } from '@/app/reports/report-options'
 import { ReportView } from '@/app/reports/report-view'
-import type { ReportColumn } from '@/app/reports/report-view'
+import type { ReportColumn, ReportRequest } from '@/app/reports/report-view'
 
 const initialFilters: YearRangeFilters = { yearFrom: null, yearTo: null }
 
@@ -18,8 +18,8 @@ const columns: ReportColumn<TopSupplierByYear>[] = [
 ]
 
 /** Consulta el ranking de proveedores en el rango de años indicado. */
-async function loadRanking(filters: YearRangeFilters) {
-  return getTopSuppliersByYear(filters.yearFrom, filters.yearTo)
+async function loadRanking(filters: YearRangeFilters, { sucursal }: ReportRequest) {
+  return getTopSuppliersByYear(filters.yearFrom, filters.yearTo, sucursal)
 }
 
 /** Página del reporte de mejores proveedores por año. */

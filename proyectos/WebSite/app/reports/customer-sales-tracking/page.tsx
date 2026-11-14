@@ -5,7 +5,7 @@ import type { CustomerSalesTracking, MonthlyTrackingFilters } from '@/lib/types/
 import { MonthlyTrackingReportFilters } from '@/app/reports/report-filters'
 import { reportOptions } from '@/app/reports/report-options'
 import { ReportView } from '@/app/reports/report-view'
-import type { ReportColumn } from '@/app/reports/report-view'
+import type { ReportColumn, ReportRequest } from '@/app/reports/report-view'
 
 const initialFilters: MonthlyTrackingFilters = { year: null, month: null, stockGroupIDs: [] }
 
@@ -22,8 +22,8 @@ const columns: ReportColumn<CustomerSalesTracking>[] = [
 ]
 
 /** Consulta una página del seguimiento mensual de ventas por cliente. */
-function loadTracking(filters: MonthlyTrackingFilters, pageNumber: number, pageSize: number) {
-  return getCustomerSalesTracking(filters.year, filters.month, filters.stockGroupIDs, pageNumber, pageSize)
+function loadTracking(filters: MonthlyTrackingFilters, { pageNumber, pageSize, sucursal }: ReportRequest) {
+  return getCustomerSalesTracking(filters.year, filters.month, filters.stockGroupIDs, pageNumber, pageSize, sucursal)
 }
 
 /** Página del reporte de seguimiento mensual de ventas por cliente. */

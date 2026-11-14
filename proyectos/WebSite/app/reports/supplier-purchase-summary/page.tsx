@@ -5,7 +5,7 @@ import type { SupplierPurchaseSummary, SupplierPurchaseSummaryFilters } from '@/
 import { SummaryReportFilters } from '@/app/reports/report-filters'
 import { reportOptions } from '@/app/reports/report-options'
 import { ReportView } from '@/app/reports/report-view'
-import type { ReportColumn } from '@/app/reports/report-view'
+import type { ReportColumn, ReportRequest } from '@/app/reports/report-view'
 
 const initialFilters: SupplierPurchaseSummaryFilters = { supplierName: '', supplierCategoryName: '' }
 
@@ -18,8 +18,8 @@ const columns: ReportColumn<SupplierPurchaseSummary>[] = [
 ]
 
 /** Consulta el resumen de compras por proveedor con los filtros indicados. */
-async function loadSummary(filters: SupplierPurchaseSummaryFilters) {
-  return getSupplierPurchaseSummary(filters.supplierName, filters.supplierCategoryName)
+async function loadSummary(filters: SupplierPurchaseSummaryFilters, { sucursal }: ReportRequest) {
+  return getSupplierPurchaseSummary(filters.supplierName, filters.supplierCategoryName, sucursal)
 }
 
 /** Página del reporte de resumen de compras por proveedor. */

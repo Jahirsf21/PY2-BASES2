@@ -5,7 +5,7 @@ import type { MonthlyTrackingFilters, SupplierPurchaseTracking } from '@/lib/typ
 import { MonthlyTrackingReportFilters } from '@/app/reports/report-filters'
 import { reportOptions } from '@/app/reports/report-options'
 import { ReportView } from '@/app/reports/report-view'
-import type { ReportColumn } from '@/app/reports/report-view'
+import type { ReportColumn, ReportRequest } from '@/app/reports/report-view'
 
 const initialFilters: MonthlyTrackingFilters = { year: null, month: null, stockGroupIDs: [] }
 
@@ -22,8 +22,8 @@ const columns: ReportColumn<SupplierPurchaseTracking>[] = [
 ]
 
 /** Consulta una página del seguimiento mensual de compras por proveedor. */
-function loadTracking(filters: MonthlyTrackingFilters, pageNumber: number, pageSize: number) {
-  return getSupplierPurchaseTracking(filters.year, filters.month, filters.stockGroupIDs, pageNumber, pageSize)
+function loadTracking(filters: MonthlyTrackingFilters, { pageNumber, pageSize, sucursal }: ReportRequest) {
+  return getSupplierPurchaseTracking(filters.year, filters.month, filters.stockGroupIDs, pageNumber, pageSize, sucursal)
 }
 
 /** Página del reporte de seguimiento mensual de compras por proveedor. */

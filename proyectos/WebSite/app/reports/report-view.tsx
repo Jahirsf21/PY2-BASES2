@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useSession } from '@/components/auth-session'
 import type { PaginatedResponse } from '@/lib/types/paginatedResponse'
+import type { ReportSucursal } from '@/lib/types/stats'
 import { pageNumberSchema } from '@/lib/schemas/pagination'
 import { reportResponseSchema } from '@/lib/schemas/responses'
 
@@ -17,6 +18,20 @@ const PAGE_SIZE = 10
 
 const amountFormatter = new Intl.NumberFormat('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const countFormatter = new Intl.NumberFormat('es-CR')
+
+/** Opciones del selector de sucursal; null es el consolidado. */
+const SUCURSAL_OPTIONS: { value: ReportSucursal; label: string }[] = [
+  { value: null, label: 'Consolidado' },
+  { value: 'san-jose', label: 'San José' },
+  { value: 'limon', label: 'Limón' },
+]
+
+/** Página, tamaño y sucursal con los que se consulta un reporte. */
+export interface ReportRequest {
+  pageNumber: number
+  pageSize: number
+  sucursal: ReportSucursal
+}
 
 export const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -33,7 +48,7 @@ interface ReportViewProps<Row, Filters> {
   description: string
   columns: ReportColumn<Row>[]
   initialFilters: Filters
-  loadData: (filters: Filters, pageNumber: number, pageSize: number) => Promise<Row[] | PaginatedResponse<Row>>
+  loadData: (filters: Filters, request: ReportRequest) => Promise<Row[] | PaginatedResponse<Row>>
   renderFilters?: (filters: Filters, setFilters: Dispatch<SetStateAction<Filters>>) => ReactNode
   paginated?: boolean
   isSummary?: (row: Row) => boolean
@@ -62,6 +77,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
   const { revision, isSessionCurrent, invalidateSession } = useSession()
   const [draftFilters, setDraftFilters] = useState(initialFilters)
   const [filters, setFilters] = useState(initialFilters)
+  const [sucursal, setSucursal] = useState<ReportSucursal>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [reportResponse, setReportResponse] = useState<PaginatedResponse<Row> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -78,7 +94,7 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
       setIsLoading(true)
       setError(null)
       try {
-        const result = await loadData(filters, pageNumber, PAGE_SIZE)
+        const result = await loadData(filters, { pageNumber, pageSize: PAGE_SIZE, sucursal })
         if (!cancelled && isSessionCurrent(requestRevision)) {
           if (!reportResponseSchema.safeParse(result).success) throw new SyntaxError('Reporte inesperado')
           setReportResponse(Array.isArray(result) ? {
@@ -103,7 +119,13 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
 
     queueMicrotask(() => { void loadReport() })
     return () => { cancelled = true }
-  }, [filters, pageNumber, loadData, refreshKey, revision, isSessionCurrent, invalidateSession])
+  }, [filters, sucursal, pageNumber, loadData, refreshKey, revision, isSessionCurrent, invalidateSession])
+
+  /** Cambia la sucursal del reporte y vuelve a la primera página. */
+  function changeSucursal(next: ReportSucursal) {
+    setSucursal(next)
+    setPageNumber(1)
+  }
 
   /** Aplica los filtros del formulario y vuelve a la primera página. */
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -146,9 +168,25 @@ export function ReportView<Row, Filters>({ title, description, columns, initialF
         </Link>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+          <div className="min-w-0">
             <h1 className="break-words text-2xl font-semibold tracking-tight">{title}</h1>
             <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+          <div role="radiogroup" aria-label="Sucursal del reporte" className="flex w-full shrink-0 gap-1 rounded-lg border bg-card p-1 shadow-sm sm:w-auto">
+            {SUCURSAL_OPTIONS.map((option) => (
+              <Button
+                key={option.label}
+                type="button"
+                role="radio"
+                aria-checked={sucursal === option.value}
+                variant={sucursal === option.value ? 'default' : 'ghost'}
+                size="sm"
+                className="flex-1 sm:flex-none"
+                onClick={() => changeSucursal(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
           </div>
         </div>
 
