@@ -37,6 +37,40 @@ as
 go
 
 /*
+    Devuelve los años distintos en los que se registraron facturas.
+    Devuelve: Año
+*/
+create or alter procedure Sales.GetInvoiceYears
+    @UserID int
+as
+	begin
+		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
+		select distinct year(InvoiceDate) as Año
+		from dbo.Invoices
+		order by Año
+	end
+go
+
+/*
+    Devuelve los años distintos en los que se registraron órdenes de compra.
+    Devuelve: Año
+*/
+create or alter procedure Purchasing.GetPurchaseYears
+    @UserID int
+as
+	begin
+		set nocount on;
+		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
+
+		select distinct year(OrderDate) as Año
+		from dbo.PurchaseOrders
+		order by Año
+	end
+go
+
+/*
     Resume los montos de las órdenes de compra por proveedor y categoría,
     aplicando filtros opcionales por nombre del proveedor y nombre de categoría.
     Incluye un resumen general.

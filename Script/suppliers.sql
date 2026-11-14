@@ -2,6 +2,9 @@ use WideWorldImporters;
 go
 if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 go
+if coalesce(convert(nvarchar(128), serverproperty('MachineName')), N'') not in (N'san-jose', N'limon')
+    throw 57001, 'El nodo indicado no corresponde a una sucursal.', 1;
+go
 
 -- ======================================================================================
 -- PROVEEDORES
@@ -258,23 +261,6 @@ as
         inner join dbo.Countries co2 on spv2.CountryID = co2.CountryID
         where sp.SupplierID = @SupplierID;
     end
-go
-
-/*
-    Devuelve los años distintos en los que se registraron órdenes de compra.
-    Devuelve: Año
-*/
-create or alter procedure Purchasing.GetPurchaseYears
-    @UserID int
-as
-	begin
-		set nocount on;
-		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
-
-		select distinct year(OrderDate) as Año
-		from dbo.PurchaseOrders
-		order by Año
-	end
 go
 
 drop procedure if exists Purchasing.InsertSupplier;

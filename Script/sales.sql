@@ -2,6 +2,9 @@ use WideWorldImporters;
 go
 if db_name() <> N'WideWorldImporters' throw 50000, N'Base incorrecta', 1;
 go
+if coalesce(convert(nvarchar(128), serverproperty('MachineName')), N'') not in (N'san-jose', N'limon')
+    throw 57001, 'El nodo indicado no corresponde a una sucursal.', 1;
+go
 
 -- ======================================================================================
 -- VENTAS (FACTURAS)
@@ -166,23 +169,6 @@ as
         where ivl.InvoiceID = @InvoiceID
         order by ivl.InvoiceLineID
     end
-go
-
-/*
-    Devuelve los años distintos en los que se registraron facturas.
-    Devuelve: Año
-*/
-create or alter procedure Sales.GetInvoiceYears
-    @UserID int
-as
-	begin
-		set nocount on;
-		exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Corporativo';
-
-		select distinct year(InvoiceDate) as Año
-		from dbo.Invoices
-		order by Año
-	end
 go
 
 /*
