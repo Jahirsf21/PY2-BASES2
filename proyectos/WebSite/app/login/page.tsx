@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toast } from '@/components/ui/toast'
 import { branches } from '@/lib/helpers/session'
 import { loginFormSchema } from '@/lib/schemas/auth'
 import type { Node } from '@/lib/types/auth'
@@ -21,7 +22,6 @@ import type { Node } from '@/lib/types/auth'
 export default function LoginPage() {
   const { checking, error: sessionError, startSession } = useSession()
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   /** Rechazo del servidor al autenticar; se presenta en un diálogo de alerta. */
   const [authError, setAuthError] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
@@ -64,7 +64,7 @@ export default function LoginPage() {
     })
     if (!validation.success) {
       const issue = validation.error.issues[0]
-      setError(issue.message)
+      toast.add({ type: 'error', title: 'Revise los datos', description: issue.message, priority: 'high', timeout: 8000 })
       form.querySelector<HTMLInputElement>(issue.path[0] === 'node' ? 'input[name="node"]' : `#${String(issue.path[0])}`)?.focus()
       return
     }
@@ -72,7 +72,6 @@ export default function LoginPage() {
     const controller = new AbortController()
     request.current = controller
     setSubmitting(true)
-    setError(null)
     setAuthError(null)
     try {
       const result = await login(input, controller.signal)
@@ -94,7 +93,7 @@ export default function LoginPage() {
     }
   }
 
-  const message = error ?? (submitting ? null : sessionError)
+  const message = submitting ? null : sessionError
   const invalidCredentials = authError === 'Credenciales inválidas'
 
   return (
@@ -110,7 +109,7 @@ export default function LoginPage() {
             {message && (
               <Alert variant="destructive">
                 <AlertCircleIcon />
-                <AlertTitle>{error ? 'Revise los datos' : 'Sesión no disponible'}</AlertTitle>
+                <AlertTitle>Sesión no disponible</AlertTitle>
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             )}
