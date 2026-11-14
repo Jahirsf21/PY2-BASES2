@@ -8,21 +8,61 @@
 
 ## Estudiantes
 
-| Nombre                   | Carnet      |
-|--------------------------|-------------|
-| Deislher Sanchez Funez   | 2023032794  |
-| Natalia Granados Rosales | 2021144286  |
+| Nombre                   | Carnet     |
+| ------------------------ | ---------- |
+| Deislher Sanchez Funez   | 2023032794 |
+| Natalia Granados Rosales | 2021144286 |
 
 ## Introducción
 
-Este proyecto implementa una aplicación web con frontend, API REST y SQL Server en un contenedor Linux para consultar y administrar la base de datos **WideWorldImporters**. Incluye módulos de clientes, proveedores, inventario, ventas y reportes estadísticos de compras y ventas.
+En este proyecto llevamos la aplicación del proyecto 1 a una base de datos distribuida de **WideWorldImporters** con tres nodos de SQL Server, cada uno en su propio contenedor Linux: las sucursales de **San José** y **Limón** y la oficina **Corporativa**. Incluye la aplicación web, una API REST que se conecta a los tres nodos, fragmentación horizontal y vertical, replicación transaccional, vistas materializadas para los reportes de Corporativo, control de concurrencia y contraseñas cifradas.
+
+Existen dos roles de usuario:
+
+- **Administrador:** inicia sesión en San José o Limón. Consulta clientes, proveedores, productos y facturas de su sucursal, y crea, modifica y elimina productos.
+- **Corporativo:** inicia sesión en Corporativo y consulta las estadísticas de cada sucursal o consolidadas.
+
+## Diseño distribuido
+
+### Asignación de los nodos
+
+| Nodo        | Hostname      | Responsabilidad                                                                                                        |
+| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| San José    | `san-jose`    | Facturación, compras y existencias propias de la sucursal.                                                             |
+| Limón       | `limon`       | Facturación, compras y existencias propias de la sucursal.                                                             |
+| Corporativo | `corporativo` | Escrituras del catálogo de productos, datos sensibles y copia de los documentos de ambas sucursales para los reportes. |
+
+### Fragmentación horizontal
+
+Cada factura y cada orden de compra pertenece a una sola sucursal. Repartimos los documentos del respaldo según la paridad de su identificador: San José se queda con los pares y Limón con los impares. Las líneas van con su cabecera, y los documentos nuevos se crean en la sucursal donde se emiten, sin chocar con los identificadores de la otra.
+
+**Justificación:** cada sucursal maneja su propia facturación, así que cada una guarda solo sus documentos y puede consultarlos y crearlos sin depender de las demás ni de la red. Usamos la paridad porque WideWorldImporters no registra la sucursal de cada documento, y así repartimos el respaldo original sin perder ni duplicar documentos.
+
+### Fragmentación vertical
+
+Los datos generales de clientes, proveedores y personas están en los tres nodos. Las columnas sensibles (formas de contacto, cuentas, credenciales y datos privados) las movimos a tablas privadas en Corporativo y las quitamos de las sucursales. Cuando una sucursal muestra el detalle de un cliente o proveedor, consulta esos datos en Corporativo mediante un linked server.
+
+**Justificación:** los datos sensibles quedan solo en Corporativo para proteger la privacidad de clientes y proveedores, y las sucursales los consultan cuando los necesitan. Si Corporativo no responde, el detalle sigue mostrando los datos generales locales y avisa en las secciones sensibles.
+
+### Datos replicados y locales
+
+| Datos                                             | Ubicación                                                                          |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Catálogo de productos, grupos, colores y empaques | Los tres nodos. Corporativo es el único que escribe y lo replica a las sucursales. |
+| Facturas, órdenes de compra y sus líneas          | Cada sucursal tiene las suyas y las replica a Corporativo.                         |
+| Existencias (`StockItemHoldings`)                 | Locales e independientes en cada sucursal; no se replican.                         |
+| Datos sensibles                                   | Solo en Corporativo.                                                               |
+| Usuarios (`dbo.Users`)                            | Locales en cada nodo; no se replican.                                              |
+
+**Justificación:** el catálogo es el mismo para todas las sucursales, así que centralizamos su escritura en Corporativo para evitar conflictos entre sucursales y se replica para que cada una lo consulte localmente. Los documentos los replicamos hacia Corporativo porque ahí se calculan las estadísticas por sucursal y consolidadas. Las existencias no se replican porque cada sucursal maneja su propio inventario.
 
 ## Requisitos
 
-- [Node.js](https://nodejs.org/es/download).
+- [Node.js](https://nodejs.org/es/download) 22.13 o superior.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) con WSL y contenedores Linux.
 - [SQL Server Management Studio (SSMS)](https://learn.microsoft.com/es-es/ssms/install/install).
 - pnpm.
+- Al menos 16 GB de memoria en el equipo, porque se ejecutan tres instancias de SQL Server.
 
 Para instalar pnpm después de instalar Node.js:
 
@@ -42,7 +82,7 @@ wsl --install
 
 Reinicie el equipo si se solicita. Instale y abra Docker Desktop, y habilite el motor basado en WSL para utilizar contenedores Linux. Puede consultar la [guía de instalación de WSL](https://learn.microsoft.com/es-es/windows/wsl/install).
 
-### 2. Descargar y ejecutar SQL Server
+### 2. Descargar y ejecutar los tres nodos
 
 En PowerShell, descargue la imagen:
 
@@ -50,40 +90,91 @@ En PowerShell, descargue la imagen:
 docker pull mcr.microsoft.com/mssql/server:2025-latest
 ```
 
-Cree el contenedor. Reemplace `TUCONTRASEÑA` por la contraseña que utilizará para `sa`; debe tener al menos ocho caracteres y combinar tres de estos cuatro grupos: mayúsculas, minúsculas, números y símbolos.
+Cree los tres contenedores. Reemplace `TUCONTRASEÑA` por la contraseña que utilizará para `sa`; debe tener al menos ocho caracteres y combinar tres de estos cuatro grupos: mayúsculas, minúsculas, números y símbolos. El nombre del contenedor y el hostname deben ser exactamente `san-jose`, `limon` y `corporativo`, porque la API y los scripts identifican cada nodo por su hostname.
 
 ```powershell
-docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=TUCONTRASEÑA' -p 1433:1433 --name PY1-BASES2 --hostname PY1-BASES2 -v py1-bases2-data:/var/opt/mssql -d mcr.microsoft.com/mssql/server:2025-latest
+docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=TUCONTRASEÑA' -p 1433:1433 --name san-jose --hostname san-jose -d mcr.microsoft.com/mssql/server:2025-latest
+docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=TUCONTRASEÑA' -p 1434:1433 --name limon --hostname limon -d mcr.microsoft.com/mssql/server:2025-latest
+docker run -e 'ACCEPT_EULA=Y' -e 'MSSQL_SA_PASSWORD=TUCONTRASEÑA' -p 1435:1433 --name corporativo --hostname corporativo -d mcr.microsoft.com/mssql/server:2025-latest
 ```
 
-### 3. Conectar mediante SSMS
+### 3. Habilitar el Agente SQL Server y la red
 
-| Campo | Valor |
-|---|---|
-| Server Name | `localhost,1433` |
-| Autenticación | SQL Server Authentication |
-| Usuario | `sa` |
-| Contraseña | La definida al crear el contenedor |
-| Trust server certificate | Activado |
+La replicación necesita el Agente SQL Server y que los contenedores puedan comunicarse por nombre:
 
-### 4. Restaurar WideWorldImporters OLTP
+```powershell
+foreach ($nodo in "san-jose", "limon", "corporativo") {
+    docker exec $nodo mkdir -p /var/opt/mssql/backup /var/opt/mssql/ReplData
+    docker exec -u 0 $nodo chown mssql:mssql /var/opt/mssql/ReplData
+    docker exec -u 0 $nodo /opt/mssql/bin/mssql-conf set sqlagent.enabled true
+    docker restart $nodo
+}
+docker network create repl-net
+docker network connect repl-net san-jose
+docker network connect repl-net limon
+docker network connect repl-net corporativo
+```
+
+### 4. Crear los alias de los nodos
+
+Para conectarse desde SSMS hay que usar el nombre de cada nodo (`san-jose`, `limon` o `corporativo`) y no `localhost,puerto`. La replicación identifica a cada servidor por su nombre, así que si nos conectamos con `localhost,puerto` no se pueden crear correctamente los distribuidores. Los alias hacen que Windows resuelva esos nombres hacia el puerto de cada contenedor.
+
+Presione **Win + R**, escriba lo siguiente y pulse **Aceptar**:
+
+```text
+C:\Windows\System32\cliconfg.exe
+```
+
+En la pestaña **Alias**, pulse **Agregar** y cree un alias por cada fila:
+
+| Alias del servidor | Biblioteca de red | Nombre del servidor | Determinar puerto dinámicamente | Número de puerto |
+| ------------------ | ----------------- | ------------------- | ------------------------------- | ---------------- |
+| `san-jose`         | TCP/IP            | `127.0.0.1`         | Desmarcado                      | `1433`           |
+| `limon`            | TCP/IP            | `127.0.0.1`         | Desmarcado                      | `1434`           |
+| `corporativo`      | TCP/IP            | `127.0.0.1`         | Desmarcado                      | `1435`           |
+
+Guarde cada alias con **Aceptar**, pulse **Aplicar** y cierre la herramienta. Si SSMS estaba abierto, ciérrelo y vuelva a abrirlo. Los alias solo sirven para conectarse desde Windows; entre contenedores la comunicación usa la red `repl-net`.
+
+### 5. Conectar mediante SSMS
+
+Abra una conexión a cada nodo usando su alias:
+
+| Campo                    | San José                           | Limón                              | Corporativo                        |
+| ------------------------ | ---------------------------------- | ---------------------------------- | ---------------------------------- |
+| Server Name              | `san-jose`                         | `limon`                            | `corporativo`                      |
+| Autenticación            | SQL Server Authentication          | SQL Server Authentication          | SQL Server Authentication          |
+| Usuario                  | `sa`                               | `sa`                               | `sa`                               |
+| Contraseña               | La definida al crear el contenedor | La definida al crear el contenedor | La definida al crear el contenedor |
+| Trust server certificate | Activado                           | Activado                           | Activado                           |
+
+### 6. Restaurar WideWorldImporters OLTP en los tres nodos
 
 1. Descargue `WideWorldImporters-Full.bak` desde la [publicación oficial de WideWorldImporters](https://github.com/Microsoft/sql-server-samples/releases/tag/wide-world-importers-v1.0). Este es el respaldo OLTP utilizado por el proyecto.
-2. Copie el respaldo al contenedor. El siguiente ejemplo supone que está en la carpeta **Downloads**; ajuste la ruta si lo descargó en otra ubicación:
+2. Copie el respaldo a los tres contenedores. El siguiente ejemplo supone que está en la carpeta **Downloads**; ajuste la ruta si lo descargó en otra ubicación:
 
    ```powershell
-   docker exec PY1-BASES2 mkdir -p /var/opt/mssql/backup
-   docker cp "$env:USERPROFILE\Downloads\WideWorldImporters-Full.bak" PY1-BASES2:/var/opt/mssql/backup/WideWorldImporters-Full.bak
+   $backup = "$env:USERPROFILE\Downloads\WideWorldImporters-Full.bak"
+   docker cp "$backup" san-jose:/var/opt/mssql/backup/WideWorldImporters-Full.bak
+   docker cp "$backup" limon:/var/opt/mssql/backup/WideWorldImporters-Full.bak
+   docker cp "$backup" corporativo:/var/opt/mssql/backup/WideWorldImporters-Full.bak
    ```
 
-3. En SSMS, haga clic derecho en **Databases** y seleccione **Restore Database...**.
+3. En SSMS, conectado a `san-jose`, haga clic derecho en **Databases** y seleccione **Restore Database...**.
 4. En **Source**, seleccione **Device** y agregue `/var/opt/mssql/backup/WideWorldImporters-Full.bak`. Establezca **WideWorldImporters** como nombre de la base de destino.
 5. Verifique que el respaldo esté marcado en **Backup sets to restore** y ejecute la restauración.
-6. Actualice **Databases** y confirme que aparece `WideWorldImporters`.
+6. Repita los pasos 3 a 5 en `limon` y en `corporativo`.
+7. En cada nodo, ejecute una vez este bloque, requerido por la replicación en Linux:
+
+   ```sql
+   USE msdb;
+   GO
+   EXEC sys.sp_MSrepl_createdatatypemappings;
+   GO
+   ```
 
 ## Dependencias
 
-El backend utiliza Node.js, `express`, `mssql`, `dotenv` y `cors` para exponer la API y conectarse a SQL Server.
+El backend utiliza Node.js, `express`, `mssql`, `dotenv`, `cors`, `jsonwebtoken` y `zod` para exponer la API, autenticar a los usuarios, validar las solicitudes y conectarse a los tres nodos de SQL Server.
 
 El frontend utiliza Next.js, React y TypeScript, con componentes de shadcn, estilos de Tailwind CSS e iconos de Lucide React.
 
@@ -93,19 +184,26 @@ Las dependencias se instalan con `pnpm install` en cada proyecto, como se muestr
 
 ### Backend
 
-Cree el archivo `proyectos/Api/.env.local` y complete las credenciales de SQL Server:
+Cree el archivo `proyectos/Api/.env.local` y complete las credenciales de los tres nodos:
 
 ```env
 DB_NAME=WideWorldImporters
-DB_USER=sa
 DB_HOST=localhost
-DB_PORT=1433
-DB_PASSWORD=TUCONTRASEÑA
+DB_PORT_SAN_JOSE=1433
+DB_USER_SAN_JOSE=sa
+DB_PASSWORD_SAN_JOSE=TUCONTRASEÑA
+DB_PORT_LIMON=1434
+DB_USER_LIMON=sa
+DB_PASSWORD_LIMON=TUCONTRASEÑA
+DB_PORT_CORPORATIVO=1435
+DB_USER_CORPORATIVO=sa
+DB_PASSWORD_CORPORATIVO=TUCONTRASEÑA
 API_PORT=3002
 APP_PORT=3000
+JWT_SECRET=UNA_CLAVE_LARGA_Y_ALEATORIA
 ```
 
-`DB_PASSWORD` debe coincidir con la contraseña del contenedor. `APP_PORT` debe coincidir con el puerto del frontend, porque la API permite solicitudes desde `http://localhost:APP_PORT` mediante CORS.
+Cada `DB_PASSWORD_*` debe coincidir con la contraseña de su contenedor y cada `DB_PORT_*` con el puerto publicado. `JWT_SECRET` firma las sesiones; la API no inicia si está vacío. `APP_PORT` debe coincidir con el puerto del frontend, porque la API permite solicitudes desde `http://localhost:APP_PORT` mediante CORS.
 
 ### Frontend
 
@@ -115,29 +213,52 @@ Cree el archivo `proyectos/WebSite/.env.local`:
 NEXT_PUBLIC_API_URL=http://localhost:3002
 ```
 
-La URL debe coincidir con `API_PORT`.
+La URL debe coincidir con `API_PORT` y no debe terminar en `/api`.
 
 ## Ejecutar los scripts SQL
 
-1. Conéctese desde SSMS a la base de datos `WideWorldImporters`.
-2. Abra una **Nueva consulta** y seleccione esa base de datos.
-3. Abra y ejecute todo el contenido de los siguientes archivos, en este orden:
+### Antes de ejecutar
 
-   | Orden | Script | Contenido |
-   |---|---|---|
-   | 1 | [synonyms.sql](Script/synonyms.sql) | Sinónimos para las tablas utilizadas por los procedimientos. |
-   | 2 | [application.sql](Script/application.sql) | Personas, ciudades y métodos de entrega. |
-   | 3 | [customers.sql](Script/customers.sql) | Consultas y operaciones de clientes. |
-   | 4 | [suppliers.sql](Script/suppliers.sql) | Consultas y operaciones de proveedores. |
-   | 5 | [inventory.sql](Script/inventory.sql) | Consultas y operaciones de inventario. |
-   | 6 | [sales.sql](Script/sales.sql) | Consultas y operaciones de facturas. |
-   | 7 | [stats.sql](Script/stats.sql) | Resúmenes, rankings y seguimiento de compras y ventas. |
+Por seguridad, dejamos vacías (`N''`) las contraseñas de los scripts. Complételas antes de ejecutar cada archivo:
 
-Los scripts crean los procedimientos utilizados por la API sobre la base restaurada. Los sinónimos deben ejecutarse primero. Antes de ejecutar `stats.sql`, confirme que la consulta utiliza `WideWorldImporters`, porque ese archivo no incluye una instrucción `USE`.
+| Script                                                                                                  | Contraseñas que debe completar                                                                                                   |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| [users.sql](Script/users.sql)                                                                           | La frase de paso `@Passphrase` (en los dos lugares donde aparece, con el mismo valor) y la contraseña de cada usuario de prueba. |
+| [sucursales-enlace-corporativo.sql](Script/fragmentacion/corporativo/sucursales-enlace-corporativo.sql) | La contraseña de `sa` en Corporativo.                                                                                            |
+| Los cuatro scripts de [replicacion](Script/replicacion)                                                 | La contraseña de `sa` de cada nodo indicado en el script.                                                                        |
+
+Los scripts de enlace y replicación, y la carga de usuarios de `users.sql`, se detienen con un error si la contraseña queda vacía. Use en `users.sql` la misma frase de paso en ambos lugares; de lo contrario, el inicio de sesión no podrá descifrar las contraseñas.
+
+### Orden de ejecución
+
+En SSMS, abra una **Nueva consulta** en el nodo indicado, seleccione la base `WideWorldImporters` y ejecute todo el contenido de cada archivo, en este orden. «Sucursales» significa ejecutar el script en San José y después en Limón. Cada script comprueba que se ejecute en el nodo correcto.
+
+| Orden | Nodo        | Script                                                                                                                                                                                                                                                                                                             | Contenido                                                                                         |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| 1     | Los tres    | [synonyms.sql](Script/synonyms.sql)                                                                                                                                                                                                                                                                                | Sinónimos para las tablas utilizadas por los procedimientos.                                      |
+| 2     | Los tres    | [users.sql](Script/users.sql)                                                                                                                                                                                                                                                                                      | Tabla de usuarios con contraseña cifrada, usuario de prueba del nodo e inicio de sesión.          |
+| 3     | Corporativo | [corporativo-datos-privados.sql](Script/fragmentacion/corporativo/corporativo-datos-privados.sql)                                                                                                                                                                                                                  | Tablas privadas con los datos sensibles.                                                          |
+| 4     | Corporativo | [corporativo-acceso-datos-privados.sql](Script/fragmentacion/corporativo/corporativo-acceso-datos-privados.sql)                                                                                                                                                                                                    | Vistas de datos sensibles que consultan las sucursales.                                           |
+| 5     | Sucursales  | [sucursales-enlace-corporativo.sql](Script/fragmentacion/corporativo/sucursales-enlace-corporativo.sql)                                                                                                                                                                                                            | Linked server hacia Corporativo.                                                                  |
+| 6     | Sucursales  | [application.sql](Script/application.sql), [customers.sql](Script/customers.sql), [suppliers.sql](Script/suppliers.sql), [inventory.sql](Script/inventory.sql) y [sales.sql](Script/sales.sql)                                                                                                                     | Procedimientos de los módulos; clientes y proveedores leen los datos sensibles de Corporativo.    |
+| 7     | Corporativo | [inventory.sql](Script/inventory.sql)                                                                                                                                                                                                                                                                              | Grupos de productos que usan el inventario y los filtros de los reportes.                         |
+| 8     | Sucursales  | [sucursales-retiro-datos-privados.sql](Script/fragmentacion/sucursales/sucursales-retiro-datos-privados.sql)                                                                                                                                                                                                       | Retira las columnas sensibles de las sucursales.                                                  |
+| 9     | Sucursales  | [sucursales-fragmentacion-documentos.sql](Script/fragmentacion/sucursales/sucursales-fragmentacion-documentos.sql)                                                                                                                                                                                                 | Conserva los documentos pares en San José y los impares en Limón.                                 |
+| 10    | Los tres    | [versionado-temporal-tablas.sql](Script/replicacion/versionado-temporal-tablas.sql)                                                                                                                                                                                                                                | Prepara las tablas del catálogo para la replicación.                                              |
+| 11    | Corporativo | [corporativo-distribuidor.sql](Script/replicacion/corporativo/corporativo-distribuidor.sql)                                                                                                                                                                                                                        | Distribuidor local de Corporativo.                                                                |
+| 12    | Sucursales  | [sucursales-distribuidor-local.sql](Script/replicacion/sucursales/sucursales-distribuidor-local.sql)                                                                                                                                                                                                               | Distribuidor local de cada sucursal.                                                              |
+| 13    | Corporativo | [corporativo-publicacion-catalogo.sql](Script/replicacion/corporativo/corporativo-publicacion-catalogo.sql)                                                                                                                                                                                                        | Publica el catálogo hacia San José y Limón.                                                       |
+| 14    | Sucursales  | [sucursales-publicacion-documentos.sql](Script/replicacion/sucursales/sucursales-publicacion-documentos.sql)                                                                                                                                                                                                       | Publica las facturas y compras hacia Corporativo.                                                 |
+| 15    | Corporativo | [corporativo-version-catalogo.sql](Script/catalogo/corporativo/corporativo-version-catalogo.sql), [corporativo-catalogo-central.sql](Script/catalogo/corporativo/corporativo-catalogo-central.sql) y [corporativo-eliminacion-productos.sql](Script/catalogo/corporativo/corporativo-eliminacion-productos.sql)    | Versión de cada producto y procedimientos para crear, editar y eliminar productos en Corporativo. |
+| 16    | Sucursales  | [sucursales-version-existencias.sql](Script/catalogo/sucursales/sucursales-version-existencias.sql), [sucursales-eliminacion-productos.sql](Script/catalogo/sucursales/sucursales-eliminacion-productos.sql) y [sucursales-existencias-locales.sql](Script/catalogo/sucursales/sucursales-existencias-locales.sql) | Versión de las existencias, bloqueo de productos en eliminación y ajuste de existencias locales.  |
+| 17    | Corporativo | [vistas-materializadas.sql](Script/vistas%20materializadas/vistas-materializadas.sql)                                                                                                                                                                                                                              | Vistas indexadas con los totales de los reportes.                                                 |
+| 18    | Corporativo | [stats.sql](Script/stats.sql)                                                                                                                                                                                                                                                                                      | Reportes por sucursal o consolidados y años disponibles para sus filtros.                         |
+
+Los scripts que modifican la estructura o los datos de la base (fragmentación, replicación, versiones y vistas materializadas) se ejecutan **una sola vez**. Los que solo crean o actualizan procedimientos pueden volver a ejecutarse.
 
 ## Levantar el proyecto
 
-Ejecute los siguientes comandos desde la raíz del repositorio, después de restaurar la base de datos, ejecutar los scripts y configurar los archivos `.env.local`.
+Ejecute los siguientes comandos desde la raíz del repositorio, después de restaurar las bases de datos, ejecutar los scripts y configurar los archivos `.env.local`.
 
 ### Backend
 
@@ -175,33 +296,36 @@ pnpm run dev
 
 Este comando utiliza `concurrently` para ejecutar el frontend y la API.
 
+### Iniciar sesión
+
+En la pantalla de inicio de sesión, seleccione el nodo e ingrese el usuario de prueba creado por `users.sql` en ese nodo:
+
+| Nodo        | Usuario       | Rol           |
+| ----------- | ------------- | ------------- |
+| San José    | `admin_sj`    | Administrador |
+| Limón       | `admin_limon` | Administrador |
+| Corporativo | `corporativo` | Corporativo   |
+
+La contraseña es la que definió para cada usuario en `users.sql`.
 
 ## Estado del proyecto 1,5
 
-Se alcanzaron los objetivos de los cuatro módulos de gestión y los primeros ocho reportes estadísticos del enunciado. Los únicos objetivos no alcanzados corresponden a los reportes 9 y 10.
+Se alcanzaron todos los requerimientos del enunciado del proyecto 2. Del proyecto 1 mantenemos los módulos y los ocho reportes implementados; los reportes 9 y 10 siguen sin implementarse.
 
-| Área | Objetivo | Estado |
-|---|---|---|
-| Módulo de clientes (2.1) | Gestionar clientes, aplicar y restaurar filtros acumulativos, presentar el listado ordenado y consultar sus detalles y ubicación en un mapa. | Alcanzado |
-| Módulo de proveedores (2.2) | Gestionar proveedores, aplicar y restaurar filtros acumulativos, presentar el listado ordenado y consultar sus detalles y ubicación en un mapa. | Alcanzado |
-| Módulo de inventarios (2.3) | Gestionar productos, consultar existencias, aplicar y restaurar filtros acumulativos y mostrar el listado ordenado y los detalles de cada producto. | Alcanzado |
-| Módulo de ventas (2.4) | Gestionar ventas, filtrar por cliente, fechas, método de entrega y montos, restaurar los filtros y consultar el encabezado y las líneas de cada factura. | Alcanzado |
-| Reporte 1 | Montos máximos, mínimos y promedio de compras por proveedor y categoría, utilizando `ROLLUP` y filtros por nombre y categoría. | Alcanzado |
-| Reporte 2 | Montos máximos, mínimos y promedio de ventas por cliente y categoría, utilizando `ROLLUP` y filtros por nombre y categoría. | Alcanzado |
-| Reporte 3 | Top 5 de productos por ganancia anual, utilizando `DENSE_RANK` y particiones, con selección de años válidos en la base de datos. | Alcanzado |
-| Reporte 4 | Top 5 de clientes por cantidad de facturas y monto total facturado por año, con filtros por rango de años válidos. | Alcanzado |
-| Reporte 5 | Top 5 de proveedores por cantidad de órdenes de compra y monto total comprado por año, con filtros por rango de años válidos. | Alcanzado |
-| Reporte 6 | Matriz resumen de ventas por categoría de producto y año. | Alcanzado |
-| Reporte 7 | Seguimiento mensual de compras por cliente, con primera y última factura, totales y valores mínimos y máximos. | Alcanzado |
-| Reporte 8 | Seguimiento mensual de compras por proveedor, con primera y última compra, totales y valores mínimos y máximos. | Alcanzado |
-| Reporte 9 | Promedio de días de rotación de inventario por producto, con filtros por categoría de producto, año y proveedor. | **No alcanzado** |
-| Reporte 10 | Método de envío favorito por destino, ordenado por cantidad de ventas, con filtros por año, mes, categoría de cliente, categoría de producto y producto. | **No alcanzado** |
-| SQL Server | Realizar las búsquedas, cálculos y agrupaciones mediante procedimientos almacenados. | Alcanzado |
-| Sinónimos | Acceder a las tablas desde los procedimientos almacenados mediante sinónimos. | Alcanzado |
-| Transacciones | Utilizar `TRANSACTION`, `COMMIT` y `ROLLBACK` en las operaciones de inserción, actualización y eliminación. | Alcanzado |
-| API REST | Integrar el frontend con SQL Server mediante servicios, controladores y rutas para enviar parámetros y devolver resultados. | Alcanzado |
-| Interfaz web | Presentar los datos de forma intuitiva, validar las entradas y mostrar mensajes de error, manteniendo una presentación consistente. | Alcanzado |
-
-## Enlace del video
-
-https://drive.google.com/file/d/18MYhWwGLimCPA13qd5tM-ZzGyl6Tmb_Q/view?usp=sharing
+| Área                           | Objetivo                                                                                                                                                                         | Estado           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Infraestructura                | Tres nodos de SQL Server en contenedores independientes: San José, Limón y Corporativo.                                                                                          | Alcanzado        |
+| Roles de usuario               | Administrador en las sucursales y Corporativo en la oficina corporativa, validados en la API y en SQL Server.                                                                    | Alcanzado        |
+| Tabla de usuarios              | Tabla `dbo.Users` con identificador, usuario, contraseña, nombre completo, estado, rol, correo y fecha de contratación.                                                          | Alcanzado        |
+| Seguridad                      | Relacionar el usuario de la aplicación con la base de datos: cada procedimiento recibe el usuario de la sesión y comprueba que esté activo y tenga el rol permitido en ese nodo. | Alcanzado        |
+| Encriptación                   | Contraseña cifrada con `EncryptByPassPhrase` y verificada con `DecryptByPassPhrase`, funciones nativas de SQL Server.                                                            | Alcanzado        |
+| Fragmentación horizontal       | Facturas, órdenes de compra y sus líneas repartidas entre San José y Limón.                                                                                                      | Alcanzado        |
+| Fragmentación vertical         | Datos sensibles de clientes, proveedores y personas solo en Corporativo, consultados desde las sucursales mediante un linked server.                                             | Alcanzado        |
+| Replicación                    | Replicación transaccional del catálogo de Corporativo a las sucursales y de los documentos de cada sucursal a Corporativo.                                                       | Alcanzado        |
+| Catálogo de productos          | Crear, modificar y eliminar productos en Corporativo y replicar los cambios a todas las bases de datos; existencias independientes por sucursal.                                 | Alcanzado        |
+| Concurrencia                   | Control de versión al editar productos y existencias (respuesta `409` si otro usuario los cambió) y bloqueo del producto en las sucursales mientras se elimina.                  | Alcanzado        |
+| Vistas materializadas          | Tres vistas indexadas en Corporativo con los totales de facturas, ventas por producto y órdenes de compra, utilizadas por seis reportes.                                         | Alcanzado        |
+| Filtro de estadísticas         | Selección de sucursal (San José, Limón o consolidado) en los ocho reportes.                                                                                                      | Alcanzado        |
+| Respuesta ante fallas          | Si un nodo no responde, la API devuelve `503` con un mensaje y la operación puede reintentarse desde la web; una sucursal sin Corporativo sigue mostrando los datos generales.   | Alcanzado        |
+| Funcionalidades del proyecto 1 | Módulos de clientes, proveedores, inventario y ventas, y reportes 1 a 8.                                                                                                         | Alcanzado        |
+| Reportes 9 y 10 del proyecto 1 | Rotación de inventario y método de envío favorito por destino.                                                                                                                   | **No alcanzado** |
