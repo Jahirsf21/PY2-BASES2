@@ -13,7 +13,7 @@ import { FormStepper, StepPanel, type FormStep } from '@/components/form-stepper
 import { FormAlerts, FormHeader, InlineError, ReviewSections, SelectField, StepActions, TextField, serverFieldErrors, useStepForm } from '@/components/form-kit'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -297,10 +297,7 @@ export function InvoiceForm({initial, initialLines = []}: {initial?: InvoiceEdit
               <FieldGroup>
                 <div className="grid gap-5 sm:grid-cols-2">
                   <LookupPicker id="customer" label="Cliente" placeholder="Seleccione un cliente" value={customer} onChange={(value) => { setCustomer(value); clearError('customer') }} search={findCustomers} disabled={submitting || catalogError} required sessionAware error={fieldErrors.customer ?? fieldErrors.customerID} />
-                  <div className="space-y-2">
-                    <LookupPicker id="billTo" label="Cliente por facturar" placeholder="El mismo cliente" value={billTo} onChange={(value) => { setBillTo(value); clearError('billTo') }} search={findCustomers} disabled={submitting || catalogError} sessionAware error={fieldErrors.billTo ?? fieldErrors.billToCustomerID} />
-                    <FieldDescription>Si no se selecciona, se factura al cliente principal.</FieldDescription>
-                  </div>
+                  <LookupPicker id="billTo" label="Cliente por facturar" placeholder="El mismo cliente" value={billTo} onChange={(value) => { setBillTo(value); clearError('billTo') }} search={findCustomers} disabled={submitting || catalogError} sessionAware error={fieldErrors.billTo ?? fieldErrors.billToCustomerID} />
                 </div>
                 <LookupPicker id="contact" label="Contacto" placeholder="Seleccione una persona" value={contact} onChange={(value) => { setContact(value); clearError('contact') }} search={findPeople} disabled={submitting || catalogError} required sessionAware error={fieldErrors.contact ?? fieldErrors.contactPersonID} />
                 <Separator />
