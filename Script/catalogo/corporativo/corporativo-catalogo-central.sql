@@ -45,12 +45,13 @@ as
         set nocount on;
         exec dbo.ValidateCatalogAccess @UserID = @UserID, @OriginNode = @OriginNode;
 
+        set transaction isolation level repeatable read;
         begin try
             begin transaction
                 declare @Version binary(8);
 
                 select @Version = v.Version
-                from dbo.StockItemVersions v with (repeatableread)
+                from dbo.StockItemVersions v
                 where v.StockItemID = @StockItemID;
 
                 if @Version is null and exists (select 1 from dbo.StockItems where StockItemID = @StockItemID)

@@ -15,6 +15,7 @@ go
     Combina los filtros con AND y exige que el producto pertenezca a todos los grupos seleccionados.
     Incluye el total de registros (TotalCount) para calcular la paginación en el cliente.
     Un producto sin fila de existencias en el nodo aparece con CantidadTotalEnInventarios 0.
+    Oculta los productos ya eliminados en Corporativo cuyo borrado aún no llega a la sucursal.
     Devuelve: StockItemID, NombreProducto, NombreGrupoProducto, CantidadTotalEnInventarios
 */
 create or alter procedure Warehouse.GetStockItems
@@ -61,6 +62,11 @@ as
             )
             and not exists (
                 select 1
+                from dbo.StockItemDeletionLocks l
+                where l.StockItemID = s.StockItemID and l.Confirmed = 1
+            )
+            and not exists (
+                select 1
                 from @SelectedStockGroups selected
                 where not exists (
                     select 1
@@ -80,6 +86,11 @@ as
         inner join dbo.StockGroups sg on sig.StockGroupID = sg.StockGroupID
         where
             s.StockItemName like '%' + isnull(@StockItemName, '') + '%'
+            and not exists (
+                select 1
+                from dbo.StockItemDeletionLocks l
+                where l.StockItemID = s.StockItemID and l.Confirmed = 1
+            )
             and not exists (
                 select 1
                 from @SelectedStockGroups selected

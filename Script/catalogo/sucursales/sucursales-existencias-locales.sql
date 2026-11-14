@@ -40,7 +40,8 @@ go
 /*
     Guarda las existencias del producto en la sucursal: crea la fila si @ExpectedVersion es null
     o la actualiza si coincide con su versión. Si el producto no existe, lanza error 53000;
-    si otro usuario cambió las existencias, 53004. Devuelve la nueva versión en @NewVersion.
+    si otro usuario cambió las existencias, 53004; si está bloqueado por eliminación, 53006.
+    Devuelve la nueva versión en @NewVersion.
 */
 create or alter procedure Warehouse.AdjustStockItemHoldings
     @StockItemID int,
@@ -58,8 +59,16 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        set transaction isolation level serializable;
         begin try
             begin transaction
+                if exists (
+                    select 1
+                    from dbo.StockItemDeletionLocks
+                    where StockItemID = @StockItemID
+                )
+                    throw 53006, 'El producto está en proceso de eliminación y sus existencias no pueden ajustarse.', 1;
+
                 if not exists (select 1 from dbo.StockItems where StockItemID = @StockItemID)
                     throw 53000, 'El producto indicado no existe en esta sucursal.', 1;
 
@@ -67,7 +76,7 @@ as
                     begin
                         if exists (
                             select 1
-                            from dbo.StockItemHoldings with (updlock, holdlock)
+                            from dbo.StockItemHoldings
                             where StockItemID = @StockItemID
                         )
                             throw 53004, 'Las existencias fueron modificadas por otro usuario. Recargue los datos antes de guardar.', 1;
@@ -102,7 +111,7 @@ as
         begin catch
             if @@trancount > 0
                 rollback transaction;
-            if error_number() in (2601, 2627)
+            if error_number() in (1205, 2601, 2627)
                 throw 53004, 'Las existencias fueron modificadas por otro usuario. Recargue los datos antes de guardar.', 1;
             ;throw;
         end catch

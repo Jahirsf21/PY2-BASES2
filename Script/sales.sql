@@ -188,8 +188,8 @@ go
 /*
    Inserta una factura completa: encabezado en Invoices y líneas de detalle en InvoiceLines.
    Recibe las líneas como JSON (@LinesJson), calcula TotalDryItems, TotalChillerItems,
-   impuestos, ganancia y precio extendido por línea. Devuelve el InvoiceID generado en
-   @NewInvoiceID.
+   impuestos, ganancia y precio extendido por línea. Si un producto está bloqueado por
+   eliminación, lanza error 53006. Devuelve el InvoiceID generado en @NewInvoiceID.
 */
 create or alter procedure Sales.InsertInvoice
     @CustomerID int,
@@ -211,8 +211,16 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        set transaction isolation level serializable;
         begin try
             begin transaction
+                if exists (
+                    select 1
+                    from openjson(@LinesJson) with (StockItemID int '$.StockItemID') j
+                    inner join dbo.StockItemDeletionLocks l on l.StockItemID = j.StockItemID
+                )
+                    throw 53006, 'El producto está en proceso de eliminación y no puede facturarse.', 1;
+
                 declare @InsertedIDs table (InvoiceID int)
                 declare @TotalDryItems int, @TotalChillerItems int;
                 select @TotalDryItems = coalesce(sum(case when si.IsChillerStock = 0 then j.Quantity else 0 end), 0),
@@ -273,7 +281,8 @@ go
 
 /*
    Actualiza una factura existente: encabezado en Invoices y reemplaza todas las líneas
-   en InvoiceLines. Si la factura no existe, lanza error 54001.
+   en InvoiceLines. Si la factura no existe, lanza error 54001; si un producto está
+   bloqueado por eliminación, lanza error 53006.
 */
 create or alter procedure Sales.UpdateInvoice
     @InvoiceID int,
@@ -295,8 +304,16 @@ as
         set nocount on;
         exec dbo.ValidateUserAccess @UserID = @UserID, @RequiredRole = N'Administrador';
 
+        set transaction isolation level serializable;
         begin try
             begin transaction
+                if exists (
+                    select 1
+                    from openjson(@LinesJson) with (StockItemID int '$.StockItemID') j
+                    inner join dbo.StockItemDeletionLocks l on l.StockItemID = j.StockItemID
+                )
+                    throw 53006, 'El producto está en proceso de eliminación y no puede facturarse.', 1;
+
                 declare @TotalDryItems int, @TotalChillerItems int;
                 select @TotalDryItems = coalesce(sum(case when si.IsChillerStock = 0 then j.Quantity else 0 end), 0),
                        @TotalChillerItems = coalesce(sum(case when si.IsChillerStock = 1 then j.Quantity else 0 end), 0)
