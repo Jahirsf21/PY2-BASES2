@@ -1,4 +1,4 @@
-import type { CustomerSalesSummaryResponse, CustomerSalesTrackingResponse, ProductCategorySalesByYear, ReportYear, SupplierPurchaseSummary, SupplierPurchaseTrackingResponse, TopCustomerByYear, TopProductByYear, TopSupplierByYear } from '@/lib/types/stats'
+import type { CustomerSalesSummaryResponse, ReportSucursal, CustomerSalesTrackingResponse, ProductCategorySalesByYear, ReportYear, SupplierPurchaseSummary, SupplierPurchaseTrackingResponse, TopCustomerByYear, TopProductByYear, TopSupplierByYear } from '@/lib/types/stats'
 
 import { readSession, SESSION_EXPIRED_MESSAGE } from '@/lib/helpers/session'
 import { apiMessage } from '@/lib/helpers/apiErrors'
@@ -41,12 +41,14 @@ export async function getInvoiceYears(): Promise<ReportYear[]> {
  *
  * @param supplierName Nombre parcial o completo del proveedor.
  * @param supplierCategoryName Nombre parcial de categoría o texto vacío para incluir todas.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Resumen de proveedores, incluyendo una fila de resumen general.
  */
-export async function getSupplierPurchaseSummary(supplierName: string, supplierCategoryName: string): Promise<SupplierPurchaseSummary[]> {
+export async function getSupplierPurchaseSummary(supplierName: string, supplierCategoryName: string, sucursal: ReportSucursal): Promise<SupplierPurchaseSummary[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({ supplierName, supplierCategoryName })
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/supplier-purchase-summary?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -62,12 +64,14 @@ export async function getSupplierPurchaseSummary(supplierName: string, supplierC
  * @param customerCategoryName Nombre parcial de categoría o texto vacío para incluir todas.
  * @param pageNumber Número de página a consultar.
  * @param pageSize Cantidad de registros por página.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Respuesta paginada con los montos máximo, mínimo y promedio.
  */
-export async function getCustomerSalesSummary(customerName: string, customerCategoryName: string, pageNumber: number, pageSize: number): Promise<CustomerSalesSummaryResponse> {
+export async function getCustomerSalesSummary(customerName: string, customerCategoryName: string, pageNumber: number, pageSize: number, sucursal: ReportSucursal): Promise<CustomerSalesSummaryResponse> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({ customerName, customerCategoryName, pageNumber: String(pageNumber), pageSize: String(pageSize) })
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/customer-sales-summary?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -81,9 +85,10 @@ export async function getCustomerSalesSummary(customerName: string, customerCate
  *
  * @param invoiceYearFrom Año inicial o null para no limitar.
  * @param invoiceYearTo Año final o null para no limitar.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Ranking anual de clientes, incluyendo empates.
  */
-export async function getTopCustomersByYear(invoiceYearFrom: number | null, invoiceYearTo: number | null): Promise<TopCustomerByYear[]> {
+export async function getTopCustomersByYear(invoiceYearFrom: number | null, invoiceYearTo: number | null, sucursal: ReportSucursal): Promise<TopCustomerByYear[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams()
@@ -93,6 +98,7 @@ export async function getTopCustomersByYear(invoiceYearFrom: number | null, invo
   if (invoiceYearTo !== null) {
     query.set('invoiceYearTo', String(invoiceYearTo))
   }
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/top-customers-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -105,15 +111,17 @@ export async function getTopCustomersByYear(invoiceYearFrom: number | null, invo
  * Obtiene los primeros cinco puestos de productos por ganancia acumulada de cada año.
  *
  * @param year Año de las facturas o null para consultar todos los años.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Ranking anual de productos, incluyendo empates.
  */
-export async function getTopProductsByYear(year: number | null): Promise<TopProductByYear[]> {
+export async function getTopProductsByYear(year: number | null, sucursal: ReportSucursal): Promise<TopProductByYear[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams()
   if (year !== null) {
     query.set('year', String(year))
   }
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/top-products-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -127,9 +135,10 @@ export async function getTopProductsByYear(year: number | null): Promise<TopProd
  *
  * @param orderYearFrom Año inicial o null para no limitar.
  * @param orderYearTo Año final o null para no limitar.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Ranking anual de proveedores, incluyendo empates.
  */
-export async function getTopSuppliersByYear(orderYearFrom: number | null, orderYearTo: number | null): Promise<TopSupplierByYear[]> {
+export async function getTopSuppliersByYear(orderYearFrom: number | null, orderYearTo: number | null, sucursal: ReportSucursal): Promise<TopSupplierByYear[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams()
@@ -139,6 +148,7 @@ export async function getTopSuppliersByYear(orderYearFrom: number | null, orderY
   if (orderYearTo !== null) {
     query.set('orderYearTo', String(orderYearTo))
   }
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/top-suppliers-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -150,12 +160,15 @@ export async function getTopSuppliersByYear(orderYearFrom: number | null, orderY
 /**
  * Obtiene los montos facturados por año con una columna por grupo de productos.
  *
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Montos anuales de los diez grupos incluidos en el reporte.
  */
-export async function getProductCategorySalesByYear(): Promise<ProductCategorySalesByYear[]> {
+export async function getProductCategorySalesByYear(sucursal: ReportSucursal): Promise<ProductCategorySalesByYear[]> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
-  const res = await fetch(`${API_URL}/api/stats/product-category-sales-by-year`, { headers: { Authorization: `Bearer ${token}` } })
+  const query = new URLSearchParams()
+  if (sucursal) query.set('sucursal', sucursal)
+  const res = await fetch(`${API_URL}/api/stats/product-category-sales-by-year?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(apiMessage(body, 'No fue posible obtener las ventas anuales por grupo de productos'), { cause: res.status })
@@ -171,9 +184,10 @@ export async function getProductCategorySalesByYear(): Promise<ProductCategorySa
  * @param stockGroupIDs Categorías de productos seleccionadas o un arreglo vacío para incluir todas.
  * @param pageNumber Número de página a consultar.
  * @param pageSize Cantidad de registros por página.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Respuesta paginada con montos de primera y última factura y cantidades por cliente, año y mes.
  */
-export async function getCustomerSalesTracking(year: number | null, month: number | null, stockGroupIDs: number[], pageNumber: number, pageSize: number): Promise<CustomerSalesTrackingResponse> {
+export async function getCustomerSalesTracking(year: number | null, month: number | null, stockGroupIDs: number[], pageNumber: number, pageSize: number, sucursal: ReportSucursal): Promise<CustomerSalesTrackingResponse> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({ stockGroupIDsJson: JSON.stringify(stockGroupIDs), pageNumber: String(pageNumber), pageSize: String(pageSize) })
@@ -183,6 +197,7 @@ export async function getCustomerSalesTracking(year: number | null, month: numbe
   if (month !== null) {
     query.set('month', String(month))
   }
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/customer-sales-tracking?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -199,9 +214,10 @@ export async function getCustomerSalesTracking(year: number | null, month: numbe
  * @param stockGroupIDs Categorías de productos seleccionadas o un arreglo vacío para incluir todas.
  * @param pageNumber Número de página a consultar.
  * @param pageSize Cantidad de registros por página.
+ * @param sucursal Sucursal de los documentos o null para el consolidado.
  * @returns Respuesta paginada con montos de primera y última compra y cantidades de empaques por proveedor, año y mes.
  */
-export async function getSupplierPurchaseTracking(year: number | null, month: number | null, stockGroupIDs: number[], pageNumber: number, pageSize: number): Promise<SupplierPurchaseTrackingResponse> {
+export async function getSupplierPurchaseTracking(year: number | null, month: number | null, stockGroupIDs: number[], pageNumber: number, pageSize: number, sucursal: ReportSucursal): Promise<SupplierPurchaseTrackingResponse> {
   const token = readSession()?.token
   if (!token) throw new Error(SESSION_EXPIRED_MESSAGE)
   const query = new URLSearchParams({ stockGroupIDsJson: JSON.stringify(stockGroupIDs), pageNumber: String(pageNumber), pageSize: String(pageSize) })
@@ -211,6 +227,7 @@ export async function getSupplierPurchaseTracking(year: number | null, month: nu
   if (month !== null) {
     query.set('month', String(month))
   }
+  if (sucursal) query.set('sucursal', sucursal)
   const res = await fetch(`${API_URL}/api/stats/supplier-purchase-tracking?${query}`, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     const body = await res.json().catch(() => null)
