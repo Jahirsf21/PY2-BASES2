@@ -15,59 +15,36 @@ import {
  * Obtiene una página de clientes.
  * Permite filtrar opcionalmente por nombre, categoría y método de entrega.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, customerName, customerCategoryID y deliveryMethodID en req.query; usa identidad y sucursal del JWT en req.user.
+ * @param {import('express').Request} req Petición HTTP. Los filtros validados llegan en res.locals.query y la paginación en res.locals.pagination; usa identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de clientes.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con la página de clientes.
  */
-export async function listCustomers(req, res, next) {
-  try {
-    const { pageNumber, pageSize } = res.locals.pagination;
-    const result = await getCustomers(req.user, {
-      customerName: req.query.customerName,
-      customerCategoryID: req.query.customerCategoryID,
-      deliveryMethodID: req.query.deliveryMethodID,
-      pageNumber,
-      pageSize,
-    });
-    return paginatedResponse(res, pageNumber, pageSize, result);
-  } catch (error) {
-    const sqlErrorCode = Number(error.number);
-    if (sqlErrorCode === 51003) {
-      return res
-        .status(400)
-        .json({ message: "La categoría de cliente indicada no existe" });
-    }
-    if (sqlErrorCode === 51004) {
-      return res
-        .status(400)
-        .json({ message: "El método de entrega indicado no existe" });
-    }
-    return next(error);
-  }
+export async function listCustomers(req, res) {
+  const { pageNumber, pageSize } = res.locals.pagination;
+  const result = await getCustomers(req.user, {
+    ...res.locals.query,
+    pageNumber,
+    pageSize,
+  });
+  return paginatedResponse(res, pageNumber, pageSize, result);
 }
 
 /**
  * Obtiene una página de clientes (ID y nombre) para usar como "cliente por facturar" (BillToCustomerID).
  * Permite filtrar opcionalmente por nombre de cliente.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize y customerName en req.query; usa identidad y sucursal del JWT en req.user.
+ * @param {import('express').Request} req Petición HTTP. Los filtros validados llegan en res.locals.query y la paginación en res.locals.pagination; usa identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de clientes.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con la página de clientes.
  */
-export async function listBillToCustomers(req, res, next) {
-  try {
-    const { pageNumber, pageSize } = res.locals.pagination;
-    const result = await getBillToCustomers(req.user, {
-      customerName: req.query.customerName,
-      pageNumber,
-      pageSize,
-    });
-    return paginatedResponse(res, pageNumber, pageSize, result);
-  } catch (error) {
-    return next(error);
-  }
+export async function listBillToCustomers(req, res) {
+  const { pageNumber, pageSize } = res.locals.pagination;
+  const result = await getBillToCustomers(req.user, {
+    ...res.locals.query,
+    pageNumber,
+    pageSize,
+  });
+  return paginatedResponse(res, pageNumber, pageSize, result);
 }
 
 /**
@@ -76,16 +53,11 @@ export async function listBillToCustomers(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP con identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con las categorías.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con las categorías.
  */
-export async function listCustomerCategories(req, res, next) {
-  try {
-    const categories = await getCustomerCategories(req.user);
-    return res.json(categories);
-  } catch (error) {
-    return next(error);
-  }
+export async function listCustomerCategories(req, res) {
+  const categories = await getCustomerCategories(req.user);
+  return res.json(categories);
 }
 
 // /**
@@ -113,20 +85,15 @@ export async function listCustomerCategories(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en res.locals.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con el detalle del cliente.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con el detalle del cliente.
  */
-export async function getCustomerById(req, res, next) {
-  try {
-    const { customerID } = res.locals.params;
-    const customer = await getCustomerDetail(req.user, customerID);
-    if (customer.length === 0) {
-      return res.status(404).json({ message: "Cliente no encontrado" });
-    }
-    return res.json(customer);
-  } catch (error) {
-    return next(error);
+export async function getCustomerById(req, res) {
+  const { customerID } = res.locals.params;
+  const customer = await getCustomerDetail(req.user, customerID);
+  if (customer.length === 0) {
+    return res.status(404).json({ message: "Cliente no encontrado" });
   }
+  return res.json(customer);
 }
 
 /**
@@ -134,22 +101,17 @@ export async function getCustomerById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en res.locals.params; usa identidad y sucursal del JWT en req.user.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los datos privados del cliente.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los datos privados del cliente.
  */
-export async function getCustomerPrivateById(req, res, next) {
-  try {
-    const { customerID } = res.locals.params;
-    const details = await getCustomerPrivateDetail(req.user, customerID);
-    if (details.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Datos privados del cliente no encontrados" });
-    }
-    return res.json(details);
-  } catch (error) {
-    return next(error);
+export async function getCustomerPrivateById(req, res) {
+  const { customerID } = res.locals.params;
+  const details = await getCustomerPrivateDetail(req.user, customerID);
+  if (details.length === 0) {
+    return res
+      .status(404)
+      .json({ message: "Datos privados del cliente no encontrados" });
   }
+  return res.json(details);
 }
 
 // /**
@@ -178,20 +140,15 @@ export async function getCustomerPrivateById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en res.locals.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los contactos del cliente.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los contactos del cliente.
  */
-export async function getCustomerContactsById(req, res, next) {
-  try {
-    const { customerID } = res.locals.params;
-    const contacts = await getCustomerContacts(req.user, customerID);
-    if (contacts.length === 0) {
-      return res.status(404).json({ message: "Contactos no encontrados" });
-    }
-    return res.json(contacts);
-  } catch (error) {
-    return next(error);
+export async function getCustomerContactsById(req, res) {
+  const { customerID } = res.locals.params;
+  const contacts = await getCustomerContacts(req.user, customerID);
+  if (contacts.length === 0) {
+    return res.status(404).json({ message: "Contactos no encontrados" });
   }
+  return res.json(contacts);
 }
 
 /**
@@ -200,20 +157,15 @@ export async function getCustomerContactsById(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP. Espera customerID en res.locals.params.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con las direcciones del cliente.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con las direcciones del cliente.
  */
-export async function getCustomerAddressById(req, res, next) {
-  try {
-    const { customerID } = res.locals.params;
-    const address = await getCustomerAddress(req.user, customerID);
-    if (address.length === 0) {
-      return res.status(404).json({ message: "Direccion no encontrada" });
-    }
-    return res.json(address);
-  } catch (error) {
-    return next(error);
+export async function getCustomerAddressById(req, res) {
+  const { customerID } = res.locals.params;
+  const address = await getCustomerAddress(req.user, customerID);
+  if (address.length === 0) {
+    return res.status(404).json({ message: "Direccion no encontrada" });
   }
+  return res.json(address);
 }
 
 // /**

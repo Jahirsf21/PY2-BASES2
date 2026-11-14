@@ -7,7 +7,8 @@ import {
   listSalespeople,
 } from "../controllers/applicationController.js";
 import { requireRole } from "../middleware/auth.js";
-import { validatePagination } from "../middleware/validation.js";
+import { validatePagination, validateQuery } from "../middleware/validation.js";
+import { citiesQuery, peopleQuery } from "../schemas/application.js";
 
 // Rutas de Application (referencias de formularios para Administrador).
 const router = Router();
@@ -21,6 +22,7 @@ router.get(
   "/people",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(peopleQuery),
   listPeople,
 );
 
@@ -45,6 +47,7 @@ router.get(
   "/cities",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(citiesQuery),
   listCities,
 );
 

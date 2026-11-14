@@ -19,12 +19,14 @@ import {
   validateBody,
   validateParams,
   validatePagination,
+  validateQuery,
 } from "../middleware/validation.js";
 import { idParams } from "../schemas/common.js";
 import {
   catalogStockItemSchema,
   catalogStockItemUpdateSchema,
   stockItemHoldingsSchema,
+  stockItemsQuery,
 } from "../schemas/stockItems.js";
 
 // Rutas de Productos.
@@ -46,6 +48,7 @@ router.get(
   "/stock-items",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(stockItemsQuery),
   listStockItems,
   sqlErrors({
     50003: [

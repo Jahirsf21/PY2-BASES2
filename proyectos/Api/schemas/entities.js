@@ -4,6 +4,8 @@ import {
   booleanSchema,
   idSchema,
   isEmpty,
+  queryId,
+  queryText,
   textSchema,
   withPresence,
 } from "./common.js";
@@ -214,3 +216,22 @@ export const supplierSchema = z
       internalComments: textSchema("Comentarios internos"),
     }),
   );
+
+/** Filtros del listado de clientes. */
+export const customersQuery = z.object({
+  customerName: queryText("El nombre del cliente", 100),
+  customerCategoryID: queryId("La categoría de cliente"),
+  deliveryMethodID: queryId("El método de entrega"),
+});
+
+/** Filtros del buscador de clientes por facturar. */
+export const billToCustomersQuery = z.object({
+  customerName: queryText("El nombre del cliente", 100),
+});
+
+/** Filtros del listado de proveedores. */
+export const suppliersQuery = z.object({
+  supplierName: queryText("El nombre del proveedor", 100),
+  supplierCategoryID: queryId("La categoría de proveedor"),
+  deliveryMethodID: queryId("El método de entrega"),
+});

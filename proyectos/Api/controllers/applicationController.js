@@ -10,47 +10,35 @@ import {
 /**
  * Obtiene una página de personas, opcionalmente filtradas por nombre.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize y fullName en req.query.
+ * @param {import('express').Request} req Petición HTTP. Los filtros validados llegan en res.locals.query y la paginación en res.locals.pagination.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de personas.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con la página de personas.
  */
-export async function listPeople(req, res, next) {
-  try {
-    const { pageNumber, pageSize } = res.locals.pagination;
-    const result = await getPeople(req.user, {
-      fullName: req.query.fullName,
-      pageNumber,
-      pageSize,
-    });
-    return paginatedResponse(res, pageNumber, pageSize, result);
-  } catch (error) {
-    return next(error);
-  }
+export async function listPeople(req, res) {
+  const { pageNumber, pageSize } = res.locals.pagination;
+  const result = await getPeople(req.user, {
+    ...res.locals.query,
+    pageNumber,
+    pageSize,
+  });
+  return paginatedResponse(res, pageNumber, pageSize, result);
 }
 
 /**
  * Obtiene una página de ciudades, opcionalmente filtradas por nombre de ciudad, provincia y país.
  *
- * @param {import('express').Request} req Petición HTTP. Espera pageNumber, pageSize, cityName, provinceName y countryName en req.query.
+ * @param {import('express').Request} req Petición HTTP. Los filtros validados llegan en res.locals.query y la paginación en res.locals.pagination.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con la página de ciudades.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con la página de ciudades.
  */
-export async function listCities(req, res, next) {
-  try {
-    const { pageNumber, pageSize } = res.locals.pagination;
-    const result = await getCities(req.user, {
-      cityName: req.query.cityName,
-      provinceName: req.query.provinceName,
-      countryName: req.query.countryName,
-      pageNumber,
-      pageSize,
-    });
-    return paginatedResponse(res, pageNumber, pageSize, result);
-  } catch (error) {
-    return next(error);
-  }
+export async function listCities(req, res) {
+  const { pageNumber, pageSize } = res.locals.pagination;
+  const result = await getCities(req.user, {
+    ...res.locals.query,
+    pageNumber,
+    pageSize,
+  });
+  return paginatedResponse(res, pageNumber, pageSize, result);
 }
 
 /**
@@ -59,16 +47,11 @@ export async function listCities(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los métodos de entrega.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los métodos de entrega.
  */
-export async function listDeliveryMethods(req, res, next) {
-  try {
-    const methods = await getDeliveryMethods(req.user);
-    return res.json(methods);
-  } catch (error) {
-    return next(error);
-  }
+export async function listDeliveryMethods(req, res) {
+  const methods = await getDeliveryMethods(req.user);
+  return res.json(methods);
 }
 
 /**
@@ -76,16 +59,11 @@ export async function listDeliveryMethods(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los empleados.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los empleados.
  */
-export async function listEmployees(req, res, next) {
-  try {
-    const employees = await getEmployees(req.user);
-    return res.json(employees);
-  } catch (error) {
-    return next(error);
-  }
+export async function listEmployees(req, res) {
+  const employees = await getEmployees(req.user);
+  return res.json(employees);
 }
 
 /**
@@ -93,14 +71,9 @@ export async function listEmployees(req, res, next) {
  *
  * @param {import('express').Request} req Petición HTTP.
  * @param {import('express').Response} res Respuesta HTTP.
- * @param {import('express').NextFunction} next Deriva los errores comunes al manejador global.
- * @returns {Promise<import('express').Response|void>} Respuesta JSON con los vendedores.
+ * @returns {Promise<import('express').Response>} Respuesta JSON con los vendedores.
  */
-export async function listSalespeople(req, res, next) {
-  try {
-    const salespeople = await getSalespeople(req.user);
-    return res.json(salespeople);
-  } catch (error) {
-    return next(error);
-  }
+export async function listSalespeople(req, res) {
+  const salespeople = await getSalespeople(req.user);
+  return res.json(salespeople);
 }

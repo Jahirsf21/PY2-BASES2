@@ -18,15 +18,14 @@ import {
  * Obtiene una página de productos de la sucursal.
  * Permite filtrar opcionalmente por nombre de producto y grupos.
  *
- * @param {import('express').Request} req Petición HTTP. Espera stockItemName y stockGroupIDsJson en req.query.
- * @param {import('express').Response} res Respuesta HTTP con la paginación en res.locals.pagination.
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP con filtros y paginación en res.locals.
  * @returns {Promise<import('express').Response>} Respuesta JSON con la página de productos.
  */
 export async function listStockItems(req, res) {
   const { pageNumber, pageSize } = res.locals.pagination;
   const result = await getStockItems(req.user, {
-    stockItemName: req.query.stockItemName,
-    stockGroupIDsJson: req.query.stockGroupIDsJson,
+    ...res.locals.query,
     pageNumber,
     pageSize,
   });

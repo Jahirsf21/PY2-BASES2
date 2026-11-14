@@ -9,11 +9,14 @@ import {
   getSupplierAddressById,
 } from "../controllers/suppliersController.js";
 import { requireRole } from "../middleware/auth.js";
+import { sqlErrors } from "../middleware/sqlErrors.js";
 import {
   validateParams,
   validatePagination,
+  validateQuery,
 } from "../middleware/validation.js";
 import { idParams } from "../schemas/common.js";
+import { suppliersQuery } from "../schemas/entities.js";
 
 // Rutas de Proveedores.
 const router = Router();
@@ -27,7 +30,12 @@ router.get(
   "/suppliers",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(suppliersQuery),
   listSuppliers,
+  sqlErrors({
+    52004: [400, "La categoría de proveedor indicada no existe"],
+    52005: [400, "El método de entrega indicado no existe"],
+  }),
 );
 
 // /**

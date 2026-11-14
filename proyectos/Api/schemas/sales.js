@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { amountSchema, idSchema, textSchema } from "./common.js";
+import {
+  amountSchema,
+  idSchema,
+  queryAmount,
+  queryDate,
+  queryId,
+  queryText,
+  textSchema,
+} from "./common.js";
 
 /**
  * Valida una línea de factura: producto, cantidad entera mayor que cero y precio con máximo 2 decimales.
@@ -46,3 +54,14 @@ export const invoiceSchema = z.object(
   },
   { error: "Indique los datos de la factura" },
 );
+
+/** Filtros del listado de facturas; el SP valida rangos y signos. */
+export const invoicesQuery = z.object({
+  invoiceID: queryId("El número de factura"),
+  invoiceDateFrom: queryDate("La fecha inicial"),
+  invoiceDateTo: queryDate("La fecha final"),
+  customerName: queryText("El nombre del cliente", 100),
+  deliveryMethodID: queryId("El método de entrega"),
+  minInvoiceAmount: queryAmount("El monto mínimo"),
+  maxInvoiceAmount: queryAmount("El monto máximo"),
+});

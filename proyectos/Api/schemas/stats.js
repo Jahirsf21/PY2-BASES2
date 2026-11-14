@@ -1,54 +1,5 @@
 import { z } from "zod";
-
-/**
- * Trata un filtro vacío de la URL como ausente.
- *
- * @param {unknown} value Valor recibido en req.query.
- * @returns {unknown} undefined si es texto vacío o solo espacios; en otro caso, el mismo valor.
- */
-function emptyToUndefined(value) {
-  return typeof value === "string" && value.trim() === "" ? undefined : value;
-}
-
-/**
- * Crea el esquema de un filtro de texto opcional con longitud máxima.
- *
- * @param {string} label Nombre legible del filtro para el mensaje.
- * @param {number} maxLength Longitud máxima permitida.
- * @returns {import('zod').ZodType<string|undefined>} Esquema del filtro, sin espacios en los extremos.
- */
-function queryText(label, maxLength) {
-  const message = `${label} debe ser texto de máximo ${maxLength} caracteres.`;
-  return z.preprocess(
-    emptyToUndefined,
-    z
-      .string({ error: message })
-      .trim()
-      .max(maxLength, { error: message })
-      .optional(),
-  );
-}
-
-/**
- * Crea el esquema de un filtro entero opcional dentro de un rango.
- *
- * @param {string} label Nombre legible del filtro para el mensaje.
- * @param {number} min Valor mínimo permitido.
- * @param {number} max Valor máximo permitido.
- * @returns {import('zod').ZodType<number|undefined>} Esquema que convierte el texto de la URL a número.
- */
-function queryInteger(label, min, max) {
-  const message = `${label} debe ser un número entero entre ${min} y ${max}.`;
-  return z.preprocess(
-    emptyToUndefined,
-    z.coerce
-      .number({ error: message })
-      .int({ error: message })
-      .min(min, { error: message })
-      .max(max, { error: message })
-      .optional(),
-  );
-}
+import { emptyToUndefined, queryInteger, queryText } from "./common.js";
 
 /** Sucursal de los reportes: san-jose, limon o ausente para el consolidado. */
 const sucursal = z.preprocess(
@@ -71,7 +22,7 @@ export const supplierPurchaseSummaryQuery = z.object({
   sucursal,
 });
 
-/** Filtros del resumen de ventas por cliente; la paginación se valida aparte. */
+/** Filtros del resumen de ventas por cliente. */
 export const customerSalesSummaryQuery = z.object({
   customerName: queryText("El nombre del cliente", 100),
   customerCategoryName: queryText("La categoría del cliente", 50),

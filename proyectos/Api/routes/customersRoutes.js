@@ -10,11 +10,14 @@ import {
   getCustomerAddressById,
 } from "../controllers/customersController.js";
 import { requireRole } from "../middleware/auth.js";
+import { sqlErrors } from "../middleware/sqlErrors.js";
 import {
   validateParams,
   validatePagination,
+  validateQuery,
 } from "../middleware/validation.js";
 import { idParams } from "../schemas/common.js";
+import { billToCustomersQuery, customersQuery } from "../schemas/entities.js";
 
 // Rutas de Clientes.
 const router = Router();
@@ -28,7 +31,12 @@ router.get(
   "/customers",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(customersQuery),
   listCustomers,
+  sqlErrors({
+    51003: [400, "La categoría de cliente indicada no existe"],
+    51004: [400, "El método de entrega indicado no existe"],
+  }),
 );
 
 // /**
@@ -47,6 +55,7 @@ router.get(
   "/customers/bill-to",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(billToCustomersQuery),
   listBillToCustomers,
 );
 

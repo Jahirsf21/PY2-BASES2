@@ -157,3 +157,120 @@ export function amountSchema(field, decimals, required = false) {
   }
   return withPresence(schema, label, required, message);
 }
+
+/**
+ * Trata un filtro vacío de la URL como ausente.
+ *
+ * @param {unknown} value Valor recibido en req.query.
+ * @returns {unknown} undefined si es texto vacío o solo espacios; en otro caso, el mismo valor.
+ */
+export function emptyToUndefined(value) {
+  return typeof value === "string" && value.trim() === "" ? undefined : value;
+}
+
+/**
+ * Crea el esquema de un filtro de texto opcional con longitud máxima.
+ *
+ * @param {string} label Nombre legible del filtro para el mensaje.
+ * @param {number} maxLength Longitud máxima permitida.
+ * @returns {import('zod').ZodType<string|undefined>} Esquema del filtro, sin espacios en los extremos.
+ */
+export function queryText(label, maxLength) {
+  const message = `${label} debe ser texto de máximo ${maxLength} caracteres.`;
+  return z.preprocess(
+    emptyToUndefined,
+    z
+      .string({ error: message })
+      .trim()
+      .max(maxLength, { error: message })
+      .optional(),
+  );
+}
+
+/**
+ * Crea el esquema de un filtro entero opcional dentro de un rango.
+ *
+ * @param {string} label Nombre legible del filtro para el mensaje.
+ * @param {number} min Valor mínimo permitido.
+ * @param {number} max Valor máximo permitido.
+ * @returns {import('zod').ZodType<number|undefined>} Esquema que convierte el texto de la URL a número.
+ */
+export function queryInteger(label, min, max) {
+  const message = `${label} debe ser un número entero entre ${min} y ${max}.`;
+  return z.preprocess(
+    emptyToUndefined,
+    z.coerce
+      .number({ error: message })
+      .int({ error: message })
+      .min(min, { error: message })
+      .max(max, { error: message })
+      .optional(),
+  );
+}
+
+/**
+ * Crea el esquema de un identificador opcional recibido en la URL.
+ *
+ * @param {string} label Nombre legible del filtro para el mensaje.
+ * @returns {import('zod').ZodType<number|undefined>} Esquema que convierte el texto de la URL a número.
+ */
+export function queryId(label) {
+  const message = `${label} debe ser un identificador entero positivo.`;
+  return z.preprocess(
+    emptyToUndefined,
+    z.coerce
+      .number({ error: message })
+      .int({ error: message })
+      .min(1, { error: message })
+      .max(SQL_INT_MAX, { error: message })
+      .optional(),
+  );
+}
+
+/**
+ * Crea el esquema de una fecha opcional recibida en la URL con formato AAAA-MM-DD.
+ *
+ * @param {string} label Nombre legible del filtro para el mensaje.
+ * @returns {import('zod').ZodType<string|undefined>} Esquema que conserva la fecha como texto.
+ */
+export function queryDate(label) {
+  const message = `${label} debe ser una fecha válida con formato AAAA-MM-DD.`;
+  return z.preprocess(
+    emptyToUndefined,
+    z
+      .string({ error: message })
+      .regex(/^\d{4}-\d{2}-\d{2}$/, { error: message })
+      .refine(
+        (value) => {
+          const date = new Date(`${value}T00:00:00Z`);
+          return (
+            !Number.isNaN(date.getTime()) &&
+            date.toISOString().slice(0, 10) === value
+          );
+        },
+        { error: message },
+      )
+      .optional(),
+  );
+}
+
+/**
+ * Crea el esquema de un monto opcional recibido en la URL, con máximo 2 decimales.
+ * El signo lo valida el procedimiento almacenado.
+ *
+ * @param {string} label Nombre legible del filtro para el mensaje.
+ * @returns {import('zod').ZodType<number|undefined>} Esquema que convierte el texto de la URL a número.
+ */
+export function queryAmount(label) {
+  const message = `${label} debe ser un número con máximo 2 decimales.`;
+  return z.preprocess(
+    emptyToUndefined,
+    z.coerce
+      .number({ error: message })
+      .refine((value) => Math.abs(value) < 1e16, { error: message })
+      .refine((value) => Number(value.toFixed(2)) === value, {
+        error: message,
+      })
+      .optional(),
+  );
+}

@@ -4,6 +4,7 @@ import {
   amountSchema,
   booleanSchema,
   idSchema,
+  queryText,
   textSchema,
   versionSchema,
 } from "./common.js";
@@ -102,3 +103,9 @@ export const stockItemHoldingsSchema = z.strictObject(
   },
   { error: objectError("Indique las existencias del producto") },
 );
+
+/** Filtros del listado de productos; el SP valida el contenido de stockGroupIDsJson. */
+export const stockItemsQuery = z.object({
+  stockItemName: queryText("El nombre del producto", 100),
+  stockGroupIDsJson: queryText("La lista de categorías", 4000),
+});

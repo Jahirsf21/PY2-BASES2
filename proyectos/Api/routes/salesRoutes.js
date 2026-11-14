@@ -8,16 +8,21 @@ import {
   editInvoice,
 } from "../controllers/salesController.js";
 import { requireRole } from "../middleware/auth.js";
+import { sqlErrors } from "../middleware/sqlErrors.js";
 import {
   validateBody,
   validateParams,
   validatePagination,
+  validateQuery,
 } from "../middleware/validation.js";
 import { idParams } from "../schemas/common.js";
-import { invoiceSchema } from "../schemas/sales.js";
+import { invoiceSchema, invoicesQuery } from "../schemas/sales.js";
 
 // Rutas de Ventas (facturas).
 const router = Router();
+
+/** La factura no tiene líneas válidas, al crearla o al actualizarla. */
+const invalidLines = [400, "La factura debe tener al menos una línea válida"];
 
 /**
  * GET /sales
@@ -28,7 +33,13 @@ router.get(
   "/sales",
   requireRole("Administrador"),
   validatePagination,
+  validateQuery(invoicesQuery),
   listInvoices,
+  sqlErrors({
+    54004: [400, "La fecha inicial no puede ser mayor que la fecha final"],
+    54005: [400, "Los montos no pueden ser negativos"],
+    54006: [400, "El monto mínimo no puede ser mayor que el monto máximo"],
+  }),
 );
 
 /**
@@ -41,6 +52,7 @@ router.post(
   requireRole("Administrador"),
   validateBody(invoiceSchema),
   addInvoice,
+  sqlErrors({ 54000: invalidLines }),
 );
 
 /**
@@ -90,6 +102,10 @@ router.put(
   validateParams(idParams("invoiceID", "Factura")),
   validateBody(invoiceSchema),
   editInvoice,
+  sqlErrors({
+    54001: [404, "Factura no encontrada"],
+    54002: invalidLines,
+  }),
 );
 
 export default router;

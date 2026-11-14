@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { login } from "../controllers/authController.js";
+import { sqlErrors } from "../middleware/sqlErrors.js";
 import { validateBody } from "../middleware/validation.js";
 import { loginSchema } from "../schemas/auth.js";
 
@@ -12,6 +13,13 @@ const router = Router();
  * Ruta pública, sin token de autenticación.
  * Body: userName, password, node (san-jose, limon o corporativo).
  */
-router.post("/auth/login", validateBody(loginSchema), login);
+router.post(
+  "/auth/login",
+  validateBody(loginSchema),
+  login,
+  sqlErrors({
+    56001: [403, "El rol no tiene acceso a la sucursal seleccionada"],
+  }),
+);
 
 export default router;
