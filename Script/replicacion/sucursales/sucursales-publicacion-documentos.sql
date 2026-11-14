@@ -21,8 +21,8 @@ if exists (select 1 from sys.databases where name = db_name() and is_published =
     throw 57013, 'La base ya tiene una publicación.', 1;
 
 declare @PasswordSucursal nvarchar(128) =
-    case when convert(nvarchar(128), serverproperty('MachineName')) = N'san-jose' then N'Jahirsf21!sanjose' else N'Jahirsf21!limon' end;
-declare @PasswordCorporativo nvarchar(128) = N'Jahirsf21!corporativo';
+    case when convert(nvarchar(128), serverproperty('MachineName')) = N'san-jose' then N'' else N'' end;
+declare @PasswordCorporativo nvarchar(128) = N'';
 
 if len(coalesce(@PasswordSucursal, N'')) = 0
     or len(coalesce(@PasswordCorporativo, N'')) = 0

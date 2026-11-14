@@ -39,12 +39,15 @@ go
 declare @InstanceName nvarchar(128) = convert(nvarchar(128), serverproperty('MachineName'));
 
 -- Frase de paso para cifrar las contraseñas; debe coincidir con la usada en dbo.LoginUser.
-declare @Passphrase nvarchar(100) = N'hGkxrd6gfl5oECcRkZoTUiB8ITcsuEzqSnA17kqXhDh';
+declare @Passphrase nvarchar(100) = N'';
 
 if @InstanceName is null or @InstanceName not in (N'san-jose', N'limon', N'corporativo')
 begin
     ;throw 50001, N'Hostname de SQL Server no reconocido. Se esperaba san-jose, limon o corporativo.', 1;
 end;
+
+if len(@Passphrase) = 0
+    throw 57007, 'La frase de paso no puede estar vacía.', 1;
 
 if @InstanceName = N'san-jose'
 begin
@@ -101,7 +104,7 @@ begin
     set nocount on;
 
     -- Debe ser la misma frase de paso usada al cifrar las contraseñas.
-    declare @Passphrase nvarchar(100) = N'hGkxrd6gfl5oECcRkZoTUiB8ITcsuEzqSnA17kqXhDh';
+    declare @Passphrase nvarchar(100) = N'';
 
     declare @AuthenticatedUser table (
         UserID int not null,

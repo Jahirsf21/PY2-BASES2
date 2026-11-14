@@ -58,24 +58,17 @@ as
 		select
 			isnull(sp.SupplierName, 'Resumen') as NombreProveedor,
 			isnull(sg.SupplierCategoryName, ' ') as NombreCategoriaProveedor,
-			max(t.MontoComprado) as MontoMaximo,
-			min(t.MontoComprado) as MontoMinimo,
-			avg(t.MontoComprado) as MontoPromedio
-		from (
-			select
-				po.PurchaseOrderID,
-				po.SupplierID,
-				sum(pol.OrderedOuters * pol.ExpectedUnitPricePerOuter) as MontoComprado
-			from Purchasing.v_PurchaseOrdersSucursal po
-			inner join dbo.PurchaseOrderLines pol on po.PurchaseOrderID = pol.PurchaseOrderID
-			where (@Sucursal is null or po.Sucursal = @Sucursal)
-			group by po.PurchaseOrderID, po.SupplierID
-		) t
+			max(t.OrderAmount) as MontoMaximo,
+			min(t.OrderAmount) as MontoMinimo,
+			avg(t.OrderAmount) as MontoPromedio
+		from Purchasing.mv_PurchaseOrderTotals t with (noexpand)
+		inner join Purchasing.v_PurchaseOrdersSucursal po on t.PurchaseOrderID = po.PurchaseOrderID
 		inner join dbo.Suppliers sp on t.SupplierID = sp.SupplierID
 		inner join dbo.SupplierCategories sg on sp.SupplierCategoryID = sg.SupplierCategoryID
 		where
             (@SupplierName is null or sp.SupplierName like '%' + @SupplierName + '%')
             and (@SupplierCategoryName is null or sg.SupplierCategoryName like '%' + @SupplierCategoryName + '%')
+            and (@Sucursal is null or po.Sucursal = @Sucursal)
 		group by rollup ((sp.SupplierName, sg.SupplierCategoryName))
 		order by grouping(sp.SupplierName), sp.SupplierName, sg.SupplierCategoryName
 	end
@@ -107,7 +100,7 @@ as
 		select @TotalCount = count(*)
 		from (
 			select cs.CustomerName, cg.CustomerCategoryName
-			from dbo.InvoiceLines ivl
+			from Sales.mv_InvoiceTotals ivl with (noexpand)
 			inner join Sales.v_InvoicesSucursal iv on ivl.InvoiceID = iv.InvoiceID
 			inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
 			inner join dbo.CustomerCategories cg on cs.CustomerCategoryID = cg.CustomerCategoryID
@@ -119,16 +112,10 @@ as
 		select
 			isnull(cs.CustomerName, 'Resumen') as NombreCliente,
 			isnull(cg.CustomerCategoryName, ' ') as NombreCategoriaCliente,
-			max(t.MontoFacturado) as MontoMaximo,
-			min(t.MontoFacturado) as MontoMinimo,
-			avg(t.MontoFacturado) as MontoPromedio
-		from (
-			select
-				ivl.InvoiceID,
-				sum(ivl.ExtendedPrice) as MontoFacturado
-			from dbo.InvoiceLines ivl
-			group by ivl.InvoiceID
-		) t
+			max(t.InvoiceAmount) as MontoMaximo,
+			min(t.InvoiceAmount) as MontoMinimo,
+			avg(t.InvoiceAmount) as MontoPromedio
+		from Sales.mv_InvoiceTotals t with (noexpand)
 		inner join Sales.v_InvoicesSucursal iv on t.InvoiceID = iv.InvoiceID
 		inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
 		inner join dbo.CustomerCategories cg on cs.CustomerCategoryID = cg.CustomerCategoryID
@@ -162,18 +149,17 @@ as
         if @Year is not null and not exists (select 1 from dbo.Invoices where year(InvoiceDate) = @Year)
             throw 50001, 'El año indicado no existe en la base de datos.', 1;
         with Profits as (
-            select  
-                year(iv.InvoiceDate) as Año,
+            select
+                v.InvoiceYear as Año,
                 s.StockItemID,
                 s.StockItemName as NombreProducto,
-                sum(ivl.LineProfit) as Ganancia,
-                dense_rank() over(partition by year(iv.InvoiceDate) order by sum(ivl.LineProfit) desc) as Ranking
-            from dbo.InvoiceLines ivl
-            inner join Sales.v_InvoicesSucursal iv on ivl.InvoiceID = iv.InvoiceID
-            inner join dbo.StockItems s on ivl.StockItemID = s.StockItemID
-            where year(iv.InvoiceDate) = isnull(@Year, year(iv.InvoiceDate))
-                and (@Sucursal is null or iv.Sucursal = @Sucursal)
-            group by year(iv.InvoiceDate), s.StockItemID, s.StockItemName
+                sum(v.Profit) as Ganancia,
+                dense_rank() over(partition by v.InvoiceYear order by sum(v.Profit) desc) as Ranking
+            from Sales.mv_StockItemSales v with (noexpand)
+            inner join dbo.StockItems s on v.StockItemID = s.StockItemID
+            where v.InvoiceYear = isnull(@Year, v.InvoiceYear)
+                and (@Sucursal is null or v.Sucursal = @Sucursal)
+            group by v.InvoiceYear, s.StockItemID, s.StockItemName
         )
         select
             Año,
@@ -217,11 +203,11 @@ as
                 cs.CustomerID,
                 cs.CustomerName as NombreCliente,
                 count(distinct iv.InvoiceID) as CantidadFacturas,
-                sum(ivl.ExtendedPrice) as MontoFacturado,
+                sum(ivl.InvoiceAmount) as MontoFacturado,
                 dense_rank() over (partition by year(iv.InvoiceDate) order by count(distinct iv.InvoiceID) desc) as Ranking
             from Sales.v_InvoicesSucursal iv
             inner join dbo.Customers cs on iv.CustomerID = cs.CustomerID
-            inner join dbo.InvoiceLines ivl on iv.InvoiceID = ivl.InvoiceID
+            inner join Sales.mv_InvoiceTotals ivl with (noexpand) on iv.InvoiceID = ivl.InvoiceID
             where 
                 (@InvoiceYearFrom is null or year(iv.InvoiceDate) >= @InvoiceYearFrom)
                 and (@InvoiceYearTo is null or year(iv.InvoiceDate) <= @InvoiceYearTo)
@@ -271,10 +257,10 @@ as
                 sp.SupplierID,
                 sp.SupplierName as NombreProveedor,
                 count(distinct po.PurchaseOrderID) as CantidadCompras,
-                sum(pol.OrderedOuters * pol.ExpectedUnitPricePerOuter) as MontoComprado,
+                sum(pol.OrderAmount) as MontoComprado,
                 dense_rank() over (partition by year(po.OrderDate) order by count(distinct po.PurchaseOrderID) desc) as Ranking
             from Purchasing.v_PurchaseOrdersSucursal po
-            inner join dbo.PurchaseOrderLines pol on po.PurchaseOrderID = pol.PurchaseOrderID
+            inner join Purchasing.mv_PurchaseOrderTotals pol with (noexpand) on po.PurchaseOrderID = pol.PurchaseOrderID
             inner join dbo.Suppliers sp on po.SupplierID = sp.SupplierID
             where
                 (@OrderYearFrom is null or year(po.OrderDate) >= @OrderYearFrom)
@@ -315,15 +301,13 @@ as
             [Novelty Items], [Clothing], [Mugs], [T-Shirts], [Airline Novelties],
             [Computing Novelties], [USB Novelties], [Furry Footwear], [Toys], [Packaging Materials]
         from (
-            select year(iv.InvoiceDate) as Año,
+            select v.InvoiceYear as Año,
                     sg.StockGroupName,
-                    ivl.ExtendedPrice
-            from Sales.v_InvoicesSucursal iv
-            inner join dbo.InvoiceLines ivl on ivl.InvoiceID = iv.InvoiceID
-            inner join dbo.StockItems s on s.StockItemID = ivl.StockItemID
-            inner join dbo.StockItemStockGroups sig on sig.StockItemID = s.StockItemID
+                    v.InvoiceAmount as ExtendedPrice
+            from Sales.mv_StockItemSales v with (noexpand)
+            inner join dbo.StockItemStockGroups sig on sig.StockItemID = v.StockItemID
             inner join dbo.StockGroups sg on sg.StockGroupID = sig.StockGroupID
-            where (@Sucursal is null or iv.Sucursal = @Sucursal)
+            where (@Sucursal is null or v.Sucursal = @Sucursal)
         ) as src
         pivot (
             sum(ExtendedPrice) for StockGroupName in (

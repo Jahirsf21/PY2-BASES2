@@ -20,7 +20,7 @@ if exists (select 1 from sys.servers where is_distributor = 1)
     throw 57013, 'El distribuidor ya existe.', 1;
 
 declare @PasswordSucursal nvarchar(128) =
-    case when @Node = N'san-jose' then N'Jahirsf21!sanjose' else N'Jahirsf21!limon' end;
+    case when @Node = N'san-jose' then N'' else N'' end;
 
 if len(coalesce(@PasswordSucursal, N'')) = 0
     throw 57007, 'La contraseña de la sucursal no puede estar vacía.', 1;

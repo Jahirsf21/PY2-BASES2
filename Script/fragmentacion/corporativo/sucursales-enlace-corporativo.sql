@@ -18,7 +18,7 @@ if coalesce(convert(nvarchar(128), serverproperty('MachineName')), N'') not in (
 if exists (select 1 from sys.servers where name = N'CORPORATIVO')
     throw 57006, 'El enlace indicado ya existe.', 1;
 
-declare @PasswordCorporativo nvarchar(128) = N'Jahirsf21!corporativo';
+declare @PasswordCorporativo nvarchar(128) = N'';
 
 if @PasswordCorporativo is null or len(@PasswordCorporativo) = 0
     throw 57007, 'La contraseña de Corporativo no puede estar vacía.', 1;

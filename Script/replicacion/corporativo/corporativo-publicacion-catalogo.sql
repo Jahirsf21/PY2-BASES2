@@ -28,9 +28,9 @@ if exists (
 )
     throw 57014, 'El catálogo todavía tiene versionado temporal.', 1;
 
-declare @PasswordCorporativo nvarchar(128) = N'Jahirsf21!corporativo';
-declare @PasswordSanJose nvarchar(128) = N'Jahirsf21!sanjose';
-declare @PasswordLimon nvarchar(128) = N'Jahirsf21!limon';
+declare @PasswordCorporativo nvarchar(128) = N'';
+declare @PasswordSanJose nvarchar(128) = N'';
+declare @PasswordLimon nvarchar(128) = N'';
 
 if len(coalesce(@PasswordCorporativo, N'')) = 0
     or len(coalesce(@PasswordSanJose, N'')) = 0
