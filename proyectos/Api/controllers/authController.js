@@ -14,11 +14,7 @@ import { loginUser } from "../services/auth.js";
 export async function login(req, res, next) {
   const credentials = req.body;
   try {
-    const [user] = await loginUser(
-      credentials.userName,
-      credentials.password,
-      credentials.node,
-    );
+    const [user] = await loginUser(credentials);
     if (!user || user.Active !== true) {
       return res.status(401).json({ message: "Credenciales inválidas" });
     }

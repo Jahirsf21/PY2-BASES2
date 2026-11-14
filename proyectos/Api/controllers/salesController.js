@@ -20,26 +20,17 @@ import {
 export async function listInvoices(req, res, next) {
   try {
     const { pageNumber, pageSize } = res.locals.pagination;
-    const invoiceID = req.query.invoiceID;
-    const invoiceDateFrom = req.query.invoiceDateFrom;
-    const invoiceDateTo = req.query.invoiceDateTo;
-    const customerName = req.query.customerName;
-    const deliveryMethodID = req.query.deliveryMethodID;
-    const minInvoiceAmount = req.query.minInvoiceAmount;
-    const maxInvoiceAmount = req.query.maxInvoiceAmount;
-    const result = await getInvoices(
-      invoiceID,
-      invoiceDateFrom,
-      invoiceDateTo,
-      customerName,
-      deliveryMethodID,
-      minInvoiceAmount,
-      maxInvoiceAmount,
+    const result = await getInvoices(req.user, {
+      invoiceID: req.query.invoiceID,
+      invoiceDateFrom: req.query.invoiceDateFrom,
+      invoiceDateTo: req.query.invoiceDateTo,
+      customerName: req.query.customerName,
+      deliveryMethodID: req.query.deliveryMethodID,
+      minInvoiceAmount: req.query.minInvoiceAmount,
+      maxInvoiceAmount: req.query.maxInvoiceAmount,
       pageNumber,
       pageSize,
-      req.user.userID,
-      req.user.node,
-    );
+    });
     return paginatedResponse(res, pageNumber, pageSize, result);
   } catch (error) {
     const sqlErrorCode = Number(error.number);
@@ -73,11 +64,7 @@ export async function listInvoices(req, res, next) {
 export async function getInvoiceById(req, res, next) {
   try {
     const { invoiceID } = res.locals.params;
-    const invoice = await getInvoiceHeader(
-      invoiceID,
-      req.user.userID,
-      req.user.node,
-    );
+    const invoice = await getInvoiceHeader(req.user, invoiceID);
     if (invoice.length === 0) {
       return res.status(404).json({ message: "Factura no encontrada" });
     }
@@ -98,11 +85,7 @@ export async function getInvoiceById(req, res, next) {
 export async function getInvoiceEditById(req, res, next) {
   try {
     const { invoiceID } = res.locals.params;
-    const invoice = await getInvoiceForEdit(
-      invoiceID,
-      req.user.userID,
-      req.user.node,
-    );
+    const invoice = await getInvoiceForEdit(req.user, invoiceID);
     if (invoice.length === 0) {
       return res.status(404).json({ message: "Factura no encontrada" });
     }
@@ -123,11 +106,7 @@ export async function getInvoiceEditById(req, res, next) {
 export async function getInvoiceLinesById(req, res, next) {
   try {
     const { invoiceID } = res.locals.params;
-    const lines = await getInvoiceLines(
-      invoiceID,
-      req.user.userID,
-      req.user.node,
-    );
+    const lines = await getInvoiceLines(req.user, invoiceID);
     if (lines.length === 0) {
       return res
         .status(404)
@@ -150,11 +129,7 @@ export async function getInvoiceLinesById(req, res, next) {
 export async function addInvoice(req, res, next) {
   const invoice = req.body;
   try {
-    const invoiceID = await insertInvoice(
-      invoice,
-      req.user.userID,
-      req.user.node,
-    );
+    const invoiceID = await insertInvoice(req.user, invoice);
     return res.status(201).json({ invoiceID });
   } catch (error) {
     if (Number(error.number) === 54000) {
@@ -178,7 +153,7 @@ export async function editInvoice(req, res, next) {
   const { invoiceID } = res.locals.params;
   const invoice = req.body;
   try {
-    await updateInvoice(invoiceID, invoice, req.user.userID, req.user.node);
+    await updateInvoice(req.user, invoiceID, invoice);
     return res.json({ invoiceID });
   } catch (error) {
     const sqlErrorCode = Number(error.number);

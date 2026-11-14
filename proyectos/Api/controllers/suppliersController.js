@@ -22,18 +22,13 @@ import {
 export async function listSuppliers(req, res, next) {
   try {
     const { pageNumber, pageSize } = res.locals.pagination;
-    const supplierName = req.query.supplierName;
-    const supplierCategoryID = req.query.supplierCategoryID;
-    const deliveryMethodID = req.query.deliveryMethodID;
-    const result = await getSuppliers(
-      supplierName,
-      supplierCategoryID,
-      deliveryMethodID,
+    const result = await getSuppliers(req.user, {
+      supplierName: req.query.supplierName,
+      supplierCategoryID: req.query.supplierCategoryID,
+      deliveryMethodID: req.query.deliveryMethodID,
       pageNumber,
       pageSize,
-      req.user.userID,
-      req.user.node,
-    );
+    });
     return paginatedResponse(res, pageNumber, pageSize, result);
   } catch (error) {
     const sqlErrorCode = Number(error.number);
@@ -62,10 +57,7 @@ export async function listSuppliers(req, res, next) {
  */
 export async function listSupplierCategories(req, res, next) {
   try {
-    const categories = await getSupplierCategories(
-      req.user.userID,
-      req.user.node,
-    );
+    const categories = await getSupplierCategories(req.user);
     return res.json(categories);
   } catch (error) {
     return next(error);
@@ -84,11 +76,7 @@ export async function listSupplierCategories(req, res, next) {
 export async function getSupplierById(req, res, next) {
   try {
     const { supplierID } = res.locals.params;
-    const supplier = await getSupplierDetail(
-      supplierID,
-      req.user.userID,
-      req.user.node,
-    );
+    const supplier = await getSupplierDetail(req.user, supplierID);
     if (supplier.length === 0) {
       return res.status(404).json({ message: "Proveedor no encontrado" });
     }
@@ -109,11 +97,7 @@ export async function getSupplierById(req, res, next) {
 export async function getSupplierPrivateById(req, res, next) {
   try {
     const { supplierID } = res.locals.params;
-    const details = await getSupplierPrivateDetail(
-      supplierID,
-      req.user.userID,
-      req.user.node,
-    );
+    const details = await getSupplierPrivateDetail(req.user, supplierID);
     if (details.length === 0) {
       return res
         .status(404)
@@ -157,11 +141,7 @@ export async function getSupplierPrivateById(req, res, next) {
 export async function getSupplierContactsById(req, res, next) {
   try {
     const { supplierID } = res.locals.params;
-    const contacts = await getSupplierContacts(
-      supplierID,
-      req.user.userID,
-      req.user.node,
-    );
+    const contacts = await getSupplierContacts(req.user, supplierID);
     if (contacts.length === 0) {
       return res
         .status(404)
@@ -185,11 +165,7 @@ export async function getSupplierContactsById(req, res, next) {
 export async function getSupplierAddressById(req, res, next) {
   try {
     const { supplierID } = res.locals.params;
-    const address = await getSupplierAddress(
-      supplierID,
-      req.user.userID,
-      req.user.node,
-    );
+    const address = await getSupplierAddress(req.user, supplierID);
     if (address.length === 0) {
       return res
         .status(404)

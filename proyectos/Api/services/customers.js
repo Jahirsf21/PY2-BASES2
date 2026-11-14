@@ -1,73 +1,52 @@
-import { getPool } from "../config/database.js";
 import sql from "mssql";
 import { executeCorporateProcedure } from "../helpers/corporateQuery.js";
+import { executeProcedure } from "../helpers/procedure.js";
 
 /**
  * Obtiene una página de clientes junto con el total de registros.
  * Permite filtrar opcionalmente por nombre de cliente, categoría y método de entrega.
  *
- * @param {string|null} customerName Nombre del cliente (búsqueda parcial) o null para no filtrar.
- * @param {number|null} customerCategoryID ID de la categoría del cliente o null para no filtrar.
- * @param {number|null} deliveryMethodID ID del método de entrega o null para no filtrar.
- * @param {number} pageNumber Número de página solicitado.
- * @param {number} pageSize Cantidad de clientes por página.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
+ * @param {object} session Identidad de req.user, con userID y node.
+ * @param {object} filters customerName (búsqueda parcial), customerCategoryID y deliveryMethodID opcionales,
+ *   con pageNumber y pageSize.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y clientes de la página.
  */
-export async function getCustomers(
-  customerName,
-  customerCategoryID,
-  deliveryMethodID,
-  pageNumber,
-  pageSize,
-  userID,
-  node,
-) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("CustomerName", sql.NVarChar, customerName);
-  connection.input("CustomerCategoryID", sql.Int, customerCategoryID);
-  connection.input("DeliveryMethodID", sql.Int, deliveryMethodID);
-  connection.input("PageNumber", sql.Int, pageNumber);
-  connection.input("PageSize", sql.Int, pageSize);
-  connection.output("TotalCount", sql.Int);
-  const result = await connection.execute("Sales.GetCustomers");
-  return {
-    totalCount: result.output.TotalCount,
-    data: result.recordset,
-  };
+export async function getCustomers(session, filters) {
+  const result = await executeProcedure(
+    session,
+    "Sales.GetCustomers",
+    {
+      CustomerName: [sql.NVarChar, filters.customerName],
+      CustomerCategoryID: [sql.Int, filters.customerCategoryID],
+      DeliveryMethodID: [sql.Int, filters.deliveryMethodID],
+      PageNumber: [sql.Int, filters.pageNumber],
+      PageSize: [sql.Int, filters.pageSize],
+    },
+    { TotalCount: sql.Int },
+  );
+  return { totalCount: result.output.TotalCount, data: result.recordset };
 }
 
 /**
  * Obtiene una página de clientes (ID y nombre) para usar como "cliente por facturar" (BillToCustomerID).
  * Permite filtrar opcionalmente por nombre de cliente.
  *
- * @param {string|null} customerName Nombre del cliente (búsqueda parcial) o null para no filtrar.
- * @param {number} pageNumber Número de página solicitado.
- * @param {number} pageSize Cantidad de clientes por página.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
+ * @param {object} session Identidad de req.user, con userID y node.
+ * @param {object} filters customerName opcional (búsqueda parcial), con pageNumber y pageSize.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y clientes de la página.
  */
-export async function getBillToCustomers(
-  customerName,
-  pageNumber,
-  pageSize,
-  userID,
-  node,
-) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("CustomerName", sql.NVarChar, customerName);
-  connection.input("PageNumber", sql.Int, pageNumber);
-  connection.input("PageSize", sql.Int, pageSize);
-  connection.output("TotalCount", sql.Int);
-  const result = await connection.execute("Sales.GetBillToCustomers");
-  return {
-    totalCount: result.output.TotalCount,
-    data: result.recordset,
-  };
+export async function getBillToCustomers(session, filters) {
+  const result = await executeProcedure(
+    session,
+    "Sales.GetBillToCustomers",
+    {
+      CustomerName: [sql.NVarChar, filters.customerName],
+      PageNumber: [sql.Int, filters.pageNumber],
+      PageSize: [sql.Int, filters.pageSize],
+    },
+    { TotalCount: sql.Int },
+  );
+  return { totalCount: result.output.TotalCount, data: result.recordset };
 }
 
 /**
@@ -75,16 +54,14 @@ export async function getBillToCustomers(
  * Incluye nombre, categoría, grupo de compra, nombre del cliente por facturar,
  * método de entrega y días de gracia.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} customerID Identificador del cliente.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos del cliente en una fila, o un arreglo vacío si no existe.
  */
-export async function getCustomerDetail(customerID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("CustomerID", sql.Int, customerID);
-  const result = await connection.execute("Sales.GetCustomerDetail");
+export async function getCustomerDetail(session, customerID) {
+  const result = await executeProcedure(session, "Sales.GetCustomerDetail", {
+    CustomerID: [sql.Int, customerID],
+  });
   return result.recordset;
 }
 
@@ -93,19 +70,14 @@ export async function getCustomerDetail(customerID, userID, node) {
  * Ejecuta Sales.GetCustomerPrivateDetail en la sucursal, que consulta Sales.v_CustomerPrivate en Corporativo.
  * Devuelve únicamente CustomerID y SitioWeb; los contactos y las direcciones se consultan por separado.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} customerID Identificador del cliente.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Una fila con CustomerID y SitioWeb, o un arreglo vacío si no hay datos.
  */
-export async function getCustomerPrivateDetail(customerID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("CustomerID", sql.Int, customerID);
-  return executeCorporateProcedure(
-    connection,
-    "Sales.GetCustomerPrivateDetail",
-  );
+export async function getCustomerPrivateDetail(session, customerID) {
+  return executeCorporateProcedure(session, "Sales.GetCustomerPrivateDetail", {
+    CustomerID: [sql.Int, customerID],
+  });
 }
 
 // /**
@@ -130,16 +102,14 @@ export async function getCustomerPrivateDetail(customerID, userID, node) {
  * Devuelve nombre, teléfono, fax y correo de ambos contactos en una sola fila.
  * Los nombres se resuelven localmente; las referencias y los datos de contacto provienen de Corporativo.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} customerID Identificador del cliente.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos de los contactos en una fila, o un arreglo vacío si no existe.
  */
-export async function getCustomerContacts(customerID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("CustomerID", sql.Int, customerID);
-  return executeCorporateProcedure(connection, "Sales.GetCustomerContacts");
+export async function getCustomerContacts(session, customerID) {
+  return executeCorporateProcedure(session, "Sales.GetCustomerContacts", {
+    CustomerID: [sql.Int, customerID],
+  });
 }
 
 /**
@@ -147,31 +117,26 @@ export async function getCustomerContacts(customerID, userID, node) {
  * junto con su ubicación geográfica (latitud/longitud).
  * Consulta los datos privados en Corporativo y resuelve los nombres geográficos en la sucursal.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} customerID Identificador del cliente.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Direcciones y coordenadas en una fila, o un arreglo vacío si no existe.
  */
-export async function getCustomerAddress(customerID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("CustomerID", sql.Int, customerID);
-  return executeCorporateProcedure(connection, "Sales.GetCustomerAddress");
+export async function getCustomerAddress(session, customerID) {
+  return executeCorporateProcedure(session, "Sales.GetCustomerAddress", {
+    CustomerID: [sql.Int, customerID],
+  });
 }
 
 /**
  * Obtiene todas las categorías de cliente ordenadas por su identificador.
  * Se usa para llenar el combo de filtros de la lista de clientes.
  *
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
+ * @param {object} session Identidad de req.user, con userID y node.
  * @returns {Promise<object[]>} Listado de categorías de cliente.
  */
-export async function getCustomerCategories(userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  const result = await connection.execute("Sales.GetCustomerCategories");
-  return result.recordset;
+export async function getCustomerCategories(session) {
+  return (await executeProcedure(session, "Sales.GetCustomerCategories"))
+    .recordset;
 }
 
 // /**

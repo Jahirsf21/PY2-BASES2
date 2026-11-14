@@ -28,6 +28,20 @@ export function addParameters(request, params = {}, outputs = {}) {
 }
 
 /**
+ * Prepara una petición en el nodo de la sesión con el @UserID de la sesión verificada.
+ *
+ * @param {object} session Identidad de req.user, con userID y node.
+ * @param {object} [params] Entradas como { Nombre: [tipo, valor] }.
+ * @param {object} [outputs] Salidas como { Nombre: tipo }.
+ * @returns {Promise<import('mssql').Request>} Petición lista para ejecutar.
+ */
+export async function prepareProcedure(session, params = {}, outputs = {}) {
+  const request = (await getPool(session.node)).request();
+  request.input("UserID", sql.Int, session.userID);
+  return addParameters(request, params, outputs);
+}
+
+/**
  * Ejecuta un procedimiento en el nodo de la sesión con el @UserID de la sesión verificada.
  *
  * @param {object} session Identidad de req.user, con userID y node.
@@ -42,8 +56,5 @@ export async function executeProcedure(
   params = {},
   outputs = {},
 ) {
-  const request = (await getPool(session.node)).request();
-  request.input("UserID", sql.Int, session.userID);
-  addParameters(request, params, outputs);
-  return request.execute(procedure);
+  return (await prepareProcedure(session, params, outputs)).execute(procedure);
 }

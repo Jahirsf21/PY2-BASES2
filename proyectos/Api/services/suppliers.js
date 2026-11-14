@@ -1,73 +1,58 @@
-import { getPool } from "../config/database.js";
 import sql from "mssql";
 import { executeCorporateProcedure } from "../helpers/corporateQuery.js";
+import { executeProcedure } from "../helpers/procedure.js";
 
 /**
  * Obtiene una página de proveedores junto con el total de registros.
  * Permite filtrar opcionalmente por nombre de proveedor, categoría y método de entrega.
  *
- * @param {string|null} supplierName Nombre del proveedor (búsqueda parcial) o null para no filtrar.
- * @param {number|null} supplierCategoryID ID de la categoría del proveedor o null para no filtrar.
- * @param {number|null} deliveryMethodID ID del método de entrega o null para no filtrar.
- * @param {number} pageNumber Número de página solicitado.
- * @param {number} pageSize Cantidad de proveedores por página.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
+ * @param {object} session Identidad de req.user, con userID y node.
+ * @param {object} filters supplierName (búsqueda parcial), supplierCategoryID y deliveryMethodID opcionales,
+ *   con pageNumber y pageSize.
  * @returns {Promise<{totalCount: number, data: object[]}>} Total de registros y proveedores de la página.
  */
-export async function getSuppliers(
-  supplierName,
-  supplierCategoryID,
-  deliveryMethodID,
-  pageNumber,
-  pageSize,
-  userID,
-  node,
-) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("SupplierName", sql.NVarChar, supplierName);
-  connection.input("SupplierCategoryID", sql.Int, supplierCategoryID);
-  connection.input("DeliveryMethodID", sql.Int, deliveryMethodID);
-  connection.input("PageNumber", sql.Int, pageNumber);
-  connection.input("PageSize", sql.Int, pageSize);
-  connection.output("TotalCount", sql.Int);
-  const result = await connection.execute("Purchasing.GetSuppliers");
-  return {
-    totalCount: result.output.TotalCount,
-    data: result.recordset,
-  };
+export async function getSuppliers(session, filters) {
+  const result = await executeProcedure(
+    session,
+    "Purchasing.GetSuppliers",
+    {
+      SupplierName: [sql.NVarChar, filters.supplierName],
+      SupplierCategoryID: [sql.Int, filters.supplierCategoryID],
+      DeliveryMethodID: [sql.Int, filters.deliveryMethodID],
+      PageNumber: [sql.Int, filters.pageNumber],
+      PageSize: [sql.Int, filters.pageSize],
+    },
+    { TotalCount: sql.Int },
+  );
+  return { totalCount: result.output.TotalCount, data: result.recordset };
 }
 
 /**
  * Obtiene todas las categorías de proveedor ordenadas por su identificador.
  * Se usa para llenar el combo de filtros de la lista de proveedores.
  *
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
+ * @param {object} session Identidad de req.user, con userID y node.
  * @returns {Promise<object[]>} Listado de categorías de proveedor.
  */
-export async function getSupplierCategories(userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  const result = await connection.execute("Purchasing.GetSupplierCategories");
-  return result.recordset;
+export async function getSupplierCategories(session) {
+  return (await executeProcedure(session, "Purchasing.GetSupplierCategories"))
+    .recordset;
 }
 
 /**
  * Obtiene el detalle general de un proveedor por su identificador.
  * Incluye nombre, categoría, método de entrega y días de gracia.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} supplierID Identificador del proveedor.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos del proveedor en una fila, o un arreglo vacío si no existe.
  */
-export async function getSupplierDetail(supplierID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("SupplierID", sql.Int, supplierID);
-  const result = await connection.execute("Purchasing.GetSupplierDetail");
+export async function getSupplierDetail(session, supplierID) {
+  const result = await executeProcedure(
+    session,
+    "Purchasing.GetSupplierDetail",
+    { SupplierID: [sql.Int, supplierID] },
+  );
   return result.recordset;
 }
 
@@ -78,18 +63,15 @@ export async function getSupplierDetail(supplierID, userID, node) {
  * SucursalBanco, NumeroCuentaBancaria, CodigoSwift.
  * Los contactos y las direcciones se consultan por separado.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} supplierID Identificador del proveedor.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos privados del proveedor en una fila, o un arreglo vacío si no se encuentran.
  */
-export async function getSupplierPrivateDetail(supplierID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("SupplierID", sql.Int, supplierID);
+export async function getSupplierPrivateDetail(session, supplierID) {
   return executeCorporateProcedure(
-    connection,
+    session,
     "Purchasing.GetSupplierPrivateDetail",
+    { SupplierID: [sql.Int, supplierID] },
   );
 }
 
@@ -98,19 +80,14 @@ export async function getSupplierPrivateDetail(supplierID, userID, node) {
  * Devuelve nombre, teléfono, fax y correo de ambos contactos en una sola fila.
  * Los nombres se resuelven localmente; las referencias y los datos de contacto provienen de Corporativo.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} supplierID Identificador del proveedor.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Datos de los contactos en una fila, o un arreglo vacío si no existe.
  */
-export async function getSupplierContacts(supplierID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("SupplierID", sql.Int, supplierID);
-  return executeCorporateProcedure(
-    connection,
-    "Purchasing.GetSupplierContacts",
-  );
+export async function getSupplierContacts(session, supplierID) {
+  return executeCorporateProcedure(session, "Purchasing.GetSupplierContacts", {
+    SupplierID: [sql.Int, supplierID],
+  });
 }
 
 /**
@@ -118,16 +95,14 @@ export async function getSupplierContacts(supplierID, userID, node) {
  * junto con su ubicación geográfica (latitud/longitud).
  * Consulta los datos privados en Corporativo y resuelve los nombres geográficos en la sucursal.
  *
+ * @param {object} session Identidad de req.user, con userID y node.
  * @param {number} supplierID Identificador del proveedor.
- * @param {number} userID Identificador del usuario autenticado.
- * @param {string} node Sucursal del JWT verificado.
  * @returns {Promise<object[]>} Direcciones y coordenadas en una fila, o un arreglo vacío si no existe.
  */
-export async function getSupplierAddress(supplierID, userID, node) {
-  const connection = (await getPool(node)).request();
-  connection.input("UserID", sql.Int, userID);
-  connection.input("SupplierID", sql.Int, supplierID);
-  return executeCorporateProcedure(connection, "Purchasing.GetSupplierAddress");
+export async function getSupplierAddress(session, supplierID) {
+  return executeCorporateProcedure(session, "Purchasing.GetSupplierAddress", {
+    SupplierID: [sql.Int, supplierID],
+  });
 }
 
 // /**

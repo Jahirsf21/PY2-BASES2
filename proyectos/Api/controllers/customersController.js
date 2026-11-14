@@ -23,18 +23,13 @@ import {
 export async function listCustomers(req, res, next) {
   try {
     const { pageNumber, pageSize } = res.locals.pagination;
-    const customerName = req.query.customerName;
-    const customerCategoryID = req.query.customerCategoryID;
-    const deliveryMethodID = req.query.deliveryMethodID;
-    const result = await getCustomers(
-      customerName,
-      customerCategoryID,
-      deliveryMethodID,
+    const result = await getCustomers(req.user, {
+      customerName: req.query.customerName,
+      customerCategoryID: req.query.customerCategoryID,
+      deliveryMethodID: req.query.deliveryMethodID,
       pageNumber,
       pageSize,
-      req.user.userID,
-      req.user.node,
-    );
+    });
     return paginatedResponse(res, pageNumber, pageSize, result);
   } catch (error) {
     const sqlErrorCode = Number(error.number);
@@ -64,14 +59,11 @@ export async function listCustomers(req, res, next) {
 export async function listBillToCustomers(req, res, next) {
   try {
     const { pageNumber, pageSize } = res.locals.pagination;
-    const customerName = req.query.customerName;
-    const result = await getBillToCustomers(
-      customerName,
+    const result = await getBillToCustomers(req.user, {
+      customerName: req.query.customerName,
       pageNumber,
       pageSize,
-      req.user.userID,
-      req.user.node,
-    );
+    });
     return paginatedResponse(res, pageNumber, pageSize, result);
   } catch (error) {
     return next(error);
@@ -89,10 +81,7 @@ export async function listBillToCustomers(req, res, next) {
  */
 export async function listCustomerCategories(req, res, next) {
   try {
-    const categories = await getCustomerCategories(
-      req.user.userID,
-      req.user.node,
-    );
+    const categories = await getCustomerCategories(req.user);
     return res.json(categories);
   } catch (error) {
     return next(error);
@@ -130,11 +119,7 @@ export async function listCustomerCategories(req, res, next) {
 export async function getCustomerById(req, res, next) {
   try {
     const { customerID } = res.locals.params;
-    const customer = await getCustomerDetail(
-      customerID,
-      req.user.userID,
-      req.user.node,
-    );
+    const customer = await getCustomerDetail(req.user, customerID);
     if (customer.length === 0) {
       return res.status(404).json({ message: "Cliente no encontrado" });
     }
@@ -155,11 +140,7 @@ export async function getCustomerById(req, res, next) {
 export async function getCustomerPrivateById(req, res, next) {
   try {
     const { customerID } = res.locals.params;
-    const details = await getCustomerPrivateDetail(
-      customerID,
-      req.user.userID,
-      req.user.node,
-    );
+    const details = await getCustomerPrivateDetail(req.user, customerID);
     if (details.length === 0) {
       return res
         .status(404)
@@ -203,11 +184,7 @@ export async function getCustomerPrivateById(req, res, next) {
 export async function getCustomerContactsById(req, res, next) {
   try {
     const { customerID } = res.locals.params;
-    const contacts = await getCustomerContacts(
-      customerID,
-      req.user.userID,
-      req.user.node,
-    );
+    const contacts = await getCustomerContacts(req.user, customerID);
     if (contacts.length === 0) {
       return res.status(404).json({ message: "Contactos no encontrados" });
     }
@@ -229,11 +206,7 @@ export async function getCustomerContactsById(req, res, next) {
 export async function getCustomerAddressById(req, res, next) {
   try {
     const { customerID } = res.locals.params;
-    const address = await getCustomerAddress(
-      customerID,
-      req.user.userID,
-      req.user.node,
-    );
+    const address = await getCustomerAddress(req.user, customerID);
     if (address.length === 0) {
       return res.status(404).json({ message: "Direccion no encontrada" });
     }

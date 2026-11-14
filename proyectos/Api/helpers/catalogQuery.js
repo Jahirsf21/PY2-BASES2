@@ -3,7 +3,7 @@ import { getPool } from "../config/database.js";
 import { idSchema } from "../schemas/common.js";
 import { isRoleAllowedInNode } from "./entityValidation.js";
 import { isConnectionError } from "./connectionErrors.js";
-import { addParameters } from "./procedure.js";
+import { addParameters, executeProcedure } from "./procedure.js";
 
 const userIDSchema = idSchema("Usuario", true);
 
@@ -40,10 +40,9 @@ export async function executeCatalogProcedure(
       });
     }
 
-    const origin = (await getPool(node)).request();
-    origin.input("UserID", sql.Int, userID);
-    origin.input("RequiredRole", sql.NVarChar(50), "Administrador");
-    await origin.execute("dbo.ValidateUserAccess");
+    await executeProcedure(session, "dbo.ValidateUserAccess", {
+      RequiredRole: [sql.NVarChar(50), "Administrador"],
+    });
 
     targetNode = "corporativo";
     const request = (await getPool(targetNode)).request();

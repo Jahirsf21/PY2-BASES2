@@ -18,14 +18,11 @@ import {
 export async function listPeople(req, res, next) {
   try {
     const { pageNumber, pageSize } = res.locals.pagination;
-    const fullName = req.query.fullName;
-    const result = await getPeople(
-      fullName,
+    const result = await getPeople(req.user, {
+      fullName: req.query.fullName,
       pageNumber,
       pageSize,
-      req.user.userID,
-      req.user.node,
-    );
+    });
     return paginatedResponse(res, pageNumber, pageSize, result);
   } catch (error) {
     return next(error);
@@ -43,18 +40,13 @@ export async function listPeople(req, res, next) {
 export async function listCities(req, res, next) {
   try {
     const { pageNumber, pageSize } = res.locals.pagination;
-    const cityName = req.query.cityName;
-    const provinceName = req.query.provinceName;
-    const countryName = req.query.countryName;
-    const result = await getCities(
-      cityName,
-      provinceName,
-      countryName,
+    const result = await getCities(req.user, {
+      cityName: req.query.cityName,
+      provinceName: req.query.provinceName,
+      countryName: req.query.countryName,
       pageNumber,
       pageSize,
-      req.user.userID,
-      req.user.node,
-    );
+    });
     return paginatedResponse(res, pageNumber, pageSize, result);
   } catch (error) {
     return next(error);
@@ -72,7 +64,7 @@ export async function listCities(req, res, next) {
  */
 export async function listDeliveryMethods(req, res, next) {
   try {
-    const methods = await getDeliveryMethods(req.user.userID, req.user.node);
+    const methods = await getDeliveryMethods(req.user);
     return res.json(methods);
   } catch (error) {
     return next(error);
@@ -89,7 +81,7 @@ export async function listDeliveryMethods(req, res, next) {
  */
 export async function listEmployees(req, res, next) {
   try {
-    const employees = await getEmployees(req.user.userID, req.user.node);
+    const employees = await getEmployees(req.user);
     return res.json(employees);
   } catch (error) {
     return next(error);
@@ -106,7 +98,7 @@ export async function listEmployees(req, res, next) {
  */
 export async function listSalespeople(req, res, next) {
   try {
-    const salespeople = await getSalespeople(req.user.userID, req.user.node);
+    const salespeople = await getSalespeople(req.user);
     return res.json(salespeople);
   } catch (error) {
     return next(error);
