@@ -48,19 +48,14 @@ app.use((error, req, res, next) => {
   }
   const sqlErrorCode = Number(error.number);
   if (sqlErrorCode === 56003) {
-    return res
-      .status(401)
-      .json({
-        message:
-          "El usuario no existe o está inactivo. Inicie sesión nuevamente",
-      });
+    return res.status(401).json({
+      message: "El usuario no existe o está inactivo. Inicie sesión nuevamente",
+    });
   }
   if (sqlErrorCode === 56001) {
-    return res
-      .status(403)
-      .json({
-        message: "El rol no tiene permisos para realizar esta operación",
-      });
+    return res.status(403).json({
+      message: "El rol no tiene permisos para realizar esta operación",
+    });
   }
   if (isCatalogConnectionError(error)) {
     const message =
@@ -70,20 +65,16 @@ app.use((error, req, res, next) => {
     return res.status(503).json({ message });
   }
   if (isCorporateConnectionError(error)) {
-    return res
-      .status(503)
-      .json({
-        message:
-          "No fue posible consultar los datos sensibles de Corporativo. Intente nuevamente",
-      });
+    return res.status(503).json({
+      message:
+        "No fue posible consultar los datos sensibles de Corporativo. Intente nuevamente",
+    });
   }
   if (isConnectionError(error)) {
-    return res
-      .status(503)
-      .json({
-        message:
-          "La sucursal seleccionada no está disponible. Intente nuevamente",
-      });
+    return res.status(503).json({
+      message:
+        "La sucursal seleccionada no está disponible. Intente nuevamente",
+    });
   }
   res.status(500).json({ message: "Error interno del servidor" });
 });

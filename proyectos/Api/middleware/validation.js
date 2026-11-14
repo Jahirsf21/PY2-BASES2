@@ -38,6 +38,22 @@ export const validateParams = (schema) => (req, res, next) => {
 };
 
 /**
+ * Crea un middleware que valida los filtros de req.query antes de ejecutar el controlador.
+ * Express 5 expone req.query como getter, por lo que los valores convertidos se guardan en res.locals.query.
+ *
+ * @param {import('zod').ZodType} schema Esquema que deben cumplir los filtros.
+ * @returns {import('express').RequestHandler} Middleware que responde 400 con message si algún filtro es inválido.
+ */
+export const validateQuery = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.query);
+  if (!result.success) {
+    return res.status(400).json({ message: result.error.issues[0].message });
+  }
+  res.locals.query = result.data;
+  next();
+};
+
+/**
  * Valida pageNumber y pageSize antes de ejecutar un controlador paginado.
  * Express 5 expone req.query como getter, por lo que los números validados se guardan en res.locals.pagination.
  *

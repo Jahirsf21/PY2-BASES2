@@ -12,10 +12,46 @@ import {
   listSupplierPurchaseTracking,
 } from "../controllers/statsController.js";
 import { requireRole } from "../middleware/auth.js";
-import { validatePagination } from "../middleware/validation.js";
+import { sqlErrors } from "../middleware/sqlErrors.js";
+import { validatePagination, validateQuery } from "../middleware/validation.js";
+import {
+  customerSalesSummaryQuery,
+  monthlyTrackingQuery,
+  productCategorySalesByYearQuery,
+  supplierPurchaseSummaryQuery,
+  topCustomersByYearQuery,
+  topProductsByYearQuery,
+  topSuppliersByYearQuery,
+} from "../schemas/stats.js";
 
-// Rutas de Estadísticas (compras y ventas).
+// Rutas de Estadísticas (compras y ventas). Los reportes admiten ?sucursal=san-jose|limon; sin ella son consolidados.
 const router = Router();
+
+/** Errores de la sucursal, compartidos por los ocho reportes. */
+const sucursalErrors = {
+  50006: [400, "La sucursal indicada no es válida"],
+};
+
+/** Errores de los reportes con rango de años. */
+const yearRangeErrors = sqlErrors({
+  50001: [400, "El año inicial indicado no existe en la base de datos"],
+  50002: [400, "El año final indicado no existe en la base de datos"],
+  50003: [400, "El año inicial no puede ser mayor que el año final"],
+  ...sucursalErrors,
+});
+
+/** Errores de los seguimientos mensuales. */
+const trackingErrors = sqlErrors({
+  50001: [400, "El año indicado no existe en la base de datos"],
+  50002: [400, "El mes debe estar entre 1 y 12"],
+  50003: [
+    400,
+    "StockGroupIDsJson debe ser un arreglo JSON de IDs de categorías",
+  ],
+  50004: [400, "Los IDs de categorías deben ser números enteros positivos"],
+  50005: [400, "Una o más categorías indicadas no existen en la base de datos"],
+  ...sucursalErrors,
+});
 
 /**
  * GET /stats/purchase-years
@@ -39,96 +75,104 @@ router.get(
 
 /**
  * GET /stats/supplier-purchase-summary
- * Devuelve el resumen de montos de órdenes de compra por proveedor y categoría, con un resumen general.
- * Query params: supplierName, supplierCategoryName
- * supplierCategoryName: nombre parcial de categoría; ausente o vacío para consultar todas.
+ * Query params: supplierName, supplierCategoryName, sucursal (opcionales).
  */
 router.get(
   "/stats/supplier-purchase-summary",
   requireRole("Corporativo"),
+  validateQuery(supplierPurchaseSummaryQuery),
   listSupplierPurchaseSummary,
+  sqlErrors(sucursalErrors),
 );
 
 /**
  * GET /stats/customer-sales-summary
- * Devuelve una página del resumen de montos de ventas por cliente y categoría.
- * Query params: customerName, customerCategoryName, pageNumber, pageSize
- * customerCategoryName: nombre parcial de categoría; ausente o vacío para consultar todas.
+ * Query params: pageNumber, pageSize; customerName, customerCategoryName, sucursal (opcionales).
  */
 router.get(
   "/stats/customer-sales-summary",
   requireRole("Corporativo"),
   validatePagination,
+  validateQuery(customerSalesSummaryQuery),
   listCustomerSalesSummary,
+  sqlErrors(sucursalErrors),
 );
 
 /**
  * GET /stats/top-customers-by-year
- * Devuelve los clientes con los cinco primeros puestos por cantidad de facturas por año, incluyendo empates.
- * Query params: invoiceYearFrom, invoiceYearTo
+ * Query params: invoiceYearFrom, invoiceYearTo, sucursal (opcionales).
  */
 router.get(
   "/stats/top-customers-by-year",
   requireRole("Corporativo"),
+  validateQuery(topCustomersByYearQuery),
   listTopCustomersByYear,
+  yearRangeErrors,
 );
 
 /**
  * GET /stats/top-products-by-year
- * Devuelve los productos con los cinco primeros puestos por ganancia acumulada de cada año, incluyendo empates.
- * Query params: year
+ * Query params: year, sucursal (opcionales).
  */
 router.get(
   "/stats/top-products-by-year",
   requireRole("Corporativo"),
+  validateQuery(topProductsByYearQuery),
   listTopProductsByYear,
+  sqlErrors({
+    50001: [400, "El año indicado no existe en la base de datos"],
+    ...sucursalErrors,
+  }),
 );
 
 /**
  * GET /stats/top-suppliers-by-year
- * Devuelve los proveedores con los cinco primeros puestos por cantidad de compras por año, incluyendo empates.
- * Query params: orderYearFrom, orderYearTo
+ * Query params: orderYearFrom, orderYearTo, sucursal (opcionales).
  */
 router.get(
   "/stats/top-suppliers-by-year",
   requireRole("Corporativo"),
+  validateQuery(topSuppliersByYearQuery),
   listTopSuppliersByYear,
+  yearRangeErrors,
 );
 
 /**
  * GET /stats/product-category-sales-by-year
- * Devuelve el monto facturado por año con los grupos de productos como columnas.
+ * Query params: sucursal (opcional).
  */
 router.get(
   "/stats/product-category-sales-by-year",
   requireRole("Corporativo"),
+  validateQuery(productCategorySalesByYearQuery),
   listProductCategorySalesByYear,
+  sqlErrors(sucursalErrors),
 );
 
 /**
  * GET /stats/customer-sales-tracking
- * Devuelve una página del seguimiento mensual de ventas por cliente, con categorías de productos.
- * Query params: year, month, stockGroupIDsJson, pageNumber, pageSize
- * stockGroupIDsJson: arreglo JSON de IDs de categorías, como '[1,3,5]'; ausente o '[]' para consultar todas.
+ * Query params: pageNumber, pageSize; year, month, stockGroupIDsJson, sucursal (opcionales).
  */
 router.get(
   "/stats/customer-sales-tracking",
   requireRole("Corporativo"),
   validatePagination,
+  validateQuery(monthlyTrackingQuery),
   listCustomerSalesTracking,
+  trackingErrors,
 );
 
 /**
  * GET /stats/supplier-purchase-tracking
- * Devuelve el seguimiento mensual paginado de compras por proveedor, con categorías de productos.
- * Query params enviados al procedimiento: year, month, stockGroupIDsJson, pageNumber, pageSize
- * stockGroupIDsJson: arreglo JSON de IDs de categorías, como '[1,3,5]'; ausente o '[]' para consultar todas.
+ * Query params: pageNumber, pageSize; year, month, stockGroupIDsJson, sucursal (opcionales).
  */
 router.get(
   "/stats/supplier-purchase-tracking",
   requireRole("Corporativo"),
   validatePagination,
+  validateQuery(monthlyTrackingQuery),
   listSupplierPurchaseTracking,
+  trackingErrors,
 );
 
 export default router;

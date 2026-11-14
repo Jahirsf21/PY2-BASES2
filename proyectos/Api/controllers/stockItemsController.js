@@ -160,11 +160,9 @@ export async function getStockItemHoldingsById(req, res) {
     res.locals.params.stockItemID,
   );
   if (!holdings) {
-    return res
-      .status(404)
-      .json({
-        message: "El producto todavía no está disponible en esta sucursal",
-      });
+    return res.status(404).json({
+      message: "El producto todavía no está disponible en esta sucursal",
+    });
   }
   return res.json(holdings);
 }

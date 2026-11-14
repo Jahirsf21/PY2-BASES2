@@ -44,11 +44,9 @@ export async function listInvoices(req, res, next) {
   } catch (error) {
     const sqlErrorCode = Number(error.number);
     if (sqlErrorCode === 54004) {
-      return res
-        .status(400)
-        .json({
-          message: "La fecha inicial no puede ser mayor que la fecha final",
-        });
+      return res.status(400).json({
+        message: "La fecha inicial no puede ser mayor que la fecha final",
+      });
     }
     if (sqlErrorCode === 54005) {
       return res
@@ -56,11 +54,9 @@ export async function listInvoices(req, res, next) {
         .json({ message: "Los montos no pueden ser negativos" });
     }
     if (sqlErrorCode === 54006) {
-      return res
-        .status(400)
-        .json({
-          message: "El monto mínimo no puede ser mayor que el monto máximo",
-        });
+      return res.status(400).json({
+        message: "El monto mínimo no puede ser mayor que el monto máximo",
+      });
     }
     return next(error);
   }
